@@ -841,7 +841,7 @@ beat_schedule = {
 
 ---
 
-## 8) MART builds: SQL шаблоны
+## 8) MART builds: SQL шаблоны ✅
 
 ### 8.1 mrt_sales_daily
 ```sql
