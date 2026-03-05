@@ -787,7 +787,7 @@ GROUP BY marketplace, account_id;
 
 ---
 
-## 6) Watermarks и locking (workers/app/utils)
+## 6) Watermarks и locking (workers/app/utils) ✅
 
 ### 6.1 sys_watermarks
 - get_watermark(source, account_id) → DateTime (UTC) default: now()-48h
