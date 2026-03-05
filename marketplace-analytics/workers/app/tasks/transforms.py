@@ -45,7 +45,7 @@ SELECT
   last_change_ts,
   payload AS meta_json,
   ingested_at
-FROM raw_wb_sales
+FROM raw_wb_sales FINAL
 WHERE event_ts >= now() - toIntervalDay({days})
 """
 
@@ -76,7 +76,7 @@ SELECT
   last_change_ts,
   payload AS meta_json,
   ingested_at
-FROM raw_wb_orders
+FROM raw_wb_orders FINAL
 WHERE event_ts >= now() - toIntervalDay({days})
 """
 
@@ -111,7 +111,7 @@ SELECT
   NULL AS present,
   payload AS meta_json,
   ingested_at
-FROM raw_wb_stocks
+FROM raw_wb_stocks FINAL
 WHERE snapshot_ts >= now() - toIntervalDay({days})
 """
 
@@ -156,7 +156,7 @@ SELECT
   currency,
   payload AS meta_json,
   ingested_at
-FROM raw_wb_funnel_daily
+FROM raw_wb_funnel_daily FINAL
 WHERE day >= today() - {days}
 """
 
@@ -199,8 +199,16 @@ SELECT
   p.created_at AS last_change_ts,
   i.payload AS meta_json,
   i.ingested_at
-FROM raw_ozon_posting_items i
-LEFT JOIN raw_ozon_postings p
+FROM
+  (
+    SELECT *
+    FROM raw_ozon_posting_items FINAL
+  ) i
+LEFT JOIN
+  (
+    SELECT *
+    FROM raw_ozon_postings FINAL
+  ) p
   ON i.account_id = p.account_id
  AND i.posting_number = p.posting_number
 WHERE i.ingested_at >= now() - toIntervalDay({days})
@@ -233,7 +241,7 @@ SELECT
   in_process_at AS last_change_ts,
   payload AS meta_json,
   ingested_at
-FROM raw_ozon_postings
+FROM raw_ozon_postings FINAL
 WHERE created_at >= now() - toIntervalDay({days})
 """
 
@@ -268,7 +276,7 @@ SELECT
   present,
   payload AS meta_json,
   ingested_at
-FROM raw_ozon_stocks
+FROM raw_ozon_stocks FINAL
 WHERE snapshot_ts >= now() - toIntervalDay({days})
 """
 
@@ -299,7 +307,7 @@ SELECT
   revenue,
   payload AS meta_json,
   ingested_at
-FROM raw_ozon_ads_daily
+FROM raw_ozon_ads_daily FINAL
 WHERE day >= today() - {days}
 """
 
@@ -326,7 +334,7 @@ SELECT
   currency,
   payload AS meta_json,
   ingested_at
-FROM raw_ozon_finance_ops
+FROM raw_ozon_finance_ops FINAL
 WHERE operation_ts >= now() - toIntervalDay({days})
 """
 
@@ -359,7 +367,7 @@ SELECT
   NULL AS brand,
   NULL AS category,
   now() AS updated_at
-FROM raw_wb_sales
+FROM raw_wb_sales FINAL
 WHERE event_ts >= now() - toIntervalDay({days})
 GROUP BY account_id, nm_id, chrt_id
 """
@@ -382,27 +390,50 @@ INSERT INTO dim_product
 )
 SELECT
   'ozon' AS marketplace,
-  account_id,
-  toString(ozon_product_id) AS product_id,
+  i.account_id,
+  toString(i.ozon_product_id) AS product_id,
   NULL AS nm_id,
   NULL AS chrt_id,
-  any(offer_id) AS sku,
-  any(offer_id) AS offer_id,
-  ozon_product_id,
-  any(name) AS title,
+  any(i.offer_id) AS sku,
+  any(i.offer_id) AS offer_id,
+  i.ozon_product_id,
+  any(i.name) AS title,
   NULL AS brand,
   NULL AS category,
   now() AS updated_at
-FROM raw_ozon_posting_items
-WHERE ingested_at >= now() - toIntervalDay({days})
-GROUP BY account_id, ozon_product_id
+FROM
+  (
+    SELECT *
+    FROM raw_ozon_posting_items FINAL
+  ) i
+WHERE i.ingested_at >= now() - toIntervalDay({days})
+GROUP BY i.account_id, i.ozon_product_id
 """
+
+STG_REBUILD_TABLES = (
+    ("stg_sales", "day"),
+    ("stg_orders", "day"),
+    ("stg_stocks", "day"),
+    ("stg_funnel_daily", "day"),
+)
+
+STG_LONG_REBUILD_TABLES = (
+    ("stg_ads_daily", "day"),
+    ("stg_finance_ops", "day"),
+)
 
 
 def _run_transform(days: int, task_name: str) -> dict[str, int | str]:
     run_id, started_at = new_run_context(task_name)
     client = get_ch_client()
     try:
+        ads_days = max(days, 60)
+        client.command("SET mutations_sync = 1")
+        for table_name, day_column in STG_REBUILD_TABLES:
+            client.command(f"ALTER TABLE {table_name} DELETE WHERE {day_column} >= today() - {days}")
+        for table_name, day_column in STG_LONG_REBUILD_TABLES:
+            client.command(f"ALTER TABLE {table_name} DELETE WHERE {day_column} >= today() - {ads_days}")
+
         client.command(WB_SALES_TO_STG_SQL.format(days=days))
         client.command(WB_ORDERS_TO_STG_SQL.format(days=days))
         client.command(WB_STOCKS_TO_STG_SQL.format(days=days))
@@ -410,8 +441,8 @@ def _run_transform(days: int, task_name: str) -> dict[str, int | str]:
         client.command(OZON_SALES_TO_STG_SQL.format(days=days))
         client.command(OZON_ORDERS_TO_STG_SQL.format(days=days))
         client.command(OZON_STOCKS_TO_STG_SQL.format(days=days))
-        client.command(OZON_ADS_TO_STG_SQL.format(days=max(days, 60)))
-        client.command(OZON_FINANCE_TO_STG_SQL.format(days=max(days, 60)))
+        client.command(OZON_ADS_TO_STG_SQL.format(days=ads_days))
+        client.command(OZON_FINANCE_TO_STG_SQL.format(days=ads_days))
         client.command(SYNC_DIM_PRODUCT_WB_SQL.format(days=max(days, 30)))
         client.command(SYNC_DIM_PRODUCT_OZON_SQL.format(days=max(days, 30)))
         log_task_run(client, task_name, run_id, started_at, "success", 0, f"transform done for {days} days")

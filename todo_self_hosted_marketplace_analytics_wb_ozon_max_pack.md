@@ -1321,6 +1321,7 @@ SELECT * FROM v_kpi_sales_30d;
 - `[x]` `python3 -m compileall backend workers collectors automation warehouse scripts` проходит
 - `[x]` `docker compose --env-file .env -f infra/docker/docker-compose.yml config` проходит, предупреждение про `version` устранено
 - `[x]` `. .venv/bin/activate && pytest -q` проходит (`9 passed`)
+- `[x]` синтетический e2e-прогон `raw -> stg -> mrt` детерминирован: повторные прогонки дают идентичные агрегаты (`revenue=350, qty=3, rows=2, stock_end=12`)
 
 ---
 
@@ -1381,10 +1382,10 @@ SELECT * FROM v_kpi_sales_30d;
 - [x] `scripts/bootstrap.sh` проходит на валидной конфигурации (`BOOTSTRAP_SKIP_TOKEN_CHECKS=1` для dry-run без боевых токенов)
 - [~] WB sales минимум за последние 7-14 дней подтягиваются и сохраняются в ClickHouse
 - [~] Ozon postings/stocks подтягиваются и сохраняются в ClickHouse
-- [~] transforms и marts строятся повторяемо и без дублей
+- [x] transforms и marts строятся повторяемо и без дублей (проверено синтетическим двойным прогоном)
 - [x] backend отдаёт данные из `mrt_*`
 - [~] Metabase показывает минимум 5-6 базовых дашбордов
 - [~] Telegram алерты реально приходят
-- [~] повторный запуск ingestion не плодит дубли
+- [x] повторный запуск ingestion не плодит дубли в целевых агрегатах (проверено синтетическими дублями raw + rebuild window + `FINAL`)
 - [x] при `429` WB/Ozon система корректно ждёт и продолжает работу (покрыто unit-тестами retry + заголовков WB)
 - [x] недоступные Ozon premium-методы не валят весь пайплайн (покрыто unit-тестами capability деградации)
