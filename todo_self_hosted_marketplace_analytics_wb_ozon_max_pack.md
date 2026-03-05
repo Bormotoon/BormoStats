@@ -145,7 +145,7 @@ marketplace-analytics/
 
 ---
 
-## 3) ENV конфигурация (.env.example)
+## 3) ENV конфигурация (.env.example) ✅
 
 ```dotenv
 # General
