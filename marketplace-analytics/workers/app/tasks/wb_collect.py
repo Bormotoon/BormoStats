@@ -277,13 +277,50 @@ def wb_sales_backfill_days(days: int = 14, account_id: str = WB_ACCOUNT_ID) -> d
 @shared_task(name="tasks.wb_collect.wb_orders_backfill_days")
 def wb_orders_backfill_days(days: int = 14, account_id: str = WB_ACCOUNT_ID) -> dict[str, Any]:
     safe_days = max(1, min(days, 90))
-    start_from = datetime.now(UTC) - timedelta(days=safe_days)
+    task_name = "tasks.wb_collect.wb_orders_backfill_days"
+    run_id, started_at = new_run_context(task_name)
+    wb = _wb_client()
+    if wb is None:
+        return {"status": "skipped", "reason": "missing WB tokens"}
+
+    now_day = datetime.now(UTC).date()
+    start_day = now_day - timedelta(days=safe_days)
+    total_rows = 0
+    latest_seen_ts: datetime | None = None
+
+    ch_client = get_ch_client()
+    redis_client = get_redis_client()
     try:
-        result = _collect_orders_incremental(account_id=account_id, start_from=start_from)
-        result["days"] = safe_days
-        return result
+        with lock_scope(redis_client=redis_client, source="wb_orders", account_id=account_id, ttl_seconds=1800):
+            for day_cursor, _ in date_chunks(start_day, now_day, chunk_days=1):
+                records = wb.orders_for_day(day_cursor)
+                rows = parse_orders(records, run_id=run_id, account_id=account_id)
+                total_rows += _insert_rows(ch_client, "raw_wb_orders", RAW_WB_ORDERS_COLUMNS, rows)
+                if rows:
+                    day_latest = max(row["last_change_ts"] for row in rows)
+                    day_latest_utc = day_latest.replace(tzinfo=UTC)
+                    if latest_seen_ts is None or day_latest_utc > latest_seen_ts:
+                        latest_seen_ts = day_latest_utc
+
+            if latest_seen_ts is not None:
+                set_watermark(ch_client, "wb_orders", account_id, latest_seen_ts)
+            log_task_run(
+                ch_client,
+                task_name,
+                run_id,
+                started_at,
+                "success",
+                total_rows,
+                f"wb orders backfill by day ({safe_days} days)",
+            )
+            return {"status": "success", "rows": total_rows, "days": safe_days}
     except LockNotAcquired:
         return {"status": "skipped", "reason": "lock_not_acquired"}
+    except Exception as exc:
+        log_task_run(ch_client, task_name, run_id, started_at, "failed", total_rows, str(exc))
+        raise
+    finally:
+        ch_client.close()
 
 
 @shared_task(name="tasks.wb_collect.wb_funnel_backfill_days")
