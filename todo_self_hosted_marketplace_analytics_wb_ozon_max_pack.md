@@ -1311,7 +1311,7 @@ SELECT * FROM v_kpi_sales_30d;
 - `[x]` WB funnel: hourly roll работает на скользящем 7-дневном окне, backfill поддерживает период до 365 дней с чанкингом
 - `[x]` Ozon postings/orders: добавлены пагинация, агрегированный сбор по схемам `fbs/fbo` и дедупликация по posting number
 - `[x]` Observability: есть `sys_task_runs`, JSON logging, `/metrics` endpoint и базовые Prometheus counters/gauges/histograms в workers
-- `[~]` Документация есть, но пока короче, чем целевая спецификация
+- `[x]` Документация расширена до целевой спецификации: README + architecture + metabase + troubleshooting
 
 ### 20.3 Что пока отсутствует
 - `[ ]` Product mapping sync и полноценное наполнение `dim_product`
@@ -1370,7 +1370,7 @@ SELECT * FROM v_kpi_sales_30d;
 - [x] observability
 - [x] tests
 - [x] CI/CD
-- [~] docs
+- [x] docs
 - [ ] final acceptance pass
 
 ---

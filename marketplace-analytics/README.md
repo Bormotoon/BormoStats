@@ -2,6 +2,11 @@
 
 Self-hosted analytics stack for Wildberries and Ozon seller accounts.
 
+## Scope
+
+This project is designed for data from your own seller accounts only.
+It does not collect competitor/category intelligence and does not scrape marketplace storefronts.
+
 ## What is included
 
 - `workers` collect data from WB/Ozon APIs into ClickHouse raw tables
@@ -9,6 +14,21 @@ Self-hosted analytics stack for Wildberries and Ozon seller accounts.
 - `backend` provides read-only metrics API and admin endpoints
 - `automation` executes YAML rules and sends Telegram alerts
 - `metabase` is available in docker-compose for dashboards
+
+## Required credentials
+
+- WB:
+  - `WB_TOKEN_STATISTICS` (statistics endpoints)
+  - `WB_TOKEN_ANALYTICS` (analytics endpoints)
+  - optional `WB_TOKEN_CREATED_AT` for expiry reminder (WB tokens are valid for 180 days)
+- Ozon:
+  - `OZON_CLIENT_ID`
+  - `OZON_API_KEY`
+  - optional `OZON_PERF_API_KEY` for ads/performance endpoints
+- Admin API:
+  - `ADMIN_API_KEY`
+- Telegram alerts:
+  - `TG_BOT_TOKEN`, `TG_CHAT_ID`
 
 ## Quick start
 
@@ -19,7 +39,6 @@ cp .env.example .env
 ```
 
 2. Fill API tokens and admin key in `.env`.
-   Optional: set `WB_TOKEN_CREATED_AT` to get expiry warning (WB tokens are valid for 180 days).
 
 3. Run bootstrap (start services + migrations + smoke checks):
 
@@ -34,6 +53,8 @@ curl http://localhost:8000/health
 curl http://localhost:8000/ready
 curl http://localhost:8000/metrics
 ```
+
+5. Open Metabase at `http://localhost:3000` and connect to ClickHouse using values from `.env`.
 
 ## Main API endpoints
 
@@ -55,6 +76,19 @@ Admin (`X-API-Key` required):
 - `make logs` — follow container logs
 - `make check-tokens` — validate env values + API credentials
 - `python3 scripts/backfill.py --marketplace wb --dataset sales --days 14 --api-key <KEY>`
+- `python3 scripts/backfill.py --marketplace ozon --dataset finance --days 30 --api-key <KEY>`
+
+## Telegram alerts
+
+1. Set `TG_BOT_TOKEN` and `TG_CHAT_ID` in `.env`.
+2. Ensure `tasks.maintenance.run_automation_rules` runs (beat schedule).
+3. Keep rules in `automation/rules/*.yml` aligned with your thresholds.
+
+## Troubleshooting quick links
+
+- API rate limits / upstream errors: see `docs/troubleshooting.md` (`429/5xx` section)
+- No new data: check watermarks and manual backfill instructions
+- Capability/premium issues on Ozon methods: check `sys_task_runs.meta_json`
 
 ## Data model
 

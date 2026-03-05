@@ -4,6 +4,7 @@
 
 - Check `clickhouse` and `redis` containers are healthy (`make ps`)
 - Verify `.env` credentials (`CH_*`, `REDIS_URL`)
+- Check ClickHouse ping: `curl http://localhost:8123/ping`
 
 ## Worker tasks are not running
 
@@ -18,6 +19,38 @@
   - `tasks.transforms.transform_all_recent`
   - `tasks.marts.build_marts_recent`
 - Confirm raw tables have rows before transforms
+
+## Frequent `429` / `5xx` from WB/Ozon
+
+- Ensure workers are not over-concurrent for same source/account
+- Review retry behavior in `collectors/common/http_client.py`
+- Validate upstream API status and quotas before increasing schedule frequency
+- Backfill after incident window:
+  - `python3 scripts/backfill.py --marketplace wb --dataset sales --days 14 --api-key <KEY>`
+  - `python3 scripts/backfill.py --marketplace ozon --dataset postings --days 14 --api-key <KEY>`
+
+## Watermark looks stuck
+
+- Inspect latest values in `/api/v1/admin/watermarks`
+- Check corresponding task in `/api/v1/admin/task-runs`
+- Verify source lock is not permanently held (`lock:{source}:{account_id}` in Redis)
+- Run explicit backfill for affected dataset and account
+
+## Rebuild marts for a period
+
+- Trigger mart rebuild via admin API:
+  - `POST /api/v1/admin/backfill` with `{"marketplace":"marts","dataset":"build","days":14}`
+- Or via script:
+  - `python3 scripts/backfill.py --marketplace marts --dataset build --days 14 --api-key <KEY>`
+
+## Ozon capability / premium issues
+
+- Check `sys_task_runs.meta_json` for entries with:
+  - `{"capability":"ads","reason":"missing_perf_api_key"}`
+  - `{"capability":"finance","reason":"unavailable_or_forbidden"}`
+- Ensure optional features are configured:
+  - `OZON_PERF_API_KEY` for ads
+  - `OZON_POSTINGS_SCHEMAS=fbs,fbo` only if both schemes are applicable
 
 ## Telegram alerts are not sent
 
