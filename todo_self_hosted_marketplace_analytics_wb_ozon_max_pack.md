@@ -14,6 +14,10 @@
 Важно:
 - `✅` у секции означает, что спецификация для реализации в todo прописана достаточно подробно; это не равно фактической готовности кода.
 - Реальный прогресс вести по чек-листам этапов и acceptance criteria в конце файла.
+- Для аудита реализации использовать статусы:
+  - `[x]` есть в коде и явно реализовано
+  - `[~]` реализовано частично, упрощённо или не проверено end-to-end
+  - `[ ]` в репозитории не найдено
 
 ---
 
@@ -1283,67 +1287,105 @@ SELECT * FROM v_kpi_sales_30d;
 
 ---
 
-## 20) План работ по этапам ✅
+## 20) Аудит состояния проекта (2026-03-05)
+
+### 20.1 Что уже есть в репозитории
+- `[x]` Скелет монорепы: `backend`, `workers`, `collectors`, `warehouse`, `automation`, `dashboards`, `infra`, `scripts`, `docs`
+- `[x]` Базовая инфраструктура: `.env.example`, `Makefile`, Dockerfiles, `docker-compose.yml`
+- `[x]` ClickHouse слой: migrations, `apply_migrations.py`, `sys_*`, `raw_*`, `stg_*`, `mrt_*`, SQL views
+- `[x]` Worker слой: Celery app, beat schedule, watermarks, Redis locks, `sys_task_runs`
+- `[x]` Collectors: WB sales/orders/stocks/funnel, Ozon postings/stocks/ads
+- `[x]` ELT: `raw -> stg` transforms и `stg -> mrt` builds
+- `[x]` Backend API: `/health`, `/ready`, read-only endpoints, admin endpoints с `X-API-Key`
+- `[x]` Automation: YAML rules engine + Telegram action + scheduled run task
+- `[x]` BI assets: SQL-шаблоны для Metabase
+
+### 20.2 Что реализовано частично
+- `[~]` `scripts/bootstrap.sh`: сейчас только применяет миграции, без `docker compose up`, ожидания healthchecks и smoke-checks
+- `[~]` `scripts/check_tokens.py`: проверяет только наличие env-переменных, не делает реальные API smoke-checks
+- `[~]` Shared HTTP layer: есть `http_client.py`, retry, time, redaction, но нет WB-specific rate-limit handling, circuit breaker и полноценного structured request logging
+- `[~]` WB backfill: задачи есть, но дневной backfill не реализован через отдельный `flag=1` по дням
+- `[~]` WB funnel: collector и backfill есть, но реализация упрощённая и не соответствует полной спецификации из плана
+- `[~]` Ozon postings: базовый collector есть, но покрытие ограничено и не видно полной обработки FBO/FBS/capability flags
+- `[~]` Observability: есть `sys_task_runs`, базовый JSON logging в backend и maintenance task, но нет `/metrics`, Prometheus/Grafana и явных alerting hooks
+- `[~]` Документация есть, но пока короче, чем целевая спецификация
+
+### 20.3 Что пока отсутствует
+- `[ ]` Ozon finance collector и transform pipeline для `raw_ozon_finance_ops`
+- `[ ]` Capability / soft-degradation слой для Ozon Premium-недоступных методов
+- `[ ]` Product mapping sync и полноценное наполнение `dim_product`
+- `[ ]` Тесты (`pytest`, integration, recorded/contract)
+- `[ ]` CI/CD (`.github/workflows`, build/test pipeline)
+- `[ ]` End-to-end верификация acceptance criteria
+
+### 20.4 Что удалось проверить локально в ходе аудита
+- `[x]` `python3 -m compileall backend workers collectors automation warehouse scripts` проходит
+- `[~]` `docker compose config` упирается в обязательный файл `.env`; дополнительно Compose предупреждает, что поле `version` устарело
+- `[ ]` `pytest -q` не запускался: в текущем окружении не установлен `pytest`
+
+---
+
+## 21) План работ по этапам ✅
 
 ### Этап A — skeleton + infra
-- [ ] структура репо
-- [ ] `.env.example`
-- [ ] `docker-compose`
-- [ ] bootstrap и smoke checks
-- [ ] `/health` и `/ready`
+- [x] структура репо
+- [x] `.env.example`
+- [x] `docker-compose`
+- [~] bootstrap и smoke checks
+- [x] `/health` и `/ready`
 
 ### Этап B — ClickHouse + service layer
-- [ ] migrations `sys/raw/stg/mrt`
-- [ ] `apply_migrations.py`
-- [ ] `http_client.py`, retry, redaction, time utils
-- [ ] watermarks, locks, `sys_task_runs`
+- [x] migrations `sys/raw/stg/mrt`
+- [x] `apply_migrations.py`
+- [~] `http_client.py`, retry, redaction, time utils
+- [x] watermarks, locks, `sys_task_runs`
 
 ### Этап C — WB ingestion
-- [ ] auth + token checks
-- [ ] sales incremental
-- [ ] sales backfill 7-14d
-- [ ] orders incremental/backfill or explicit exclusion
-- [ ] stocks snapshot
-- [ ] funnel hourly + backfill
+- [~] auth + token checks
+- [x] sales incremental
+- [~] sales backfill 7-14d
+- [~] orders incremental/backfill or explicit exclusion
+- [x] stocks snapshot
+- [~] funnel hourly + backfill
 
 ### Этап D — Ozon ingestion
-- [ ] postings/orders
-- [ ] stocks snapshot
+- [~] postings/orders
+- [x] stocks snapshot
 - [ ] finance ops
-- [ ] ads daily
+- [x] ads daily
 - [ ] premium/capability degradation
 
 ### Этап E — ELT + marts + API
-- [ ] raw -> stg transforms
-- [ ] stg -> mrt builds
-- [ ] KPI/query endpoints
-- [ ] admin endpoints
+- [x] raw -> stg transforms
+- [x] stg -> mrt builds
+- [x] KPI/query endpoints
+- [x] admin endpoints
 
 ### Этап F — BI + automation
-- [ ] Metabase queries/dashboards
-- [ ] YAML rules
-- [ ] Telegram action
-- [ ] scheduled rule runs
+- [~] Metabase queries/dashboards
+- [x] YAML rules
+- [x] Telegram action
+- [x] scheduled rule runs
 
 ### Этап G — quality + release
-- [ ] observability
+- [~] observability
 - [ ] tests
 - [ ] CI/CD
-- [ ] docs
+- [~] docs
 - [ ] final acceptance pass
 
 ---
 
-## 21) Acceptance Criteria ✅
+## 22) Acceptance Criteria ✅
 
-- `docker compose up -d` поднимает backend, worker, beat, clickhouse, redis, metabase
-- `scripts/bootstrap.sh` проходит без ошибок на валидной конфигурации
-- WB sales минимум за последние 7-14 дней подтягиваются и сохраняются в ClickHouse
-- Ozon postings/stocks подтягиваются и сохраняются в ClickHouse
-- transforms и marts строятся повторяемо и без дублей
-- backend отдаёт данные из `mrt_*`
-- Metabase показывает минимум 5-6 базовых дашбордов
-- Telegram алерты реально приходят
-- повторный запуск ingestion не плодит дубли
-- при `429` WB/Ozon система корректно ждёт и продолжает работу
-- недоступные Ozon premium-методы не валят весь пайплайн
+- [~] `docker compose up -d` поднимает backend, worker, beat, clickhouse, redis, metabase
+- [~] `scripts/bootstrap.sh` проходит без ошибок на валидной конфигурации
+- [~] WB sales минимум за последние 7-14 дней подтягиваются и сохраняются в ClickHouse
+- [~] Ozon postings/stocks подтягиваются и сохраняются в ClickHouse
+- [~] transforms и marts строятся повторяемо и без дублей
+- [~] backend отдаёт данные из `mrt_*`
+- [~] Metabase показывает минимум 5-6 базовых дашбордов
+- [~] Telegram алерты реально приходят
+- [~] повторный запуск ingestion не плодит дубли
+- [ ] при `429` WB/Ozon система корректно ждёт и продолжает работу
+- [ ] недоступные Ozon premium-методы не валят весь пайплайн
