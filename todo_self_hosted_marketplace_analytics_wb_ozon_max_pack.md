@@ -1296,6 +1296,7 @@ SELECT * FROM v_kpi_sales_30d;
 - `[x]` Worker слой: Celery app, beat schedule, watermarks, Redis locks, `sys_task_runs`
 - `[x]` Collectors: WB sales/orders/stocks/funnel, Ozon postings/stocks/ads
 - `[x]` Ozon finance: есть collector `ozon_finance_incremental/backfill` + raw/stg pipeline для `finance_ops`
+- `[x]` Ozon capability degradation: premium/forbidden методы помечаются как `skipped` с причиной в `sys_task_runs.meta_json`, пайплайн не падает
 - `[x]` ELT: `raw -> stg` transforms и `stg -> mrt` builds
 - `[x]` Backend API: `/health`, `/ready`, read-only endpoints, admin endpoints с `X-API-Key`
 - `[x]` Automation: YAML rules engine + Telegram action + scheduled run task
@@ -1313,7 +1314,6 @@ SELECT * FROM v_kpi_sales_30d;
 - `[~]` Документация есть, но пока короче, чем целевая спецификация
 
 ### 20.3 Что пока отсутствует
-- `[ ]` Capability / soft-degradation слой для Ozon Premium-недоступных методов
 - `[ ]` Product mapping sync и полноценное наполнение `dim_product`
 - `[ ]` Тесты (`pytest`, integration, recorded/contract)
 - `[ ]` CI/CD (`.github/workflows`, build/test pipeline)
@@ -1354,7 +1354,7 @@ SELECT * FROM v_kpi_sales_30d;
 - [x] stocks snapshot
 - [x] finance ops
 - [x] ads daily
-- [ ] premium/capability degradation
+- [x] premium/capability degradation
 
 ### Этап E — ELT + marts + API
 - [x] raw -> stg transforms

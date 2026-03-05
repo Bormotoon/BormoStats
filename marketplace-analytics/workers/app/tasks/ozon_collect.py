@@ -6,6 +6,7 @@ import os
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
+import httpx
 from celery import shared_task
 
 from app.utils.locking import LockNotAcquired, lock_scope
@@ -98,6 +99,23 @@ def _postings_schemas() -> tuple[str, ...]:
     return tuple(dict.fromkeys(valid))
 
 
+def _is_capability_error(exc: Exception) -> bool:
+    if not isinstance(exc, httpx.HTTPStatusError):
+        return False
+    status = exc.response.status_code
+    body = exc.response.text.lower() if exc.response is not None else ""
+    if status in {403, 404, 405}:
+        return True
+    capability_hints = [
+        "premium",
+        "not available",
+        "forbidden",
+        "unsupported",
+        "method unavailable",
+    ]
+    return any(hint in body for hint in capability_hints)
+
+
 def _insert_rows(client: Any, table: str, columns: list[str], rows: list[dict[str, Any]]) -> int:
     if not rows:
         return 0
@@ -139,6 +157,18 @@ def _collect_postings(account_id: str, from_ts: datetime | None = None) -> dict[
             log_task_run(ch_client, task_name, run_id, started_at, "success", inserted, "ozon postings collected")
             return {"status": "success", "rows": inserted, "watermark": now_ts.isoformat()}
         except Exception as exc:
+            if _is_capability_error(exc):
+                log_task_run(
+                    ch_client,
+                    task_name,
+                    run_id,
+                    started_at,
+                    "skipped",
+                    0,
+                    "ozon postings capability unavailable",
+                    meta={"capability": "postings", "reason": "unavailable_or_forbidden"},
+                )
+                return {"status": "skipped", "reason": "capability_unavailable"}
             log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
             raise
         finally:
@@ -167,6 +197,18 @@ def _collect_finance(account_id: str, from_ts: datetime | None = None) -> dict[s
             log_task_run(ch_client, task_name, run_id, started_at, "success", inserted, "ozon finance ops collected")
             return {"status": "success", "rows": inserted, "watermark": str(latest_ts)}
         except Exception as exc:
+            if _is_capability_error(exc):
+                log_task_run(
+                    ch_client,
+                    task_name,
+                    run_id,
+                    started_at,
+                    "skipped",
+                    0,
+                    "ozon finance capability unavailable",
+                    meta={"capability": "finance", "reason": "unavailable_or_forbidden"},
+                )
+                return {"status": "skipped", "reason": "capability_unavailable"}
             log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
             raise
         finally:
@@ -243,9 +285,26 @@ def ozon_stocks_snapshot(account_id: str = OZON_ACCOUNT_ID) -> dict[str, Any]:
 def ozon_ads_daily(target_day: str | None = None, account_id: str = OZON_ACCOUNT_ID) -> dict[str, Any]:
     task_name = "tasks.ozon_collect.ozon_ads_daily"
     run_id, started_at = new_run_context(task_name)
+    perf_api_key = os.getenv("OZON_PERF_API_KEY", "").strip()
     ozon = _ozon_client()
     if ozon is None:
         return {"status": "skipped", "reason": "missing Ozon credentials"}
+    if not perf_api_key:
+        ch_client = get_ch_client()
+        try:
+            log_task_run(
+                ch_client,
+                task_name,
+                run_id,
+                started_at,
+                "skipped",
+                0,
+                "ozon ads disabled: missing OZON_PERF_API_KEY",
+                meta={"capability": "ads", "reason": "missing_perf_api_key"},
+            )
+        finally:
+            ch_client.close()
+        return {"status": "skipped", "reason": "missing_perf_api_key"}
 
     day_value = date.fromisoformat(target_day) if target_day else (datetime.now(UTC).date() - timedelta(days=1))
 
@@ -260,6 +319,18 @@ def ozon_ads_daily(target_day: str | None = None, account_id: str = OZON_ACCOUNT
                 log_task_run(ch_client, task_name, run_id, started_at, "success", inserted, "ozon ads daily")
                 return {"status": "success", "rows": inserted, "day": day_value.isoformat()}
             except Exception as exc:
+                if _is_capability_error(exc):
+                    log_task_run(
+                        ch_client,
+                        task_name,
+                        run_id,
+                        started_at,
+                        "skipped",
+                        0,
+                        "ozon ads capability unavailable",
+                        meta={"capability": "ads", "reason": "unavailable_or_forbidden"},
+                    )
+                    return {"status": "skipped", "reason": "capability_unavailable"}
                 log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
                 raise
             finally:
