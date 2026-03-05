@@ -143,25 +143,6 @@ class OzonApiClient:
     def postings_since_all(self, from_ts: datetime, to_ts: datetime, limit: int = 1000) -> list[dict[str, Any]]:
         return self.postings_since(from_ts=from_ts, to_ts=to_ts, limit=limit, schemas=("fbs", "fbo"))
 
-    def postings_since_single(self, from_ts: datetime, to_ts: datetime, limit: int = 1000) -> list[dict[str, Any]]:
-        # Backward compatibility helper for callers that only need default schema.
-        body = {
-            "dir": "ASC",
-            "filter": {
-                "since": from_ts.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "to": to_ts.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            },
-            "limit": max(1, min(limit, 1000)),
-            "offset": 0,
-            "with": {"analytics_data": True, "financial_data": True},
-        }
-        payload = self.http.post(endpoints.POSTINGS_FBS_LIST_PATH, headers=self._headers(), json=body)
-        if isinstance(payload, dict):
-            result = payload.get("result")
-            if isinstance(result, dict) and isinstance(result.get("postings"), list):
-                return result["postings"]
-        return []
-
     def stocks(self, limit: int = 1000) -> list[dict[str, Any]]:
         body = {"limit": max(1, min(limit, 1000)), "offset": 0}
         payload = self.http.post(endpoints.STOCKS_PATH, headers=self._headers(), json=body)
@@ -173,6 +154,54 @@ class OzonApiClient:
                 return result
         if isinstance(payload, list):
             return payload
+        return []
+
+    def finance_operations(
+        self,
+        from_ts: datetime,
+        to_ts: datetime,
+        limit: int = 1000,
+    ) -> list[dict[str, Any]]:
+        safe_limit = max(1, min(limit, 1000))
+        page = 1
+        collected: list[dict[str, Any]] = []
+
+        while True:
+            body = {
+                "filter": {
+                    "date": {
+                        "from": from_ts.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        "to": to_ts.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    }
+                },
+                "page": page,
+                "page_size": safe_limit,
+            }
+            payload = self.http.post(endpoints.FINANCE_OPS_PATH, headers=self._headers(), json=body)
+            operations = self._extract_finance_operations(payload)
+            if not operations:
+                break
+            collected.extend(operations)
+            if len(operations) < safe_limit:
+                break
+            page += 1
+
+        return collected
+
+    def _extract_finance_operations(self, payload: Any) -> list[dict[str, Any]]:
+        if isinstance(payload, dict):
+            result = payload.get("result")
+            if isinstance(result, dict):
+                operations = result.get("operations")
+                if isinstance(operations, list):
+                    return [item for item in operations if isinstance(item, dict)]
+                items = result.get("items")
+                if isinstance(items, list):
+                    return [item for item in items if isinstance(item, dict)]
+            if isinstance(result, list):
+                return [item for item in result if isinstance(item, dict)]
+        if isinstance(payload, list):
+            return [item for item in payload if isinstance(item, dict)]
         return []
 
     def ads_daily(self, for_day: date) -> list[dict[str, Any]]:

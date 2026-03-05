@@ -150,3 +150,66 @@ def parse_ads_daily(records: list[dict[str, Any]], run_id: str, account_id: str)
             }
         )
     return rows
+
+
+def parse_finance_ops(records: list[dict[str, Any]], run_id: str, account_id: str) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for item in records:
+        operation_id = str(
+            item.get("operation_id")
+            or item.get("operationId")
+            or item.get("transaction_id")
+            or item.get("id")
+            or ""
+        )
+        operation_ts = _to_datetime(
+            item.get("operation_date")
+            or item.get("operation_time")
+            or item.get("created_at")
+            or item.get("date")
+        ) or datetime.now(UTC)
+
+        amount_value: float
+        amount_raw = item.get("amount")
+        if isinstance(amount_raw, dict):
+            amount_value = _safe_float(
+                amount_raw.get("amount")
+                or amount_raw.get("value")
+                or amount_raw.get("price")
+                or 0.0
+            )
+            currency = str(
+                amount_raw.get("currency_code")
+                or amount_raw.get("currency")
+                or item.get("currency_code")
+                or item.get("currency")
+                or "RUB"
+            )
+        else:
+            amount_value = _safe_float(
+                amount_raw
+                or item.get("accruals_for_sale")
+                or item.get("sale_commission")
+                or item.get("services")
+                or 0.0
+            )
+            currency = str(item.get("currency_code") or item.get("currency") or "RUB")
+
+        rows.append(
+            {
+                "run_id": run_id,
+                "account_id": account_id,
+                "operation_id": operation_id or f"{run_id}:{len(rows)+1}",
+                "operation_ts": as_ch_datetime(operation_ts),
+                "type": str(
+                    item.get("type")
+                    or item.get("operation_type")
+                    or item.get("transaction_type")
+                    or "unknown"
+                ),
+                "amount": amount_value,
+                "currency": currency,
+                "payload": json.dumps(item, ensure_ascii=True),
+            }
+        )
+    return rows

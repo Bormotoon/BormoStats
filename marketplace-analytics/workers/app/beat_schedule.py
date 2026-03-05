@@ -39,6 +39,10 @@ beat_schedule = {
         "task": "tasks.ozon_collect.ozon_stocks_snapshot",
         "schedule": crontab(minute="*/30"),
     },
+    "ozon_finance_incremental": {
+        "task": "tasks.ozon_collect.ozon_finance_incremental",
+        "schedule": crontab(minute="50", hour="*/6"),
+    },
     "ozon_ads_daily": {
         "task": "tasks.ozon_collect.ozon_ads_daily",
         "schedule": crontab(minute="40", hour="*/6"),

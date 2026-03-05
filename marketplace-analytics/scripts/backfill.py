@@ -17,7 +17,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dataset",
         required=True,
-        choices=["sales", "orders", "funnel", "postings", "build"],
+        choices=["sales", "orders", "funnel", "postings", "finance", "build"],
     )
     parser.add_argument("--days", type=int, default=14)
     return parser.parse_args()

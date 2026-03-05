@@ -1295,6 +1295,7 @@ SELECT * FROM v_kpi_sales_30d;
 - `[x]` ClickHouse слой: migrations, `apply_migrations.py`, `sys_*`, `raw_*`, `stg_*`, `mrt_*`, SQL views
 - `[x]` Worker слой: Celery app, beat schedule, watermarks, Redis locks, `sys_task_runs`
 - `[x]` Collectors: WB sales/orders/stocks/funnel, Ozon postings/stocks/ads
+- `[x]` Ozon finance: есть collector `ozon_finance_incremental/backfill` + raw/stg pipeline для `finance_ops`
 - `[x]` ELT: `raw -> stg` transforms и `stg -> mrt` builds
 - `[x]` Backend API: `/health`, `/ready`, read-only endpoints, admin endpoints с `X-API-Key`
 - `[x]` Automation: YAML rules engine + Telegram action + scheduled run task
@@ -1312,7 +1313,6 @@ SELECT * FROM v_kpi_sales_30d;
 - `[~]` Документация есть, но пока короче, чем целевая спецификация
 
 ### 20.3 Что пока отсутствует
-- `[ ]` Ozon finance collector и transform pipeline для `raw_ozon_finance_ops`
 - `[ ]` Capability / soft-degradation слой для Ozon Premium-недоступных методов
 - `[ ]` Product mapping sync и полноценное наполнение `dim_product`
 - `[ ]` Тесты (`pytest`, integration, recorded/contract)
@@ -1352,7 +1352,7 @@ SELECT * FROM v_kpi_sales_30d;
 ### Этап D — Ozon ingestion
 - [x] postings/orders
 - [x] stocks snapshot
-- [ ] finance ops
+- [x] finance ops
 - [x] ads daily
 - [ ] premium/capability degradation
 

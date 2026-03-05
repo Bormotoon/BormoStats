@@ -12,7 +12,7 @@ from app.utils.locking import LockNotAcquired, lock_scope
 from app.utils.runtime import get_ch_client, get_redis_client, log_task_run, new_run_context
 from app.utils.watermarks import get_watermark, set_watermark
 from collectors.ozon.client import OzonApiClient
-from collectors.ozon.parsers import parse_ads_daily, parse_postings, parse_stocks
+from collectors.ozon.parsers import parse_ads_daily, parse_finance_ops, parse_postings, parse_stocks
 
 OZON_ACCOUNT_ID = os.getenv("OZON_ACCOUNT_ID", "default")
 
@@ -65,6 +65,17 @@ RAW_OZON_ADS_COLUMNS = [
     "cost",
     "orders",
     "revenue",
+    "payload",
+]
+
+RAW_OZON_FINANCE_COLUMNS = [
+    "run_id",
+    "account_id",
+    "operation_id",
+    "operation_ts",
+    "type",
+    "amount",
+    "currency",
     "payload",
 ]
 
@@ -134,6 +145,34 @@ def _collect_postings(account_id: str, from_ts: datetime | None = None) -> dict[
             ch_client.close()
 
 
+def _collect_finance(account_id: str, from_ts: datetime | None = None) -> dict[str, Any]:
+    task_name = "tasks.ozon_collect.ozon_finance_incremental"
+    run_id, started_at = new_run_context(task_name)
+    ozon = _ozon_client()
+    if ozon is None:
+        return {"status": "skipped", "reason": "missing Ozon credentials"}
+
+    redis_client = get_redis_client()
+    with lock_scope(redis_client=redis_client, source="ozon_finance", account_id=account_id, ttl_seconds=1200):
+        ch_client = get_ch_client()
+        try:
+            watermark = from_ts or get_watermark(ch_client, "ozon_finance", account_id)
+            now_ts = datetime.now(UTC)
+            records = ozon.finance_operations(from_ts=watermark, to_ts=now_ts, limit=1000)
+            rows = parse_finance_ops(records, run_id=run_id, account_id=account_id)
+            inserted = _insert_rows(ch_client, "raw_ozon_finance_ops", RAW_OZON_FINANCE_COLUMNS, rows)
+
+            latest_ts = max((row["operation_ts"] for row in rows), default=now_ts.replace(tzinfo=None))
+            set_watermark(ch_client, "ozon_finance", account_id, latest_ts.replace(tzinfo=UTC))
+            log_task_run(ch_client, task_name, run_id, started_at, "success", inserted, "ozon finance ops collected")
+            return {"status": "success", "rows": inserted, "watermark": str(latest_ts)}
+        except Exception as exc:
+            log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
+            raise
+        finally:
+            ch_client.close()
+
+
 @shared_task(name="tasks.ozon_collect.ozon_postings_incremental")
 def ozon_postings_incremental(account_id: str = OZON_ACCOUNT_ID) -> dict[str, Any]:
     try:
@@ -147,6 +186,25 @@ def ozon_postings_backfill_days(days: int = 14, account_id: str = OZON_ACCOUNT_I
     safe_days = max(1, min(days, 90))
     try:
         result = _collect_postings(account_id=account_id, from_ts=datetime.now(UTC) - timedelta(days=safe_days))
+        result["days"] = safe_days
+        return result
+    except LockNotAcquired:
+        return {"status": "skipped", "reason": "lock_not_acquired"}
+
+
+@shared_task(name="tasks.ozon_collect.ozon_finance_incremental")
+def ozon_finance_incremental(account_id: str = OZON_ACCOUNT_ID) -> dict[str, Any]:
+    try:
+        return _collect_finance(account_id=account_id)
+    except LockNotAcquired:
+        return {"status": "skipped", "reason": "lock_not_acquired"}
+
+
+@shared_task(name="tasks.ozon_collect.ozon_finance_backfill_days")
+def ozon_finance_backfill_days(days: int = 30, account_id: str = OZON_ACCOUNT_ID) -> dict[str, Any]:
+    safe_days = max(1, min(days, 365))
+    try:
+        result = _collect_finance(account_id=account_id, from_ts=datetime.now(UTC) - timedelta(days=safe_days))
         result["days"] = safe_days
         return result
     except LockNotAcquired:

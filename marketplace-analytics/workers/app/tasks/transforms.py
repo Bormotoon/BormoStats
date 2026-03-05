@@ -303,6 +303,33 @@ FROM raw_ozon_ads_daily
 WHERE day >= today() - {days}
 """
 
+OZON_FINANCE_TO_STG_SQL = """
+INSERT INTO stg_finance_ops
+(
+  operation_ts,
+  marketplace,
+  account_id,
+  operation_id,
+  type,
+  amount,
+  currency,
+  meta_json,
+  ingested_at
+)
+SELECT
+  operation_ts,
+  'ozon' AS marketplace,
+  account_id,
+  operation_id,
+  type,
+  amount,
+  currency,
+  payload AS meta_json,
+  ingested_at
+FROM raw_ozon_finance_ops
+WHERE operation_ts >= now() - toIntervalDay({days})
+"""
+
 
 def _run_transform(days: int, task_name: str) -> dict[str, int | str]:
     run_id, started_at = new_run_context(task_name)
@@ -316,6 +343,7 @@ def _run_transform(days: int, task_name: str) -> dict[str, int | str]:
         client.command(OZON_ORDERS_TO_STG_SQL.format(days=days))
         client.command(OZON_STOCKS_TO_STG_SQL.format(days=days))
         client.command(OZON_ADS_TO_STG_SQL.format(days=max(days, 60)))
+        client.command(OZON_FINANCE_TO_STG_SQL.format(days=max(days, 60)))
         log_task_run(client, task_name, run_id, started_at, "success", 0, f"transform done for {days} days")
         return {"status": "success", "days": days, "run_id": run_id}
     except Exception as exc:
