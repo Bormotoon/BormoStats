@@ -1,0 +1,1 @@
+"""Ozon endpoints metadata."""
