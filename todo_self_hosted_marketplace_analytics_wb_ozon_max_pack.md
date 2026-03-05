@@ -306,7 +306,7 @@ volumes:
 
 ---
 
-## 5) ClickHouse: миграции и схема (warehouse/migrations)
+## 5) ClickHouse: миграции и схема (warehouse/migrations) ✅
 
 ### 5.1 Механика миграций
 - Таблица `sys_schema_migrations` хранит применённые версии
