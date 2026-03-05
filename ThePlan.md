@@ -580,64 +580,64 @@ marketplace-analytics/
 
 ### Этап A — Скелет + инфраструктура
 
-* [ ] Создать структуру репо
-* [ ] docker-compose: clickhouse/redis/backend/worker/beat/metabase
-* [ ] bootstrap script + .env.example
-* [ ] health/ready endpoints
+* [x] Создать структуру репо
+* [x] docker-compose: clickhouse/redis/backend/worker/beat/metabase
+* [x] bootstrap script + .env.example
+* [x] health/ready endpoints
 
 ### Этап B — WB ingestion
 
-* [ ] WB HTTP client + rate-limit handling (X-Ratelimit-*) ([WB API][1])
-* [ ] WB sales incremental + watermarks ([WB API][2])
-* [ ] WB sales daily backfill (flag=1) ([WB API][2])
-* [ ] WB stocks collector
-* [ ] WB funnel collector (hourly + rolling window) ([WB API][3])
+* [x] WB HTTP client + rate-limit handling (X-Ratelimit-*) ([WB API][1])
+* [x] WB sales incremental + watermarks ([WB API][2])
+* [x] WB sales daily backfill (flag=1) ([WB API][2])
+* [x] WB stocks collector
+* [x] WB funnel collector (hourly + rolling window) ([WB API][3])
 
 ### Этап C — Ozon ingestion
 
-* [ ] Ozon client (Client-Id/Api-Key headers) ([docs.ozon.ru][4])
-* [ ] postings/orders collector
-* [ ] stocks collector
-* [ ] finance collector (если доступно)
-* [ ] ads collector (Performance API module) ([docs.ozon.ru][5])
+* [x] Ozon client (Client-Id/Api-Key headers) ([docs.ozon.ru][4])
+* [x] postings/orders collector
+* [x] stocks collector
+* [x] finance collector (если доступно)
+* [x] ads collector (Performance API module) ([docs.ozon.ru][5])
 
 ### Этап D — Нормализация и витрины
 
-* [ ] raw → stg transforms
-* [ ] stg → mart aggregates
-* [ ] KPI endpoints в FastAPI
+* [x] raw → stg transforms
+* [x] stg → mart aggregates
+* [x] KPI endpoints в FastAPI
 
 ### Этап E — Metabase
 
-* [ ] подключение к ClickHouse
-* [ ] 5 основных дашбордов
-* [ ] docs по импорту/экспорту
+* [x] подключение к ClickHouse
+* [x] 5 основных дашбордов
+* [x] docs по импорту/экспорту
 
 ### Этап F — Автоматизация
 
-* [ ] rules YAML + engine
-* [ ] telegram actions
-* [ ] расписание rule runs
+* [x] rules YAML + engine
+* [x] telegram actions
+* [x] расписание rule runs
 
 ### Этап G — Надёжность
 
-* [ ] retry/backoff везде
-* [ ] идемпотентность + дедуп
-* [ ] мониторинг + метрики (опционально)
-* [ ] CI
+* [x] retry/backoff везде
+* [x] идемпотентность + дедуп
+* [x] мониторинг + метрики (опционально)
+* [x] CI
 
 ---
 
 ## 20) Acceptance Criteria (готово, если…)
 
-* [ ] Система поднимается одной командой `docker compose up -d`
-* [ ] WB sales за последние 7–14 дней подтягиваются и сохраняются в ClickHouse
-* [ ] Ozon orders/stocks подтягиваются и сохраняются в ClickHouse
-* [ ] Витрина `mrt_sales_daily` строится и отдаёт корректные суммы по дням
-* [ ] Metabase показывает минимум 3 дашборда (Sales/Funnel/Stocks)
-* [ ] Telegram уведомление о низких остатках реально приходит
-* [ ] Повторный запуск ingestion не плодит дубли
-* [ ] При 429 WB система корректно ждёт и продолжает (не DDOS’ит API) ([WB API][1])
+* [x] Система поднимается одной командой `docker compose up -d`
+* [x] WB sales за последние 7–14 дней подтягиваются и сохраняются в ClickHouse
+* [x] Ozon orders/stocks подтягиваются и сохраняются в ClickHouse
+* [x] Витрина `mrt_sales_daily` строится и отдаёт корректные суммы по дням
+* [x] Metabase показывает минимум 3 дашборда (Sales/Funnel/Stocks)
+* [x] Telegram уведомление о низких остатках реально приходит
+* [x] Повторный запуск ingestion не плодит дубли
+* [x] При 429 WB система корректно ждёт и продолжает (не DDOS’ит API) ([WB API][1])
 
 ---
 
