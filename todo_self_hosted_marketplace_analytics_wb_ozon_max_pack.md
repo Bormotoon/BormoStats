@@ -1,0 +1,1023 @@
+# TODO.md — Self‑hosted Marketplace Analytics (WB + Ozon) — MAX PACK
+
+## 0) One‑pager
+
+Система для self‑hosted аналитики продавца Wildberries + Ozon:
+- ingestion (WB/Ozon API) → raw ClickHouse
+- transforms (raw → stg) → витрины (stg → mrt)
+- FastAPI для метрик/админки
+- Metabase для BI
+- automation rules (yaml) + actions (Telegram сейчас; позже — цены/реклама/поставки)
+
+Ограничение: только данные своего кабинета (без конкурентов и категорий).
+
+---
+
+## 1) Стек и зависимости (только OSS) ✅
+
+### Runtime
+- Python 3.12+
+- FastAPI + Uvicorn
+- Celery + Redis (broker+locks)
+- ClickHouse (аналитическое хранилище)
+- Metabase (BI)
+
+### Python библиотеки (requirements)
+- fastapi
+- uvicorn[standard]
+- pydantic>=2
+- pydantic-settings
+- httpx
+- tenacity (retry/backoff)
+- clickhouse-connect (или clickhouse-driver, но лучше connect)
+- redis
+- celery
+- python-dateutil
+- pytz / zoneinfo
+- orjson
+- structlog (или стандартный logging JSON)
+- PyYAML
+- pytest, pytest-asyncio
+- ruff, black, mypy
+
+---
+
+## 2) Репозиторий и структура
+
+Создать монорепо:
+
+```
+marketplace-analytics/
+  backend/
+    app/
+      main.py
+      api/
+        v1/
+          sales.py
+          stocks.py
+          funnel.py
+          ads.py
+          kpis.py
+          admin.py
+      core/
+        config.py
+        logging.py
+        deps.py
+      db/
+        ch.py
+        queries/
+          sales.sql
+          ...
+      services/
+        metrics_service.py
+        admin_service.py
+    Dockerfile
+  workers/
+    app/
+      celery_app.py
+      beat_schedule.py
+      tasks/
+        wb_collect.py
+        ozon_collect.py
+        transforms.py
+        marts.py
+        maintenance.py
+      utils/
+        locking.py
+        watermarks.py
+        chunking.py
+    Dockerfile
+  collectors/
+    wb/
+      client.py
+      endpoints.py
+      parsers.py
+    ozon/
+      client.py
+      endpoints.py
+      parsers.py
+    common/
+      http_client.py
+      retry.py
+      time.py
+      redaction.py
+  warehouse/
+    migrations/
+      0001_init.sql
+      0002_stg.sql
+      0003_marts.sql
+    apply_migrations.py
+    ddl/
+      README.md
+  automation/
+    engine.py
+    rules/
+      low_stock.yml
+      bad_acos.yml
+      no_sales_7d.yml
+    actions/
+      base.py
+      telegram.py
+  infra/
+    docker/
+      docker-compose.yml
+      clickhouse/
+        initdb/
+          001_users.sql
+        users.xml (optional)
+        config.xml (optional)
+      metabase/
+        plugins/ (optional)
+      nginx/ (optional)
+  scripts/
+    bootstrap.sh
+    backfill.py
+    run_local.sh
+    check_tokens.py
+  .env.example
+  README.md
+  docs/
+    architecture.md
+    metabase.md
+    troubleshooting.md
+  Makefile
+```
+
+---
+
+## 3) ENV конфигурация (.env.example)
+
+```dotenv
+# General
+APP_ENV=prod
+LOG_LEVEL=INFO
+TZ=Europe/Warsaw
+
+# ClickHouse
+CH_HOST=clickhouse
+CH_PORT=8123
+CH_USER=admin
+CH_PASSWORD=admin_password
+CH_DB=mp_analytics
+
+# ClickHouse read-only user for Metabase (optional)
+CH_RO_USER=metabase_ro
+CH_RO_PASSWORD=metabase_ro_password
+
+# Redis
+REDIS_URL=redis://redis:6379/0
+
+# WB
+WB_TOKEN_STATISTICS=...
+WB_TOKEN_ANALYTICS=...
+
+# Ozon
+OZON_CLIENT_ID=...
+OZON_API_KEY=...
+# optional perf api key if separate
+OZON_PERF_API_KEY=...
+
+# Admin API access
+ADMIN_API_KEY=change_me
+
+# Telegram
+TG_BOT_TOKEN=
+TG_CHAT_ID=
+```
+
+---
+
+## 4) Docker Compose (infra/docker/docker-compose.yml)
+
+Требования:
+- volume для ClickHouse
+- healthchecks
+- отдельные контейнеры: backend, worker, beat, metabase
+
+```yaml
+version: "3.9"
+
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: mp_clickhouse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    environment:
+      - TZ=${TZ:-Europe/Warsaw}
+    volumes:
+      - ch_data:/var/lib/clickhouse
+      - ./clickhouse/initdb:/docker-entrypoint-initdb.d:ro
+      # optional configs:
+      # - ./clickhouse/config.xml:/etc/clickhouse-server/config.d/config.xml:ro
+      # - ./clickhouse/users.xml:/etc/clickhouse-server/users.d/users.xml:ro
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8123/ping | grep -q Ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    container_name: mp_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  backend:
+    build:
+      context: ../../
+      dockerfile: backend/Dockerfile
+    container_name: mp_backend
+    env_file:
+      - ../../.env
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+  worker:
+    build:
+      context: ../../
+      dockerfile: workers/Dockerfile
+    container_name: mp_worker
+    env_file:
+      - ../../.env
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["celery", "-A", "app.celery_app:celery_app", "worker", "--loglevel=INFO", "--concurrency=4"]
+
+  beat:
+    build:
+      context: ../../
+      dockerfile: workers/Dockerfile
+    container_name: mp_beat
+    env_file:
+      - ../../.env
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["celery", "-A", "app.celery_app:celery_app", "beat", "--loglevel=INFO"]
+
+  metabase:
+    image: metabase/metabase:latest
+    container_name: mp_metabase
+    ports:
+      - "3000:3000"
+    environment:
+      - MB_DB_FILE=/metabase-data/metabase.db
+      - JAVA_TIMEZONE=${TZ:-Europe/Warsaw}
+      # If plugins needed:
+      # - MB_PLUGINS_DIR=/plugins
+    volumes:
+      - metabase_data:/metabase-data
+      # Optional plugin dir:
+      # - ./metabase/plugins:/plugins:ro
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+
+volumes:
+  ch_data:
+  redis_data:
+  metabase_data:
+```
+
+---
+
+## 5) ClickHouse: миграции и схема (warehouse/migrations)
+
+### 5.1 Механика миграций
+- Таблица `sys_schema_migrations` хранит применённые версии
+- `warehouse/apply_migrations.py`:
+  - читает `warehouse/migrations/*.sql` по порядку
+  - применяет best effort и пишет запись в sys table
+  - логирует duration и ошибки
+- `scripts/bootstrap.sh` вызывает apply_migrations
+
+### 5.2 ClickHouse initdb (infra/docker/clickhouse/initdb/001_users.sql)
+
+```sql
+CREATE DATABASE IF NOT EXISTS mp_analytics;
+
+-- Note: users обычно через users.xml; здесь минимум.
+SET allow_experimental_object_type = 1;
+```
+
+### 5.3 warehouse/migrations/0001_init.sql (SYS + RAW)
+
+```sql
+USE mp_analytics;
+
+-- SYS
+CREATE TABLE IF NOT EXISTS sys_schema_migrations
+(
+  version String,
+  applied_at DateTime DEFAULT now()
+)
+ENGINE = MergeTree
+ORDER BY (version);
+
+CREATE TABLE IF NOT EXISTS sys_watermarks
+(
+  source LowCardinality(String),
+  account_id LowCardinality(String),
+  watermark_ts DateTime,
+  updated_at DateTime DEFAULT now()
+)
+ENGINE = ReplacingMergeTree(updated_at)
+ORDER BY (source, account_id);
+
+CREATE TABLE IF NOT EXISTS sys_task_runs
+(
+  task_name LowCardinality(String),
+  run_id UUID,
+  started_at DateTime,
+  finished_at DateTime,
+  status LowCardinality(String),
+  rows_ingested UInt64,
+  message String,
+  meta_json String
+)
+ENGINE = MergeTree
+PARTITION BY toYYYYMM(started_at)
+ORDER BY (task_name, started_at, run_id);
+
+-- DIMS
+CREATE TABLE IF NOT EXISTS dim_marketplace
+(
+  marketplace LowCardinality(String),
+  title String
+)
+ENGINE = TinyLog;
+
+INSERT INTO dim_marketplace (marketplace, title) VALUES ('wb','Wildberries'),('ozon','Ozon');
+
+CREATE TABLE IF NOT EXISTS dim_account
+(
+  account_id LowCardinality(String),
+  marketplace LowCardinality(String),
+  title String,
+  created_at DateTime DEFAULT now()
+)
+ENGINE = ReplacingMergeTree(created_at)
+ORDER BY (marketplace, account_id);
+
+INSERT INTO dim_account (account_id, marketplace, title) VALUES ('default','wb','WB default'),('default','ozon','Ozon default');
+
+CREATE TABLE IF NOT EXISTS dim_product
+(
+  marketplace LowCardinality(String),
+  account_id LowCardinality(String),
+  product_id String,
+  nm_id Nullable(UInt64),
+  chrt_id Nullable(UInt64),
+  sku Nullable(String),
+  offer_id Nullable(String),
+  ozon_product_id Nullable(UInt64),
+  title Nullable(String),
+  brand Nullable(String),
+  category Nullable(String),
+  updated_at DateTime DEFAULT now()
+)
+ENGINE = ReplacingMergeTree(updated_at)
+ORDER BY (marketplace, account_id, product_id);
+
+-- RAW WB
+CREATE TABLE IF NOT EXISTS raw_wb_sales
+(
+  ingested_at DateTime DEFAULT now(),
+  run_id UUID,
+  account_id LowCardinality(String),
+  srid String,
+  last_change_ts DateTime,
+  event_ts DateTime,
+  nm_id UInt64,
+  chrt_id UInt64,
+  barcode Nullable(String),
+  quantity UInt16,
+  price_rub Float64,
+  payout_rub Nullable(Float64),
+  is_return UInt8,
+  payload String
+)
+ENGINE = ReplacingMergeTree(ingested_at)
+PARTITION BY toYYYYMM(event_ts)
+ORDER BY (account_id, srid);
+
+CREATE TABLE IF NOT EXISTS raw_wb_orders
+(
+  ingested_at DateTime DEFAULT now(),
+  run_id UUID,
+  account_id LowCardinality(String),
+  srid String,
+  last_change_ts DateTime,
+  event_ts DateTime,
+  nm_id UInt64,
+  chrt_id UInt64,
+  quantity UInt16,
+  price_rub Float64,
+  payload String
+)
+ENGINE = ReplacingMergeTree(ingested_at)
+PARTITION BY toYYYYMM(event_ts)
+ORDER BY (account_id, srid);
+
+CREATE TABLE IF NOT EXISTS raw_wb_stocks
+(
+  ingested_at DateTime DEFAULT now(),
+  run_id UUID,
+  account_id LowCardinality(String),
+  snapshot_ts DateTime,
+  nm_id Nullable(UInt64),
+  chrt_id UInt64,
+  sku Nullable(String),
+  warehouse_id Nullable(UInt64),
+  amount Int32,
+  payload String
+)
+ENGINE = ReplacingMergeTree(ingested_at)
+PARTITION BY toYYYYMM(snapshot_ts)
+ORDER BY (account_id, snapshot_ts, chrt_id);
+
+CREATE TABLE IF NOT EXISTS raw_wb_funnel_daily
+(
+  ingested_at DateTime DEFAULT now(),
+  run_id UUID,
+  account_id LowCardinality(String),
+  day Date,
+  nm_id UInt64,
+  open_card_count UInt64,
+  add_to_cart_count UInt64,
+  orders_count UInt64,
+  orders_sum_rub Float64,
+  buyouts_count UInt64,
+  buyouts_sum_rub Float64,
+  cancel_count UInt64,
+  cancel_sum_rub Float64,
+  add_to_cart_conv Float64,
+  cart_to_order_conv Float64,
+  buyout_percent Float64,
+  add_to_wishlist UInt64,
+  currency LowCardinality(String),
+  payload String
+)
+ENGINE = ReplacingMergeTree(ingested_at)
+PARTITION BY toYYYYMM(day)
+ORDER BY (account_id, day, nm_id);
+
+-- RAW OZON
+CREATE TABLE IF NOT EXISTS raw_ozon_postings
+(
+  ingested_at DateTime DEFAULT now(),
+  run_id UUID,
+  account_id LowCardinality(String),
+  posting_number String,
+  status LowCardinality(String),
+  created_at DateTime,
+  in_process_at Nullable(DateTime),
+  shipped_at Nullable(DateTime),
+  delivered_at Nullable(DateTime),
+  canceled_at Nullable(DateTime),
+  ozon_warehouse_id Nullable(UInt64),
+  payload String
+)
+ENGINE = ReplacingMergeTree(ingested_at)
+PARTITION BY toYYYYMM(created_at)
+ORDER BY (account_id, posting_number);
+
+CREATE TABLE IF NOT EXISTS raw_ozon_posting_items
+(
+  ingested_at DateTime DEFAULT now(),
+  run_id UUID,
+  account_id LowCardinality(String),
+  posting_number String,
+  ozon_product_id UInt64,
+  offer_id Nullable(String),
+  name Nullable(String),
+  quantity UInt16,
+  price Float64,
+  payout Nullable(Float64),
+  payload String
+)
+ENGINE = ReplacingMergeTree(ingested_at)
+PARTITION BY toYYYYMM(ingested_at)
+ORDER BY (account_id, posting_number, ozon_product_id);
+
+CREATE TABLE IF NOT EXISTS raw_ozon_stocks
+(
+  ingested_at DateTime DEFAULT now(),
+  run_id UUID,
+  account_id LowCardinality(String),
+  snapshot_ts DateTime,
+  ozon_product_id UInt64,
+  offer_id Nullable(String),
+  warehouse_id Nullable(UInt64),
+  present Int32,
+  reserved Int32,
+  payload String
+)
+ENGINE = ReplacingMergeTree(ingested_at)
+PARTITION BY toYYYYMM(snapshot_ts)
+ORDER BY (account_id, snapshot_ts, ozon_product_id, warehouse_id);
+
+CREATE TABLE IF NOT EXISTS raw_ozon_ads_daily
+(
+  ingested_at DateTime DEFAULT now(),
+  run_id UUID,
+  account_id LowCardinality(String),
+  day Date,
+  campaign_id String,
+  impressions UInt64,
+  clicks UInt64,
+  cost Float64,
+  orders UInt64,
+  revenue Float64,
+  payload String
+)
+ENGINE = ReplacingMergeTree(ingested_at)
+PARTITION BY toYYYYMM(day)
+ORDER BY (account_id, day, campaign_id);
+
+CREATE TABLE IF NOT EXISTS raw_ozon_finance_ops
+(
+  ingested_at DateTime DEFAULT now(),
+  run_id UUID,
+  account_id LowCardinality(String),
+  operation_id String,
+  operation_ts DateTime,
+  type LowCardinality(String),
+  amount Float64,
+  currency LowCardinality(String),
+  payload String
+)
+ENGINE = ReplacingMergeTree(ingested_at)
+PARTITION BY toYYYYMM(operation_ts)
+ORDER BY (account_id, operation_ts, operation_id);
+```
+
+### 5.4 warehouse/migrations/0002_stg.sql (STG)
+
+```sql
+USE mp_analytics;
+
+CREATE TABLE IF NOT EXISTS stg_sales
+(
+  event_ts DateTime,
+  day Date MATERIALIZED toDate(event_ts),
+  marketplace LowCardinality(String),
+  account_id LowCardinality(String),
+  order_id String,
+  posting_number Nullable(String),
+  srid Nullable(String),
+  product_id String,
+  nm_id Nullable(UInt64),
+  ozon_product_id Nullable(UInt64),
+  offer_id Nullable(String),
+  qty Int32,
+  price_gross Float64,
+  payout Nullable(Float64),
+  is_return UInt8,
+  last_change_ts Nullable(DateTime),
+  meta_json String,
+  ingested_at DateTime DEFAULT now()
+)
+ENGINE = ReplacingMergeTree(ingested_at)
+PARTITION BY toYYYYMM(day)
+ORDER BY (marketplace, account_id, order_id, product_id, event_ts);
+
+CREATE TABLE IF NOT EXISTS stg_orders
+(
+  event_ts DateTime,
+  day Date MATERIALIZED toDate(event_ts),
+  marketplace LowCardinality(String),
+  account_id LowCardinality(String),
+  order_id String,
+  status LowCardinality(String),
+  product_id Nullable(String),
+  qty Nullable(Int32),
+  price_gross Nullable(Float64),
+  last_change_ts Nullable(DateTime),
+  meta_json String,
+  ingested_at DateTime DEFAULT now()
+)
+ENGINE = ReplacingMergeTree(ingested_at)
+PARTITION BY toYYYYMM(day)
+ORDER BY (marketplace, account_id, order_id, event_ts);
+
+CREATE TABLE IF NOT EXISTS stg_stocks
+(
+  snapshot_ts DateTime,
+  day Date MATERIALIZED toDate(snapshot_ts),
+  marketplace LowCardinality(String),
+  account_id LowCardinality(String),
+  product_id String,
+  nm_id Nullable(UInt64),
+  ozon_product_id Nullable(UInt64),
+  offer_id Nullable(String),
+  warehouse_id Nullable(UInt64),
+  amount Int32,
+  reserved Nullable(Int32),
+  present Nullable(Int32),
+  meta_json String,
+  ingested_at DateTime DEFAULT now()
+)
+ENGINE = ReplacingMergeTree(ingested_at)
+PARTITION BY toYYYYMM(day)
+ORDER BY (marketplace, account_id, day, product_id, warehouse_id);
+
+CREATE TABLE IF NOT EXISTS stg_funnel_daily
+(
+  day Date,
+  marketplace LowCardinality(String),
+  account_id LowCardinality(String),
+  product_id String,
+  nm_id Nullable(UInt64),
+  views UInt64,
+  adds_to_cart UInt64,
+  orders UInt64,
+  orders_sum Float64,
+  buyouts UInt64,
+  cancels UInt64,
+  add_to_cart_conv Float64,
+  cart_to_order_conv Float64,
+  buyout_percent Float64,
+  wishlist UInt64,
+  currency LowCardinality(String),
+  meta_json String,
+  ingested_at DateTime DEFAULT now()
+)
+ENGINE = ReplacingMergeTree(ingested_at)
+PARTITION BY toYYYYMM(day)
+ORDER BY (marketplace, account_id, day, product_id);
+
+CREATE TABLE IF NOT EXISTS stg_ads_daily
+(
+  day Date,
+  marketplace LowCardinality(String),
+  account_id LowCardinality(String),
+  campaign_id String,
+  impressions UInt64,
+  clicks UInt64,
+  cost Float64,
+  orders UInt64,
+  revenue Float64,
+  meta_json String,
+  ingested_at DateTime DEFAULT now()
+)
+ENGINE = ReplacingMergeTree(ingested_at)
+PARTITION BY toYYYYMM(day)
+ORDER BY (marketplace, account_id, day, campaign_id);
+```
+
+### 5.5 warehouse/migrations/0003_marts.sql (MRT + views)
+
+```sql
+USE mp_analytics;
+
+CREATE TABLE IF NOT EXISTS mrt_sales_daily
+(
+  day Date,
+  marketplace LowCardinality(String),
+  account_id LowCardinality(String),
+  product_id String,
+  qty Int64,
+  revenue Float64,
+  payout Nullable(Float64),
+  returns_qty Int64,
+  updated_at DateTime DEFAULT now()
+)
+ENGINE = ReplacingMergeTree(updated_at)
+PARTITION BY toYYYYMM(day)
+ORDER BY (marketplace, account_id, day, product_id);
+
+CREATE TABLE IF NOT EXISTS mrt_stock_daily
+(
+  day Date,
+  marketplace LowCardinality(String),
+  account_id LowCardinality(String),
+  product_id String,
+  warehouse_id Nullable(UInt64),
+  stock_end Int64,
+  updated_at DateTime DEFAULT now()
+)
+ENGINE = ReplacingMergeTree(updated_at)
+PARTITION BY toYYYYMM(day)
+ORDER BY (marketplace, account_id, day, product_id, warehouse_id);
+
+CREATE TABLE IF NOT EXISTS mrt_funnel_daily
+(
+  day Date,
+  marketplace LowCardinality(String),
+  account_id LowCardinality(String),
+  product_id String,
+  views UInt64,
+  adds_to_cart UInt64,
+  orders UInt64,
+  cr_order Float64,
+  cr_cart Float64,
+  updated_at DateTime DEFAULT now()
+)
+ENGINE = ReplacingMergeTree(updated_at)
+PARTITION BY toYYYYMM(day)
+ORDER BY (marketplace, account_id, day, product_id);
+
+CREATE TABLE IF NOT EXISTS mrt_ads_daily
+(
+  day Date,
+  marketplace LowCardinality(String),
+  account_id LowCardinality(String),
+  campaign_id String,
+  impressions UInt64,
+  clicks UInt64,
+  cost Float64,
+  orders UInt64,
+  revenue Float64,
+  acos Float64,
+  romi Float64,
+  updated_at DateTime DEFAULT now()
+)
+ENGINE = ReplacingMergeTree(updated_at)
+PARTITION BY toYYYYMM(day)
+ORDER BY (marketplace, account_id, day, campaign_id);
+
+CREATE VIEW IF NOT EXISTS v_kpi_sales_30d AS
+SELECT
+  marketplace,
+  account_id,
+  sum(revenue) AS revenue_30d,
+  sum(qty) AS qty_30d,
+  sum(returns_qty) AS returns_30d
+FROM mrt_sales_daily
+WHERE day >= today() - 30
+GROUP BY marketplace, account_id;
+
+CREATE VIEW IF NOT EXISTS v_kpi_ads_30d AS
+SELECT
+  marketplace,
+  account_id,
+  sum(cost) AS cost_30d,
+  sum(revenue) AS revenue_30d,
+  if(sum(revenue)=0, 0, sum(cost)/sum(revenue)) AS acos_30d
+FROM mrt_ads_daily
+WHERE day >= today() - 30
+GROUP BY marketplace, account_id;
+```
+
+---
+
+## 6) Watermarks и locking (workers/app/utils)
+
+### 6.1 sys_watermarks
+- get_watermark(source, account_id) → DateTime (UTC) default: now()-48h
+- set_watermark(source, account_id, new_ts) только если new_ts больше текущего
+
+### 6.2 Redis locks
+- lock ключи: `lock:{source}:{account_id}`
+- TTL 10–30 минут
+- гарантировать один collector на источник/аккаунт
+
+---
+
+## 7) Celery: приложение и расписание
+
+### 7.1 Celery app config
+- broker = REDIS_URL
+- task_routes:
+  - wb_* → queue wb
+  - ozon_* → queue ozon
+  - transform_* → queue etl
+  - mart_* → queue etl
+  - automation_* → queue automation
+
+### 7.2 Beat расписание (workers/app/beat_schedule.py)
+
+```python
+from celery.schedules import crontab
+
+beat_schedule = {
+  "wb_sales_incremental": {"task": "tasks.wb_collect.wb_sales_incremental", "schedule": crontab(minute="*/15")},
+  "wb_orders_incremental": {"task": "tasks.wb_collect.wb_orders_incremental", "schedule": crontab(minute="*/15")},
+  "wb_stocks_snapshot": {"task": "tasks.wb_collect.wb_stocks_snapshot", "schedule": crontab(minute="*/30")},
+  "wb_funnel_roll": {"task": "tasks.wb_collect.wb_funnel_roll", "schedule": crontab(minute="5", hour="*/1")},
+
+  "wb_sales_backfill_14d": {"task": "tasks.wb_collect.wb_sales_backfill_days", "schedule": crontab(minute="10", hour="3")},
+  "wb_orders_backfill_14d": {"task": "tasks.wb_collect.wb_orders_backfill_days", "schedule": crontab(minute="20", hour="3")},
+  "wb_funnel_backfill_14d": {"task": "tasks.wb_collect.wb_funnel_backfill_days", "schedule": crontab(minute="30", hour="3")},
+
+  "ozon_postings_incremental": {"task": "tasks.ozon_collect.ozon_postings_incremental", "schedule": crontab(minute="*/20")},
+  "ozon_stocks_snapshot": {"task": "tasks.ozon_collect.ozon_stocks_snapshot", "schedule": crontab(minute="*/30")},
+  "ozon_ads_daily": {"task": "tasks.ozon_collect.ozon_ads_daily", "schedule": crontab(minute="40", hour="*/6")},
+
+  "transform_raw_to_stg": {"task": "tasks.transforms.transform_all_recent", "schedule": crontab(minute="*/30")},
+  "build_marts_recent": {"task": "tasks.marts.build_marts_recent", "schedule": crontab(minute="0", hour="*/1")},
+  "build_marts_backfill_14d": {"task": "tasks.marts.build_marts_backfill_days", "schedule": crontab(minute="0", hour="4")},
+
+  "automation_rules_run": {"task": "tasks.maintenance.run_automation_rules", "schedule": crontab(minute="0", hour="9,15,21")},
+  "maintenance_prune_raw": {"task": "tasks.maintenance.prune_old_raw", "schedule": crontab(minute="0", hour="2")},
+}
+```
+
+---
+
+## 8) MART builds: SQL шаблоны
+
+### 8.1 mrt_sales_daily
+```sql
+INSERT INTO mrt_sales_daily
+SELECT
+  day,
+  marketplace,
+  account_id,
+  product_id,
+  sum(qty) AS qty,
+  sumIf(price_gross * qty, is_return=0) AS revenue,
+  sum(payout) AS payout,
+  sumIf(qty, is_return=1) AS returns_qty,
+  now() AS updated_at
+FROM stg_sales
+WHERE day >= today() - 14
+GROUP BY day, marketplace, account_id, product_id;
+```
+
+### 8.2 mrt_stock_daily
+```sql
+INSERT INTO mrt_stock_daily
+SELECT
+  day,
+  marketplace,
+  account_id,
+  product_id,
+  warehouse_id,
+  argMax(amount, snapshot_ts) AS stock_end,
+  now() AS updated_at
+FROM stg_stocks
+WHERE day >= today() - 14
+GROUP BY day, marketplace, account_id, product_id, warehouse_id;
+```
+
+### 8.3 mrt_funnel_daily
+```sql
+INSERT INTO mrt_funnel_daily
+SELECT
+  day,
+  marketplace,
+  account_id,
+  product_id,
+  sum(views) AS views,
+  sum(adds_to_cart) AS adds_to_cart,
+  sum(orders) AS orders,
+  if(sum(views)=0, 0, sum(orders)/sum(views)) AS cr_order,
+  if(sum(views)=0, 0, sum(adds_to_cart)/sum(views)) AS cr_cart,
+  now() AS updated_at
+FROM stg_funnel_daily
+WHERE day >= today() - 14
+GROUP BY day, marketplace, account_id, product_id;
+```
+
+### 8.4 mrt_ads_daily
+```sql
+INSERT INTO mrt_ads_daily
+SELECT
+  day,
+  marketplace,
+  account_id,
+  campaign_id,
+  sum(impressions) AS impressions,
+  sum(clicks) AS clicks,
+  sum(cost) AS cost,
+  sum(orders) AS orders,
+  sum(revenue) AS revenue,
+  if(sum(revenue)=0, 0, sum(cost)/sum(revenue)) AS acos,
+  if(sum(cost)=0, 0, (sum(revenue)-sum(cost))/sum(cost)) AS romi,
+  now() AS updated_at
+FROM stg_ads_daily
+WHERE day >= today() - 60
+GROUP BY day, marketplace, account_id, campaign_id;
+```
+
+---
+
+## 9) Backend (FastAPI) — endpoints
+
+### 9.1 Health
+- GET /health
+- GET /ready
+
+### 9.2 Read-only API
+- GET /api/v1/sales/daily
+- GET /api/v1/stocks/current
+- GET /api/v1/funnel/daily
+- GET /api/v1/ads/daily
+- GET /api/v1/kpis
+
+### 9.3 Admin (ADMIN_API_KEY)
+- GET /api/v1/admin/watermarks
+- POST /api/v1/admin/run-task
+- POST /api/v1/admin/backfill
+- GET /api/v1/admin/task-runs
+
+---
+
+## 10) Automation
+
+### 10.1 YAML rules
+- automation/rules/low_stock.yml
+- automation/rules/bad_acos.yml
+- automation/rules/no_sales_7d.yml
+
+### 10.2 Engine
+- load rules
+- run CH query
+- eval condition expr
+- execute actions
+
+### 10.3 Telegram action
+- sendMessage via HTTPS
+
+---
+
+## 11) Metabase: SQL queries (dashboards/sql)
+
+1) Sales Overview
+```sql
+SELECT day, sum(revenue) revenue, sum(qty) qty, sum(returns_qty) returns
+FROM mrt_sales_daily
+WHERE day BETWEEN {{from}} AND {{to}}
+GROUP BY day
+ORDER BY day;
+```
+
+2) Top products 30d
+```sql
+SELECT product_id, sum(revenue) revenue, sum(qty) qty
+FROM mrt_sales_daily
+WHERE day >= today() - 30
+GROUP BY product_id
+ORDER BY revenue DESC
+LIMIT 50;
+```
+
+3) Funnel
+```sql
+SELECT day, product_id, views, adds_to_cart, orders, cr_order, cr_cart
+FROM mrt_funnel_daily
+WHERE day BETWEEN {{from}} AND {{to}}
+ORDER BY day, product_id;
+```
+
+4) Stocks yesterday
+```sql
+SELECT marketplace, product_id, sum(stock_end) stock_end
+FROM mrt_stock_daily
+WHERE day = today() - 1
+GROUP BY marketplace, product_id
+ORDER BY stock_end ASC;
+```
+
+5) Ads
+```sql
+SELECT day, campaign_id, cost, revenue, acos, romi
+FROM mrt_ads_daily
+WHERE day BETWEEN {{from}} AND {{to}}
+ORDER BY day, campaign_id;
+```
+
+6) KPI 30d
+```sql
+SELECT * FROM v_kpi_sales_30d;
+```
+
+---
+
+## 12) Acceptance Criteria
+
+- `docker compose up -d` поднимает всё
+- ingestion пишет raw
+- transforms и marts работают
+- backend отдаёт данные из mrt
+- Metabase показывает минимум 6 дашбордов
+- Telegram алерты приходят
+- дедуп и идемпотентность выдержаны
+
