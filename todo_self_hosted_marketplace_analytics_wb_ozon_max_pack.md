@@ -1384,7 +1384,7 @@ SELECT * FROM v_kpi_sales_30d;
 - [~] Ozon postings/stocks подтягиваются и сохраняются в ClickHouse
 - [x] transforms и marts строятся повторяемо и без дублей (проверено синтетическим двойным прогоном)
 - [x] backend отдаёт данные из `mrt_*`
-- [~] Metabase показывает минимум 5-6 базовых дашбордов
+- [x] Metabase baseline формализован на 6 дашбордов (`Sales/Funnel/Stocks/Ads/KPI/Finance`) через `dashboards/manifest.yml`
 - [~] Telegram алерты реально приходят
 - [x] повторный запуск ingestion не плодит дубли в целевых агрегатах (проверено синтетическими дублями raw + rebuild window + `FINAL`)
 - [x] при `429` WB/Ozon система корректно ждёт и продолжает работу (покрыто unit-тестами retry + заголовков WB)

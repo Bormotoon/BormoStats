@@ -25,6 +25,7 @@ Prepared SQL templates are in `dashboards/sql`:
 4. `04_stocks_yesterday.sql`
 5. `05_ads.sql`
 6. `06_kpi_30d.sql`
+7. `07_finance_ops_daily.sql`
 
 Create one Metabase question per file, then build dashboards.
 
@@ -38,6 +39,8 @@ Minimum dashboard set:
 2. Funnel
 3. Stocks
 4. Ads
+5. KPI
+6. Finance
 
 ## Recommended setup flow
 
