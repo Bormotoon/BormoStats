@@ -1304,7 +1304,7 @@ SELECT * FROM v_kpi_sales_30d;
 - `[x]` `scripts/bootstrap.sh`: поднимает compose, ждёт health, применяет миграции, проверяет таблицы, делает token/API smoke checks
 - `[x]` `scripts/check_tokens.py`: проверяет env и выполняет реальные API smoke-checks для WB/Ozon (с мягкой деградацией по Ozon Perf)
 - `[x]` Shared HTTP layer: реализованы timeout policy, WB/Ozon retry handling (включая 429), circuit breaker, redaction и structured request logging
-- `[~]` WB backfill: задачи есть, но дневной backfill не реализован через отдельный `flag=1` по дням
+- `[x]` WB backfill: реализован дневной режим `flag=1` по дням с отдельной задачей и обновлением watermark
 - `[~]` WB funnel: collector и backfill есть, но реализация упрощённая и не соответствует полной спецификации из плана
 - `[~]` Ozon postings: базовый collector есть, но покрытие ограничено и не видно полной обработки FBO/FBS/capability flags
 - `[~]` Observability: есть `sys_task_runs`, базовый JSON logging в backend и maintenance task, но нет `/metrics`, Prometheus/Grafana и явных alerting hooks
@@ -1343,7 +1343,7 @@ SELECT * FROM v_kpi_sales_30d;
 ### Этап C — WB ingestion
 - [x] auth + token checks
 - [x] sales incremental
-- [~] sales backfill 7-14d
+- [x] sales backfill 7-14d
 - [~] orders incremental/backfill or explicit exclusion
 - [x] stocks snapshot
 - [~] funnel hourly + backfill

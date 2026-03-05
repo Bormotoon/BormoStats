@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime, time
 from typing import Any
 
 from collectors.common.http_client import JsonHttpClient
@@ -22,21 +22,32 @@ class WbApiClient:
     def _analytics_headers(self) -> dict[str, str]:
         return {"Authorization": self.analytics_token}
 
-    def sales_since(self, date_from: datetime) -> list[dict[str, Any]]:
+    def _format_date_from(self, date_from: datetime, flag: int) -> str:
+        if flag == 1:
+            return date_from.astimezone(UTC).strftime("%Y-%m-%d")
+        return date_from.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S")
+
+    def sales_since(self, date_from: datetime, flag: int = 0) -> list[dict[str, Any]]:
         payload = self.statistics.get(
             endpoints.SALES_PATH,
             headers=self._statistics_headers(),
-            params={"dateFrom": date_from.strftime("%Y-%m-%dT%H:%M:%S")},
+            params={"dateFrom": self._format_date_from(date_from, flag), "flag": flag},
         )
         return payload if isinstance(payload, list) else []
 
-    def orders_since(self, date_from: datetime) -> list[dict[str, Any]]:
+    def sales_for_day(self, day: date) -> list[dict[str, Any]]:
+        return self.sales_since(datetime.combine(day, time.min, tzinfo=UTC), flag=1)
+
+    def orders_since(self, date_from: datetime, flag: int = 0) -> list[dict[str, Any]]:
         payload = self.statistics.get(
             endpoints.ORDERS_PATH,
             headers=self._statistics_headers(),
-            params={"dateFrom": date_from.strftime("%Y-%m-%dT%H:%M:%S")},
+            params={"dateFrom": self._format_date_from(date_from, flag), "flag": flag},
         )
         return payload if isinstance(payload, list) else []
+
+    def orders_for_day(self, day: date) -> list[dict[str, Any]]:
+        return self.orders_since(datetime.combine(day, time.min, tzinfo=UTC), flag=1)
 
     def stocks(self) -> list[dict[str, Any]]:
         payload = self.statistics.get(
