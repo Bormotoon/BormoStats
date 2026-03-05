@@ -800,7 +800,7 @@ GROUP BY marketplace, account_id;
 
 ---
 
-## 7) Celery: приложение и расписание
+## 7) Celery: приложение и расписание ✅
 
 ### 7.1 Celery app config
 - broker = REDIS_URL
