@@ -1,1 +1,16 @@
 name: low_stock
+query: |
+  SELECT
+    marketplace,
+    account_id,
+    product_id,
+    sum(stock_end) AS stock_end
+  FROM mrt_stock_daily
+  WHERE day = today() - 1
+  GROUP BY marketplace, account_id, product_id
+condition: row.get("stock_end", 0) < params.get("threshold", 5)
+params:
+  threshold: 5
+actions:
+  - type: telegram
+    template: "Low stock: {marketplace}/{account_id}/{product_id}, stock={stock_end}"

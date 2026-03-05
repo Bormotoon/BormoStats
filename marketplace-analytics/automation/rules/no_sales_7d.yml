@@ -1,1 +1,16 @@
 name: no_sales_7d
+query: |
+  SELECT
+    marketplace,
+    account_id,
+    product_id,
+    sum(qty) AS qty_7d
+  FROM mrt_sales_daily
+  WHERE day >= today() - 7
+  GROUP BY marketplace, account_id, product_id
+condition: row.get("qty_7d", 0) <= params.get("max_qty", 0)
+params:
+  max_qty: 0
+actions:
+  - type: telegram
+    template: "No sales in 7d: {marketplace}/{account_id}/{product_id}"

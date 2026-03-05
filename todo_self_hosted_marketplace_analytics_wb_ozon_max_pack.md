@@ -940,7 +940,7 @@ GROUP BY day, marketplace, account_id, campaign_id;
 
 ---
 
-## 10) Automation
+## 10) Automation ✅
 
 ### 10.1 YAML rules
 - automation/rules/low_stock.yml
