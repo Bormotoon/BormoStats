@@ -1306,7 +1306,7 @@ SELECT * FROM v_kpi_sales_30d;
 - `[x]` Shared HTTP layer: реализованы timeout policy, WB/Ozon retry handling (включая 429), circuit breaker, redaction и structured request logging
 - `[x]` WB backfill: реализован дневной режим `flag=1` по дням с отдельной задачей и обновлением watermark
 - `[x]` WB orders backfill: реализован отдельный дневной backfill `flag=1` по дням, а не только инкремент
-- `[~]` WB funnel: collector и backfill есть, но реализация упрощённая и не соответствует полной спецификации из плана
+- `[x]` WB funnel: hourly roll работает на скользящем 7-дневном окне, backfill поддерживает период до 365 дней с чанкингом
 - `[~]` Ozon postings: базовый collector есть, но покрытие ограничено и не видно полной обработки FBO/FBS/capability flags
 - `[~]` Observability: есть `sys_task_runs`, базовый JSON logging в backend и maintenance task, но нет `/metrics`, Prometheus/Grafana и явных alerting hooks
 - `[~]` Документация есть, но пока короче, чем целевая спецификация
@@ -1347,7 +1347,7 @@ SELECT * FROM v_kpi_sales_30d;
 - [x] sales backfill 7-14d
 - [x] orders incremental/backfill or explicit exclusion
 - [x] stocks snapshot
-- [~] funnel hourly + backfill
+- [x] funnel hourly + backfill
 
 ### Этап D — Ozon ingestion
 - [~] postings/orders

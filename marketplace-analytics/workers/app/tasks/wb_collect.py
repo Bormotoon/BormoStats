@@ -204,17 +204,27 @@ def wb_funnel_roll(account_id: str = WB_ACCOUNT_ID) -> dict[str, Any]:
         return {"status": "skipped", "reason": "missing WB tokens"}
 
     to_day = datetime.now(UTC).date()
-    from_day = to_day - timedelta(days=1)
+    from_day = to_day - timedelta(days=7)
 
     redis_client = get_redis_client()
     try:
         with lock_scope(redis_client=redis_client, source="wb_funnel", account_id=account_id, ttl_seconds=1200):
             ch_client = get_ch_client()
             try:
-                records = wb.funnel_daily(from_day=from_day, to_day=to_day)
-                rows = parse_funnel(records, run_id=run_id, account_id=account_id)
-                inserted = _insert_rows(ch_client, "raw_wb_funnel_daily", RAW_WB_FUNNEL_COLUMNS, rows)
-                log_task_run(ch_client, task_name, run_id, started_at, "success", inserted, "wb funnel collected")
+                inserted = 0
+                for chunk_from, chunk_to in date_chunks(from_day, to_day, chunk_days=3):
+                    records = wb.funnel_daily(from_day=chunk_from, to_day=chunk_to)
+                    rows = parse_funnel(records, run_id=run_id, account_id=account_id)
+                    inserted += _insert_rows(ch_client, "raw_wb_funnel_daily", RAW_WB_FUNNEL_COLUMNS, rows)
+                log_task_run(
+                    ch_client,
+                    task_name,
+                    run_id,
+                    started_at,
+                    "success",
+                    inserted,
+                    "wb funnel hourly roll (7-day window)",
+                )
                 return {"status": "success", "rows": inserted}
             except Exception as exc:
                 log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
@@ -325,7 +335,7 @@ def wb_orders_backfill_days(days: int = 14, account_id: str = WB_ACCOUNT_ID) -> 
 
 @shared_task(name="tasks.wb_collect.wb_funnel_backfill_days")
 def wb_funnel_backfill_days(days: int = 14, account_id: str = WB_ACCOUNT_ID) -> dict[str, Any]:
-    safe_days = max(1, min(days, 90))
+    safe_days = max(1, min(days, 365))
     task_name = "tasks.wb_collect.wb_funnel_backfill_days"
     run_id, started_at = new_run_context(task_name)
     wb = _wb_client()
