@@ -958,7 +958,7 @@ GROUP BY day, marketplace, account_id, campaign_id;
 
 ---
 
-## 11) Metabase: SQL queries (dashboards/sql)
+## 11) Metabase: SQL queries (dashboards/sql) ✅
 
 1) Sales Overview
 ```sql
