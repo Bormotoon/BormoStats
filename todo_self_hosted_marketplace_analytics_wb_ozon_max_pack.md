@@ -919,7 +919,7 @@ GROUP BY day, marketplace, account_id, campaign_id;
 
 ---
 
-## 9) Backend (FastAPI) — endpoints
+## 9) Backend (FastAPI) — endpoints ✅
 
 ### 9.1 Health
 - GET /health
