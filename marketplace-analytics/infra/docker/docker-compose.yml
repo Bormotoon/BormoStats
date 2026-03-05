@@ -1,12 +1,9 @@
-version: "3.9"
-
 services:
   clickhouse:
     image: clickhouse/clickhouse-server:latest
     container_name: mp_clickhouse
     ports:
-      - "8123:8123"
-      - "9000:9000"
+      - "${CH_HTTP_HOST_PORT:-8123}:8123"
     environment:
       - TZ=${TZ:-Europe/Warsaw}
     volumes:
@@ -28,8 +25,6 @@ services:
   redis:
     image: redis:7-alpine
     container_name: mp_redis
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     command: ["redis-server", "--appendonly", "yes"]

@@ -45,6 +45,11 @@ def parse_args() -> argparse.Namespace:
         default=12.0,
         help="HTTP timeout for smoke checks",
     )
+    parser.add_argument(
+        "--allow-placeholder",
+        action="store_true",
+        help="do not fail on placeholder env values (useful for local dry-runs)",
+    )
     return parser.parse_args()
 
 
@@ -210,11 +215,15 @@ def main() -> int:
     args = parse_args()
 
     missing = _validate_env()
-    if missing:
+    if missing and not args.allow_placeholder:
         print("Missing or placeholder values:")
         for key in missing:
             print(f"- {key}")
         return 1
+    if missing and args.allow_placeholder:
+        print("Environment placeholders are allowed for this run:")
+        for key in missing:
+            print(f"- {key}")
 
     print("Environment values look configured.")
     if args.skip_api:

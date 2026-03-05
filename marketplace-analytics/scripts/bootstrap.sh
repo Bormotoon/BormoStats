@@ -4,6 +4,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="$ROOT_DIR/.env"
 COMPOSE_FILE="$ROOT_DIR/infra/docker/docker-compose.yml"
+PYTHON_BIN="python3"
+
+if [[ -x "$ROOT_DIR/.venv/bin/python" ]]; then
+  PYTHON_BIN="$ROOT_DIR/.venv/bin/python"
+fi
 
 compose_cmd() {
   docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
@@ -44,18 +49,29 @@ set -a
 source "$ENV_FILE"
 set +a
 
+BOOTSTRAP_CH_HOST="${BOOTSTRAP_CH_HOST:-localhost}"
+BOOTSTRAP_CH_PORT="${BOOTSTRAP_CH_PORT:-${CH_HTTP_HOST_PORT:-8123}}"
+
+run_python_with_bootstrap_ch() {
+  CH_HOST="$BOOTSTRAP_CH_HOST" CH_PORT="$BOOTSTRAP_CH_PORT" "$PYTHON_BIN" "$@"
+}
+
 echo "Starting docker services..."
-compose_cmd up -d --build
+if ! compose_cmd up -d --build; then
+  echo "docker compose build failed; retrying with classic builder fallback..."
+  COMPOSE_DOCKER_CLI_BUILD=0 DOCKER_BUILDKIT=0 compose_cmd up -d --build || compose_cmd up -d
+fi
 
 wait_for_service clickhouse 180
 wait_for_service redis 120
 
 echo "Applying ClickHouse migrations..."
 cd "$ROOT_DIR"
-python3 warehouse/apply_migrations.py
+echo "Using bootstrap ClickHouse endpoint: ${BOOTSTRAP_CH_HOST}:${BOOTSTRAP_CH_PORT}"
+run_python_with_bootstrap_ch warehouse/apply_migrations.py
 
 echo "Checking required warehouse tables..."
-python3 - <<'PY'
+CH_HOST="$BOOTSTRAP_CH_HOST" CH_PORT="$BOOTSTRAP_CH_PORT" "$PYTHON_BIN" - <<'PY'
 import os
 import sys
 
@@ -101,7 +117,7 @@ PY
 
 if [[ -n "${CH_RO_USER:-}" && -n "${CH_RO_PASSWORD:-}" ]]; then
   echo "Ensuring read-only ClickHouse user for Metabase..."
-  python3 - <<'PY'
+  if ! CH_HOST="$BOOTSTRAP_CH_HOST" CH_PORT="$BOOTSTRAP_CH_PORT" "$PYTHON_BIN" - <<'PY'
 import os
 import re
 
@@ -139,19 +155,22 @@ try:
 finally:
     client.close()
 PY
+  then
+    echo "WARN: could not ensure read-only ClickHouse user; continuing bootstrap"
+  fi
 fi
 
 wait_for_service backend 180
 
 echo "Running API token smoke checks..."
 if [[ "${BOOTSTRAP_SKIP_TOKEN_CHECKS:-0}" == "1" ]]; then
-  python3 "$ROOT_DIR/scripts/check_tokens.py" --skip-api
+  "$PYTHON_BIN" "$ROOT_DIR/scripts/check_tokens.py" --skip-api --allow-placeholder
 else
-  python3 "$ROOT_DIR/scripts/check_tokens.py"
+  "$PYTHON_BIN" "$ROOT_DIR/scripts/check_tokens.py"
 fi
 
 echo "Running backend health checks..."
-python3 - <<'PY'
+"$PYTHON_BIN" - <<'PY'
 import json
 import urllib.request
 

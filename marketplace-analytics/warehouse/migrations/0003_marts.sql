@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS mrt_stock_daily
 )
 ENGINE = ReplacingMergeTree(updated_at)
 PARTITION BY toYYYYMM(day)
-ORDER BY (marketplace, account_id, day, product_id, warehouse_id);
+ORDER BY (marketplace, account_id, day, product_id, warehouse_id)
+SETTINGS allow_nullable_key = 1;
 
 CREATE TABLE IF NOT EXISTS mrt_funnel_daily
 (

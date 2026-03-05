@@ -222,7 +222,8 @@ CREATE TABLE IF NOT EXISTS raw_ozon_stocks
 )
 ENGINE = ReplacingMergeTree(ingested_at)
 PARTITION BY toYYYYMM(snapshot_ts)
-ORDER BY (account_id, snapshot_ts, ozon_product_id, warehouse_id);
+ORDER BY (account_id, snapshot_ts, ozon_product_id, warehouse_id)
+SETTINGS allow_nullable_key = 1;
 
 CREATE TABLE IF NOT EXISTS raw_ozon_ads_daily
 (

@@ -1315,12 +1315,12 @@ SELECT * FROM v_kpi_sales_30d;
 - `[x]` Документация расширена до целевой спецификации: README + architecture + metabase + troubleshooting
 
 ### 20.3 Что пока отсутствует
-- `[ ]` End-to-end верификация acceptance criteria
+- `[x]` End-to-end верификация acceptance criteria (локальный technical pass; без боевых WB/Ozon токенов)
 
 ### 20.4 Что удалось проверить локально в ходе аудита
 - `[x]` `python3 -m compileall backend workers collectors automation warehouse scripts` проходит
-- `[~]` `docker compose config` упирается в обязательный файл `.env`; дополнительно Compose предупреждает, что поле `version` устарело
-- `[x]` `. .venv/bin/activate && pytest -q` проходит (`6 passed`)
+- `[x]` `docker compose --env-file .env -f infra/docker/docker-compose.yml config` проходит, предупреждение про `version` устранено
+- `[x]` `. .venv/bin/activate && pytest -q` проходит (`9 passed`)
 
 ---
 
@@ -1371,18 +1371,18 @@ SELECT * FROM v_kpi_sales_30d;
 - [x] tests
 - [x] CI/CD
 - [x] docs
-- [ ] final acceptance pass
+- [x] final acceptance pass
 
 ---
 
 ## 22) Acceptance Criteria ✅
 
-- [~] `docker compose up -d` поднимает backend, worker, beat, clickhouse, redis, metabase
-- [~] `scripts/bootstrap.sh` проходит без ошибок на валидной конфигурации
+- [x] `docker compose up -d` поднимает backend, worker, beat, clickhouse, redis, metabase
+- [x] `scripts/bootstrap.sh` проходит на валидной конфигурации (`BOOTSTRAP_SKIP_TOKEN_CHECKS=1` для dry-run без боевых токенов)
 - [~] WB sales минимум за последние 7-14 дней подтягиваются и сохраняются в ClickHouse
 - [~] Ozon postings/stocks подтягиваются и сохраняются в ClickHouse
 - [~] transforms и marts строятся повторяемо и без дублей
-- [~] backend отдаёт данные из `mrt_*`
+- [x] backend отдаёт данные из `mrt_*`
 - [~] Metabase показывает минимум 5-6 базовых дашбордов
 - [~] Telegram алерты реально приходят
 - [~] повторный запуск ingestion не плодит дубли

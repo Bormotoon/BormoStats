@@ -39,6 +39,7 @@ cp .env.example .env
 ```
 
 2. Fill API tokens and admin key in `.env`.
+If port `8123` is busy on the host, set `CH_HTTP_HOST_PORT` to a free port.
 
 3. Run bootstrap (start services + migrations + smoke checks):
 
