@@ -95,6 +95,32 @@ def _validate_env() -> list[str]:
     return missing
 
 
+def _check_wb_token_ttl() -> CheckResult:
+    created_raw = os.getenv("WB_TOKEN_CREATED_AT", "").strip()
+    if not created_raw:
+        return CheckResult("wb_token_ttl", True, "WB_TOKEN_CREATED_AT not set; ttl reminder disabled", warning=True)
+
+    normalized = created_raw.replace("Z", "+00:00")
+    try:
+        created_at = datetime.fromisoformat(normalized)
+    except ValueError:
+        return CheckResult("wb_token_ttl", False, f"invalid WB_TOKEN_CREATED_AT format: {created_raw}")
+
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=UTC)
+    else:
+        created_at = created_at.astimezone(UTC)
+
+    expires_at = created_at + timedelta(days=180)
+    days_left = (expires_at - datetime.now(UTC)).days
+
+    if days_left < 0:
+        return CheckResult("wb_token_ttl", False, f"expired {abs(days_left)}d ago ({expires_at.date().isoformat()})")
+    if days_left <= 14:
+        return CheckResult("wb_token_ttl", True, f"expires in {days_left}d ({expires_at.date().isoformat()})", warning=True)
+    return CheckResult("wb_token_ttl", True, f"days_left={days_left} (expires {expires_at.date().isoformat()})")
+
+
 def _check_wb_statistics(timeout_seconds: float) -> CheckResult:
     token = os.getenv("WB_TOKEN_STATISTICS", "")
     dt = (datetime.now(UTC) - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%S")
@@ -196,6 +222,7 @@ def main() -> int:
         return 0
 
     results = [
+        _check_wb_token_ttl(),
         _check_wb_statistics(args.timeout_seconds),
         _check_wb_analytics(args.timeout_seconds),
         _check_ozon_seller(args.timeout_seconds),

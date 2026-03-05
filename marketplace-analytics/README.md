@@ -19,6 +19,7 @@ cp .env.example .env
 ```
 
 2. Fill API tokens and admin key in `.env`.
+   Optional: set `WB_TOKEN_CREATED_AT` to get expiry warning (WB tokens are valid for 180 days).
 
 3. Run bootstrap (start services + migrations + smoke checks):
 

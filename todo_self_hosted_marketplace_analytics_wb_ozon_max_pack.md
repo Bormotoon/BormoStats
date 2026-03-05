@@ -1341,7 +1341,7 @@ SELECT * FROM v_kpi_sales_30d;
 - [x] watermarks, locks, `sys_task_runs`
 
 ### Этап C — WB ingestion
-- [~] auth + token checks
+- [x] auth + token checks
 - [x] sales incremental
 - [~] sales backfill 7-14d
 - [~] orders incremental/backfill or explicit exclusion
