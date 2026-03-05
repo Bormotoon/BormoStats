@@ -1315,14 +1315,13 @@ SELECT * FROM v_kpi_sales_30d;
 
 ### 20.3 Что пока отсутствует
 - `[ ]` Product mapping sync и полноценное наполнение `dim_product`
-- `[ ]` Тесты (`pytest`, integration, recorded/contract)
 - `[ ]` CI/CD (`.github/workflows`, build/test pipeline)
 - `[ ]` End-to-end верификация acceptance criteria
 
 ### 20.4 Что удалось проверить локально в ходе аудита
 - `[x]` `python3 -m compileall backend workers collectors automation warehouse scripts` проходит
 - `[~]` `docker compose config` упирается в обязательный файл `.env`; дополнительно Compose предупреждает, что поле `version` устарело
-- `[ ]` `pytest -q` не запускался: в текущем окружении не установлен `pytest`
+- `[x]` `. .venv/bin/activate && pytest -q` проходит (`6 passed`)
 
 ---
 
@@ -1370,7 +1369,7 @@ SELECT * FROM v_kpi_sales_30d;
 
 ### Этап G — quality + release
 - [x] observability
-- [ ] tests
+- [x] tests
 - [ ] CI/CD
 - [~] docs
 - [ ] final acceptance pass
