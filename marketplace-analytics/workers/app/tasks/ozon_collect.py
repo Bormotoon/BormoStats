@@ -6,7 +6,6 @@ import os
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-import httpx
 from celery import shared_task
 
 from app.utils.locking import LockNotAcquired, lock_scope
@@ -14,6 +13,7 @@ from app.utils.metrics import observe_empty_payload, observe_rows
 from app.utils.runtime import get_ch_client, get_redis_client, log_task_run, new_run_context
 from app.utils.watermarks import get_watermark, set_watermark
 from collectors.ozon.client import OzonApiClient
+from collectors.ozon.errors import is_capability_error
 from collectors.ozon.parsers import parse_ads_daily, parse_finance_ops, parse_postings, parse_stocks
 
 OZON_ACCOUNT_ID = os.getenv("OZON_ACCOUNT_ID", "default")
@@ -100,23 +100,6 @@ def _postings_schemas() -> tuple[str, ...]:
     return tuple(dict.fromkeys(valid))
 
 
-def _is_capability_error(exc: Exception) -> bool:
-    if not isinstance(exc, httpx.HTTPStatusError):
-        return False
-    status = exc.response.status_code
-    body = exc.response.text.lower() if exc.response is not None else ""
-    if status in {403, 404, 405}:
-        return True
-    capability_hints = [
-        "premium",
-        "not available",
-        "forbidden",
-        "unsupported",
-        "method unavailable",
-    ]
-    return any(hint in body for hint in capability_hints)
-
-
 def _insert_rows(client: Any, table: str, columns: list[str], rows: list[dict[str, Any]]) -> int:
     if not rows:
         return 0
@@ -161,7 +144,7 @@ def _collect_postings(account_id: str, from_ts: datetime | None = None) -> dict[
             log_task_run(ch_client, task_name, run_id, started_at, "success", inserted, "ozon postings collected")
             return {"status": "success", "rows": inserted, "watermark": now_ts.isoformat()}
         except Exception as exc:
-            if _is_capability_error(exc):
+            if is_capability_error(exc):
                 log_task_run(
                     ch_client,
                     task_name,
@@ -203,7 +186,7 @@ def _collect_finance(account_id: str, from_ts: datetime | None = None) -> dict[s
             log_task_run(ch_client, task_name, run_id, started_at, "success", inserted, "ozon finance ops collected")
             return {"status": "success", "rows": inserted, "watermark": str(latest_ts)}
         except Exception as exc:
-            if _is_capability_error(exc):
+            if is_capability_error(exc):
                 log_task_run(
                     ch_client,
                     task_name,
@@ -329,7 +312,7 @@ def ozon_ads_daily(target_day: str | None = None, account_id: str = OZON_ACCOUNT
                 log_task_run(ch_client, task_name, run_id, started_at, "success", inserted, "ozon ads daily")
                 return {"status": "success", "rows": inserted, "day": day_value.isoformat()}
             except Exception as exc:
-                if _is_capability_error(exc):
+                if is_capability_error(exc):
                     log_task_run(
                         ch_client,
                         task_name,
