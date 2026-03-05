@@ -187,7 +187,7 @@ TG_CHAT_ID=
 
 ---
 
-## 4) Docker Compose (infra/docker/docker-compose.yml)
+## 4) Docker Compose (infra/docker/docker-compose.yml) ✅
 
 Требования:
 - volume для ClickHouse
