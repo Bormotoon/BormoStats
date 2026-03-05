@@ -330,6 +330,74 @@ FROM raw_ozon_finance_ops
 WHERE operation_ts >= now() - toIntervalDay({days})
 """
 
+SYNC_DIM_PRODUCT_WB_SQL = """
+INSERT INTO dim_product
+(
+  marketplace,
+  account_id,
+  product_id,
+  nm_id,
+  chrt_id,
+  sku,
+  offer_id,
+  ozon_product_id,
+  title,
+  brand,
+  category,
+  updated_at
+)
+SELECT
+  'wb' AS marketplace,
+  account_id,
+  toString(nm_id) AS product_id,
+  nm_id,
+  chrt_id,
+  any(barcode) AS sku,
+  any(barcode) AS offer_id,
+  NULL AS ozon_product_id,
+  NULL AS title,
+  NULL AS brand,
+  NULL AS category,
+  now() AS updated_at
+FROM raw_wb_sales
+WHERE event_ts >= now() - toIntervalDay({days})
+GROUP BY account_id, nm_id, chrt_id
+"""
+
+SYNC_DIM_PRODUCT_OZON_SQL = """
+INSERT INTO dim_product
+(
+  marketplace,
+  account_id,
+  product_id,
+  nm_id,
+  chrt_id,
+  sku,
+  offer_id,
+  ozon_product_id,
+  title,
+  brand,
+  category,
+  updated_at
+)
+SELECT
+  'ozon' AS marketplace,
+  account_id,
+  toString(ozon_product_id) AS product_id,
+  NULL AS nm_id,
+  NULL AS chrt_id,
+  any(offer_id) AS sku,
+  any(offer_id) AS offer_id,
+  ozon_product_id,
+  any(name) AS title,
+  NULL AS brand,
+  NULL AS category,
+  now() AS updated_at
+FROM raw_ozon_posting_items
+WHERE ingested_at >= now() - toIntervalDay({days})
+GROUP BY account_id, ozon_product_id
+"""
+
 
 def _run_transform(days: int, task_name: str) -> dict[str, int | str]:
     run_id, started_at = new_run_context(task_name)
@@ -344,6 +412,8 @@ def _run_transform(days: int, task_name: str) -> dict[str, int | str]:
         client.command(OZON_STOCKS_TO_STG_SQL.format(days=days))
         client.command(OZON_ADS_TO_STG_SQL.format(days=max(days, 60)))
         client.command(OZON_FINANCE_TO_STG_SQL.format(days=max(days, 60)))
+        client.command(SYNC_DIM_PRODUCT_WB_SQL.format(days=max(days, 30)))
+        client.command(SYNC_DIM_PRODUCT_OZON_SQL.format(days=max(days, 30)))
         log_task_run(client, task_name, run_id, started_at, "success", 0, f"transform done for {days} days")
         return {"status": "success", "days": days, "run_id": run_id}
     except Exception as exc:

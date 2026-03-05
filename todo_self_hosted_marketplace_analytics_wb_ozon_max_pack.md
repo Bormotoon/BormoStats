@@ -1297,6 +1297,7 @@ SELECT * FROM v_kpi_sales_30d;
 - `[x]` Collectors: WB sales/orders/stocks/funnel, Ozon postings/stocks/ads
 - `[x]` Ozon finance: есть collector `ozon_finance_incremental/backfill` + raw/stg pipeline для `finance_ops`
 - `[x]` Ozon capability degradation: premium/forbidden методы помечаются как `skipped` с причиной в `sys_task_runs.meta_json`, пайплайн не падает
+- `[x]` Product mapping sync: `dim_product` синхронизируется из WB/Ozon raw в transform pipeline
 - `[x]` ELT: `raw -> stg` transforms и `stg -> mrt` builds
 - `[x]` Backend API: `/health`, `/ready`, read-only endpoints, admin endpoints с `X-API-Key`
 - `[x]` Automation: YAML rules engine + Telegram action + scheduled run task
@@ -1314,7 +1315,6 @@ SELECT * FROM v_kpi_sales_30d;
 - `[x]` Документация расширена до целевой спецификации: README + architecture + metabase + troubleshooting
 
 ### 20.3 Что пока отсутствует
-- `[ ]` Product mapping sync и полноценное наполнение `dim_product`
 - `[ ]` End-to-end верификация acceptance criteria
 
 ### 20.4 Что удалось проверить локально в ходе аудита
