@@ -1315,7 +1315,6 @@ SELECT * FROM v_kpi_sales_30d;
 
 ### 20.3 Что пока отсутствует
 - `[ ]` Product mapping sync и полноценное наполнение `dim_product`
-- `[ ]` CI/CD (`.github/workflows`, build/test pipeline)
 - `[ ]` End-to-end верификация acceptance criteria
 
 ### 20.4 Что удалось проверить локально в ходе аудита
@@ -1370,7 +1369,7 @@ SELECT * FROM v_kpi_sales_30d;
 ### Этап G — quality + release
 - [x] observability
 - [x] tests
-- [ ] CI/CD
+- [x] CI/CD
 - [~] docs
 - [ ] final acceptance pass
 

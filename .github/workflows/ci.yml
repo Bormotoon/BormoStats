@@ -1,0 +1,130 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: marketplace-analytics
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Ruff
+        run: ruff check .
+
+      - name: Black
+        run: black --check .
+
+      - name: MyPy
+        run: mypy backend workers collectors automation warehouse scripts
+
+      - name: Pytest
+        run: pytest -q
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build backend image
+        run: docker build -f marketplace-analytics/backend/Dockerfile marketplace-analytics
+
+      - name: Build worker image
+        run: docker build -f marketplace-analytics/workers/Dockerfile marketplace-analytics
+
+  migration-smoke:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: marketplace-analytics
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Prepare env
+        run: cp .env.example .env
+
+      - name: Start ClickHouse and Redis
+        run: |
+          cd infra/docker
+          docker compose --env-file ../../.env -f docker-compose.yml up -d clickhouse redis
+
+      - name: Wait for ClickHouse
+        run: |
+          for i in {1..60}; do
+            if curl -fsS http://localhost:8123/ping >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+
+      - name: Apply migrations
+        run: python warehouse/apply_migrations.py
+
+      - name: Verify schema
+        run: |
+          python - <<'PY'
+          import os
+          import clickhouse_connect
+
+          client = clickhouse_connect.get_client(
+              host=os.getenv("CH_HOST", "localhost"),
+              port=int(os.getenv("CH_PORT", "8123")),
+              username=os.getenv("CH_USER", "admin"),
+              password=os.getenv("CH_PASSWORD", "admin_password"),
+              database=os.getenv("CH_DB", "mp_analytics"),
+          )
+          try:
+              rows = client.query(
+                  """
+                  SELECT name
+                  FROM system.tables
+                  WHERE database = %(db)s
+                    AND name IN %(names)s
+                  ORDER BY name
+                  """,
+                  parameters={
+                      "db": os.getenv("CH_DB", "mp_analytics"),
+                      "names": ("sys_schema_migrations", "sys_watermarks", "stg_sales", "mrt_sales_daily"),
+                  },
+              ).result_rows
+              if len(rows) != 4:
+                  raise SystemExit(f"Expected 4 key tables, got {rows}")
+              print("Schema verification passed")
+          finally:
+              client.close()
+          PY
+
+      - name: Stop services
+        if: always()
+        run: |
+          cd infra/docker
+          docker compose --env-file ../../.env -f docker-compose.yml down -v
