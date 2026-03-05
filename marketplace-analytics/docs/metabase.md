@@ -2,7 +2,8 @@
 
 ## Start
 
-Metabase is included in `docker-compose` and is available at `http://localhost:3000`.
+Metabase is included in `docker-compose` and is available at `http://localhost:13000` by default.
+You can change it with `METABASE_HOST_PORT` in `.env`.
 
 ## Connect ClickHouse
 

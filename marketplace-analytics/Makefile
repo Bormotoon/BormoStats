@@ -1,19 +1,23 @@
 .PHONY: help up down logs ps migrate bootstrap lint format typecheck test check-tokens
 
+STACK_NAME ?= bormostats
+COMPOSE_CMD = docker compose --project-name $(STACK_NAME) --env-file .env -f infra/docker/docker-compose.yml
+
 help:
 	@echo "Targets: up down logs ps migrate bootstrap lint format typecheck test check-tokens"
+	@echo "Variables: STACK_NAME=$(STACK_NAME)"
 
 up:
-	cd infra/docker && docker compose --env-file ../../.env -f docker-compose.yml up -d --build
+	$(COMPOSE_CMD) up -d --build
 
 down:
-	cd infra/docker && docker compose --env-file ../../.env -f docker-compose.yml down
+	$(COMPOSE_CMD) down
 
 logs:
-	cd infra/docker && docker compose --env-file ../../.env -f docker-compose.yml logs -f --tail=200
+	$(COMPOSE_CMD) logs -f --tail=200
 
 ps:
-	cd infra/docker && docker compose --env-file ../../.env -f docker-compose.yml ps
+	$(COMPOSE_CMD) ps
 
 migrate:
 	python3 warehouse/apply_migrations.py

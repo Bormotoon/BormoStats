@@ -39,7 +39,8 @@ cp .env.example .env
 ```
 
 2. Fill API tokens and admin key in `.env`.
-If port `8123` is busy on the host, set `CH_HTTP_HOST_PORT` to a free port.
+If ports conflict with other containers (`pykumir` or anything else), change:
+`CH_HTTP_HOST_PORT`, `BACKEND_HOST_PORT`, `METABASE_HOST_PORT`, `STACK_NAME`.
 
 3. Run bootstrap (start services + migrations + smoke checks):
 
@@ -50,12 +51,17 @@ make bootstrap
 4. Check health:
 
 ```bash
-curl http://localhost:8000/health
-curl http://localhost:8000/ready
-curl http://localhost:8000/metrics
+curl http://localhost:18080/health
+curl http://localhost:18080/ready
+curl http://localhost:18080/metrics
 ```
 
-5. Open Metabase at `http://localhost:3000` and connect to ClickHouse using values from `.env`.
+Default ports from `.env.example`:
+- backend: `http://localhost:18080`
+- metabase: `http://localhost:13000`
+- clickhouse http: `http://localhost:18123`
+
+5. Open Metabase at `http://localhost:13000` (or your `METABASE_HOST_PORT`) and connect to ClickHouse using values from `.env`.
 
 ## Main API endpoints
 

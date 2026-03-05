@@ -4,7 +4,7 @@
 
 - Check `clickhouse` and `redis` containers are healthy (`make ps`)
 - Verify `.env` credentials (`CH_*`, `REDIS_URL`)
-- Check ClickHouse ping: `curl http://localhost:8123/ping`
+- Check ClickHouse ping: `curl http://localhost:18123/ping` (or `CH_HTTP_HOST_PORT` from `.env`)
 
 ## Worker tasks are not running
 

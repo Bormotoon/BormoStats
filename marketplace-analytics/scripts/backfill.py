@@ -11,7 +11,11 @@ import httpx
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Trigger backfill job via backend admin API")
-    parser.add_argument("--base-url", default=os.getenv("ADMIN_BASE_URL", "http://localhost:8000"))
+    default_backend_port = os.getenv("BACKEND_HOST_PORT", "18080")
+    parser.add_argument(
+        "--base-url",
+        default=os.getenv("ADMIN_BASE_URL", f"http://localhost:{default_backend_port}"),
+    )
     parser.add_argument("--api-key", default=os.getenv("ADMIN_API_KEY", ""))
     parser.add_argument("--marketplace", required=True, choices=["wb", "ozon", "marts"])
     parser.add_argument(

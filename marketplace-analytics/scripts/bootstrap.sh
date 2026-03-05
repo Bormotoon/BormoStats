@@ -11,7 +11,7 @@ if [[ -x "$ROOT_DIR/.venv/bin/python" ]]; then
 fi
 
 compose_cmd() {
-  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
+  docker compose --project-name "$STACK_NAME" --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
 }
 
 wait_for_service() {
@@ -40,6 +40,31 @@ wait_for_service() {
   done
 }
 
+check_host_port_conflict() {
+  local host_port="$1"
+  local service_name="$2"
+  local conflicts=()
+  local name ports project
+
+  while IFS=$'\t' read -r name ports; do
+    [[ -z "$name" ]] && continue
+    [[ "$ports" == *":${host_port}->"* ]] || continue
+
+    project="$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.project" }}' "$name" 2>/dev/null || true)"
+    if [[ "$project" == "$STACK_NAME" ]]; then
+      continue
+    fi
+    conflicts+=("$name [$ports]")
+  done < <(docker ps --format '{{.Names}}\t{{.Ports}}')
+
+  if (( ${#conflicts[@]} > 0 )); then
+    echo "Host port ${host_port} for ${service_name} is already used by:"
+    printf ' - %s\n' "${conflicts[@]}"
+    echo "Pick another port in .env and retry."
+    return 1
+  fi
+}
+
 if [[ ! -f "$ENV_FILE" ]]; then
   cp "$ROOT_DIR/.env.example" "$ENV_FILE"
   echo "Created $ENV_FILE from .env.example"
@@ -49,8 +74,15 @@ set -a
 source "$ENV_FILE"
 set +a
 
+STACK_NAME="${STACK_NAME:-bormostats}"
+BACKEND_HOST_PORT="${BACKEND_HOST_PORT:-18080}"
+METABASE_HOST_PORT="${METABASE_HOST_PORT:-13000}"
 BOOTSTRAP_CH_HOST="${BOOTSTRAP_CH_HOST:-localhost}"
-BOOTSTRAP_CH_PORT="${BOOTSTRAP_CH_PORT:-${CH_HTTP_HOST_PORT:-8123}}"
+BOOTSTRAP_CH_PORT="${BOOTSTRAP_CH_PORT:-${CH_HTTP_HOST_PORT:-18123}}"
+
+check_host_port_conflict "$BACKEND_HOST_PORT" "backend"
+check_host_port_conflict "$METABASE_HOST_PORT" "metabase"
+check_host_port_conflict "$BOOTSTRAP_CH_PORT" "clickhouse-http"
 
 run_python_with_bootstrap_ch() {
   CH_HOST="$BOOTSTRAP_CH_HOST" CH_PORT="$BOOTSTRAP_CH_PORT" "$PYTHON_BIN" "$@"
@@ -172,19 +204,35 @@ fi
 echo "Running backend health checks..."
 "$PYTHON_BIN" - <<'PY'
 import json
+import os
+import time
 import urllib.request
+from urllib.error import URLError
 
 
 def check(url: str) -> None:
-    with urllib.request.urlopen(url, timeout=15.0) as response:  # noqa: S310
-        if response.status != 200:
-            raise RuntimeError(f"{url} returned status={response.status}")
-        payload = json.loads(response.read().decode("utf-8"))
-        print(f"{url} -> {payload}")
+    attempts = 15
+    delay_seconds = 2.0
+    last_error: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            with urllib.request.urlopen(url, timeout=15.0) as response:  # noqa: S310
+                if response.status != 200:
+                    raise RuntimeError(f"{url} returned status={response.status}")
+                payload = json.loads(response.read().decode("utf-8"))
+                print(f"{url} -> {payload}")
+                return
+        except (URLError, ConnectionError, RuntimeError) as exc:
+            last_error = exc
+            if attempt == attempts:
+                break
+            time.sleep(delay_seconds)
+    raise RuntimeError(f"health check failed for {url}: {last_error}")
 
 
-check("http://localhost:8000/health")
-check("http://localhost:8000/ready")
+backend_port = os.getenv("BACKEND_HOST_PORT", "18080")
+check(f"http://localhost:{backend_port}/health")
+check(f"http://localhost:{backend_port}/ready")
 PY
 
 echo "Bootstrap finished successfully."
