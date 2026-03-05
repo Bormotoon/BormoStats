@@ -10,6 +10,7 @@ import httpx
 from celery import shared_task
 
 from app.utils.locking import LockNotAcquired, lock_scope
+from app.utils.metrics import observe_empty_payload, observe_rows
 from app.utils.runtime import get_ch_client, get_redis_client, log_task_run, new_run_context
 from app.utils.watermarks import get_watermark, set_watermark
 from collectors.ozon.client import OzonApiClient
@@ -121,6 +122,7 @@ def _insert_rows(client: Any, table: str, columns: list[str], rows: list[dict[st
         return 0
     data = [[row.get(col) for col in columns] for row in rows]
     client.insert(table=table, data=data, column_names=columns)
+    observe_rows(table=table, rows=len(rows))
     return len(rows)
 
 
@@ -142,6 +144,8 @@ def _collect_postings(account_id: str, from_ts: datetime | None = None) -> dict[
                 to_ts=now_ts,
                 schemas=_postings_schemas(),
             )
+            if not records:
+                observe_empty_payload("ozon_postings")
             posting_rows, item_rows = parse_postings(records, run_id=run_id, account_id=account_id)
 
             inserted = 0
@@ -189,6 +193,8 @@ def _collect_finance(account_id: str, from_ts: datetime | None = None) -> dict[s
             watermark = from_ts or get_watermark(ch_client, "ozon_finance", account_id)
             now_ts = datetime.now(UTC)
             records = ozon.finance_operations(from_ts=watermark, to_ts=now_ts, limit=1000)
+            if not records:
+                observe_empty_payload("ozon_finance")
             rows = parse_finance_ops(records, run_id=run_id, account_id=account_id)
             inserted = _insert_rows(ch_client, "raw_ozon_finance_ops", RAW_OZON_FINANCE_COLUMNS, rows)
 
@@ -268,6 +274,8 @@ def ozon_stocks_snapshot(account_id: str = OZON_ACCOUNT_ID) -> dict[str, Any]:
             ch_client = get_ch_client()
             try:
                 records = ozon.stocks()
+                if not records:
+                    observe_empty_payload("ozon_stocks")
                 rows = parse_stocks(records, run_id=run_id, account_id=account_id, snapshot_ts=snapshot_ts)
                 inserted = _insert_rows(ch_client, "raw_ozon_stocks", RAW_OZON_STOCKS_COLUMNS, rows)
                 log_task_run(ch_client, task_name, run_id, started_at, "success", inserted, "ozon stocks snapshot")
@@ -314,6 +322,8 @@ def ozon_ads_daily(target_day: str | None = None, account_id: str = OZON_ACCOUNT
             ch_client = get_ch_client()
             try:
                 records = ozon.ads_daily(day_value)
+                if not records:
+                    observe_empty_payload("ozon_ads")
                 rows = parse_ads_daily(records, run_id=run_id, account_id=account_id)
                 inserted = _insert_rows(ch_client, "raw_ozon_ads_daily", RAW_OZON_ADS_COLUMNS, rows)
                 log_task_run(ch_client, task_name, run_id, started_at, "success", inserted, "ozon ads daily")

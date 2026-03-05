@@ -11,6 +11,8 @@ from uuid import uuid4
 import clickhouse_connect
 from redis import Redis
 
+from app.utils.metrics import observe_task
+
 
 def get_ch_client() -> clickhouse_connect.driver.Client:
     return clickhouse_connect.get_client(
@@ -41,7 +43,8 @@ def log_task_run(
     message: str,
     meta: dict[str, Any] | None = None,
 ) -> None:
-    finished_at = datetime.now(UTC).replace(tzinfo=None)
+    finished_at_utc = datetime.now(UTC)
+    finished_at = finished_at_utc.replace(tzinfo=None)
     payload = meta or {}
     client.command(
         """
@@ -60,3 +63,4 @@ def log_task_run(
             "meta_json": json.dumps(payload, ensure_ascii=True),
         },
     )
+    observe_task(task_name=task_name, status=status, started_at=started_at, finished_at=finished_at_utc)

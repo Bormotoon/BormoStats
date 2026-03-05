@@ -12,3 +12,4 @@ pytz
 orjson
 structlog
 PyYAML
+prometheus-client

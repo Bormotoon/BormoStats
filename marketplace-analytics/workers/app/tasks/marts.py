@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import os
-from datetime import UTC, datetime
-from uuid import uuid4
-
-import clickhouse_connect
 from celery import shared_task
+
+from app.utils.runtime import get_ch_client, log_task_run, new_run_context
 
 MRT_SALES_DAILY_SQL = """
 INSERT INTO mrt_sales_daily
@@ -80,49 +77,9 @@ GROUP BY day, marketplace, account_id, campaign_id
 """
 
 
-def _ch_client() -> clickhouse_connect.driver.Client:
-    return clickhouse_connect.get_client(
-        host=os.getenv("CH_HOST", "localhost"),
-        port=int(os.getenv("CH_PORT", "8123")),
-        username=os.getenv("CH_USER", "default"),
-        password=os.getenv("CH_PASSWORD", ""),
-        database=os.getenv("CH_DB", "mp_analytics"),
-    )
-
-
-def _log_task_run(
-    client: clickhouse_connect.driver.Client,
-    task_name: str,
-    run_id: str,
-    started_at: datetime,
-    status: str,
-    message: str,
-) -> None:
-    finished_at = datetime.now(UTC).replace(tzinfo=None)
-    client.command(
-        """
-        INSERT INTO sys_task_runs
-        (task_name, run_id, started_at, finished_at, status, rows_ingested, message, meta_json)
-        VALUES
-        (%(task_name)s, %(run_id)s, %(started_at)s, %(finished_at)s, %(status)s, %(rows_ingested)s, %(message)s, %(meta_json)s)
-        """,
-        parameters={
-            "task_name": task_name,
-            "run_id": run_id,
-            "started_at": started_at.replace(tzinfo=None),
-            "finished_at": finished_at,
-            "status": status,
-            "rows_ingested": 0,
-            "message": message,
-            "meta_json": "{}",
-        },
-    )
-
-
 def _run_marts(days: int, task_name: str) -> dict[str, str | int]:
-    run_id = str(uuid4())
-    started_at = datetime.now(UTC)
-    client = _ch_client()
+    run_id, started_at = new_run_context(task_name)
+    client = get_ch_client()
 
     try:
         client.command(MRT_SALES_DAILY_SQL.format(days=days))
@@ -130,10 +87,10 @@ def _run_marts(days: int, task_name: str) -> dict[str, str | int]:
         client.command(MRT_FUNNEL_DAILY_SQL.format(days=days))
         ads_days = max(days, 60)
         client.command(MRT_ADS_DAILY_SQL.format(days=ads_days))
-        _log_task_run(client, task_name, run_id, started_at, "success", f"marts built for {days} days")
+        log_task_run(client, task_name, run_id, started_at, "success", 0, f"marts built for {days} days")
         return {"run_id": run_id, "status": "success", "days": days}
     except Exception as exc:
-        _log_task_run(client, task_name, run_id, started_at, "failed", str(exc))
+        log_task_run(client, task_name, run_id, started_at, "failed", 0, str(exc))
         raise
     finally:
         client.close()

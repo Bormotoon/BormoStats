@@ -1310,7 +1310,7 @@ SELECT * FROM v_kpi_sales_30d;
 - `[x]` WB orders backfill: реализован отдельный дневной backfill `flag=1` по дням, а не только инкремент
 - `[x]` WB funnel: hourly roll работает на скользящем 7-дневном окне, backfill поддерживает период до 365 дней с чанкингом
 - `[x]` Ozon postings/orders: добавлены пагинация, агрегированный сбор по схемам `fbs/fbo` и дедупликация по posting number
-- `[~]` Observability: есть `sys_task_runs`, базовый JSON logging в backend и maintenance task, но нет `/metrics`, Prometheus/Grafana и явных alerting hooks
+- `[x]` Observability: есть `sys_task_runs`, JSON logging, `/metrics` endpoint и базовые Prometheus counters/gauges/histograms в workers
 - `[~]` Документация есть, но пока короче, чем целевая спецификация
 
 ### 20.3 Что пока отсутствует
@@ -1369,7 +1369,7 @@ SELECT * FROM v_kpi_sales_30d;
 - [x] scheduled rule runs
 
 ### Этап G — quality + release
-- [~] observability
+- [x] observability
 - [ ] tests
 - [ ] CI/CD
 - [~] docs

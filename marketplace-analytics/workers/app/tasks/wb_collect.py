@@ -12,6 +12,7 @@ from collectors.wb.client import WbApiClient
 from collectors.wb.parsers import parse_funnel, parse_orders, parse_sales, parse_stocks
 from app.utils.chunking import date_chunks
 from app.utils.locking import LockNotAcquired, lock_scope
+from app.utils.metrics import observe_empty_payload, observe_rows
 from app.utils.runtime import get_ch_client, get_redis_client, log_task_run, new_run_context
 from app.utils.watermarks import get_watermark, set_watermark
 
@@ -94,6 +95,7 @@ def _insert_rows(client: Any, table: str, columns: list[str], rows: list[dict[st
         return 0
     data = [[row.get(col) for col in columns] for row in rows]
     client.insert(table=table, data=data, column_names=columns)
+    observe_rows(table=table, rows=len(rows))
     return len(rows)
 
 
@@ -111,6 +113,8 @@ def _collect_sales_incremental(account_id: str, start_from: datetime | None = No
             watermark = start_from or get_watermark(ch_client, "wb_sales", account_id)
             records = wb.sales_since(watermark)
             rows = parse_sales(records, run_id=run_id, account_id=account_id)
+            if not rows:
+                observe_empty_payload("wb_sales")
             inserted = _insert_rows(ch_client, "raw_wb_sales", RAW_WB_SALES_COLUMNS, rows)
 
             latest_ts = max((row["last_change_ts"] for row in rows), default=watermark.replace(tzinfo=None))
@@ -138,6 +142,8 @@ def _collect_orders_incremental(account_id: str, start_from: datetime | None = N
             watermark = start_from or get_watermark(ch_client, "wb_orders", account_id)
             records = wb.orders_since(watermark)
             rows = parse_orders(records, run_id=run_id, account_id=account_id)
+            if not rows:
+                observe_empty_payload("wb_orders")
             inserted = _insert_rows(ch_client, "raw_wb_orders", RAW_WB_ORDERS_COLUMNS, rows)
 
             latest_ts = max((row["last_change_ts"] for row in rows), default=watermark.replace(tzinfo=None))
@@ -183,6 +189,8 @@ def wb_stocks_snapshot(account_id: str = WB_ACCOUNT_ID) -> dict[str, Any]:
             try:
                 records = wb.stocks()
                 rows = parse_stocks(records, run_id=run_id, account_id=account_id, snapshot_ts=snapshot_ts)
+                if not rows:
+                    observe_empty_payload("wb_stocks")
                 inserted = _insert_rows(ch_client, "raw_wb_stocks", RAW_WB_STOCKS_COLUMNS, rows)
                 log_task_run(ch_client, task_name, run_id, started_at, "success", inserted, "wb stocks snapshot")
                 return {"status": "success", "rows": inserted}
@@ -215,6 +223,8 @@ def wb_funnel_roll(account_id: str = WB_ACCOUNT_ID) -> dict[str, Any]:
                 for chunk_from, chunk_to in date_chunks(from_day, to_day, chunk_days=3):
                     records = wb.funnel_daily(from_day=chunk_from, to_day=chunk_to)
                     rows = parse_funnel(records, run_id=run_id, account_id=account_id)
+                    if not rows:
+                        observe_empty_payload("wb_funnel")
                     inserted += _insert_rows(ch_client, "raw_wb_funnel_daily", RAW_WB_FUNNEL_COLUMNS, rows)
                 log_task_run(
                     ch_client,
@@ -256,6 +266,8 @@ def wb_sales_backfill_days(days: int = 14, account_id: str = WB_ACCOUNT_ID) -> d
             for day_cursor, _ in date_chunks(start_day, now_day, chunk_days=1):
                 records = wb.sales_for_day(day_cursor)
                 rows = parse_sales(records, run_id=run_id, account_id=account_id)
+                if not rows:
+                    observe_empty_payload("wb_sales")
                 total_rows += _insert_rows(ch_client, "raw_wb_sales", RAW_WB_SALES_COLUMNS, rows)
                 if rows:
                     day_latest = max(row["last_change_ts"] for row in rows)
@@ -305,6 +317,8 @@ def wb_orders_backfill_days(days: int = 14, account_id: str = WB_ACCOUNT_ID) -> 
             for day_cursor, _ in date_chunks(start_day, now_day, chunk_days=1):
                 records = wb.orders_for_day(day_cursor)
                 rows = parse_orders(records, run_id=run_id, account_id=account_id)
+                if not rows:
+                    observe_empty_payload("wb_orders")
                 total_rows += _insert_rows(ch_client, "raw_wb_orders", RAW_WB_ORDERS_COLUMNS, rows)
                 if rows:
                     day_latest = max(row["last_change_ts"] for row in rows)
@@ -353,6 +367,8 @@ def wb_funnel_backfill_days(days: int = 14, account_id: str = WB_ACCOUNT_ID) -> 
             for chunk_from, chunk_to in date_chunks(start_day, now_day, chunk_days=3):
                 records = wb.funnel_daily(from_day=chunk_from, to_day=chunk_to)
                 rows = parse_funnel(records, run_id=run_id, account_id=account_id)
+                if not rows:
+                    observe_empty_payload("wb_funnel")
                 total_rows += _insert_rows(ch_client, "raw_wb_funnel_daily", RAW_WB_FUNNEL_COLUMNS, rows)
 
             log_task_run(

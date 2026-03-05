@@ -6,6 +6,8 @@ from datetime import UTC, datetime, timedelta
 
 import clickhouse_connect
 
+from app.utils.metrics import observe_watermark
+
 DEFAULT_WATERMARK_LAG_HOURS = 48
 
 
@@ -33,12 +35,18 @@ def get_watermark(
     )
 
     if not result.result_rows:
-        return datetime.now(UTC) - timedelta(hours=DEFAULT_WATERMARK_LAG_HOURS)
+        fallback = datetime.now(UTC) - timedelta(hours=DEFAULT_WATERMARK_LAG_HOURS)
+        observe_watermark(source=source, account_id=account_id, watermark_ts=fallback)
+        return fallback
 
     value = result.result_rows[0][0]
     if not isinstance(value, datetime):
-        return datetime.now(UTC) - timedelta(hours=DEFAULT_WATERMARK_LAG_HOURS)
-    return _normalize_to_utc(value)
+        fallback = datetime.now(UTC) - timedelta(hours=DEFAULT_WATERMARK_LAG_HOURS)
+        observe_watermark(source=source, account_id=account_id, watermark_ts=fallback)
+        return fallback
+    normalized = _normalize_to_utc(value)
+    observe_watermark(source=source, account_id=account_id, watermark_ts=normalized)
+    return normalized
 
 
 def set_watermark(
@@ -65,4 +73,5 @@ def set_watermark(
             "watermark_ts": candidate.replace(tzinfo=None),
         },
     )
+    observe_watermark(source=source, account_id=account_id, watermark_ts=candidate)
     return True

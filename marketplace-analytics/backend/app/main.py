@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import Response
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from redis import Redis
 
 from app.api.v1 import admin, ads, funnel, kpis, sales, stocks
@@ -43,3 +45,8 @@ def ready() -> dict[str, str]:
         raise HTTPException(status_code=503, detail=f"not ready: {exc}") from exc
 
     return {"status": "ready"}
+
+
+@app.get("/metrics")
+def metrics() -> Response:
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)

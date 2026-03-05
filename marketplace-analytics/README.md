@@ -32,6 +32,7 @@ make bootstrap
 ```bash
 curl http://localhost:8000/health
 curl http://localhost:8000/ready
+curl http://localhost:8000/metrics
 ```
 
 ## Main API endpoints
