@@ -78,6 +78,15 @@ def _ozon_client() -> OzonApiClient | None:
     return OzonApiClient(client_id=client_id, api_key=api_key, perf_api_key=perf_api_key)
 
 
+def _postings_schemas() -> tuple[str, ...]:
+    raw = os.getenv("OZON_POSTINGS_SCHEMAS", "fbs,fbo")
+    items = [item.strip().lower() for item in raw.split(",") if item.strip()]
+    valid = [item for item in items if item in {"fbs", "fbo"}]
+    if not valid:
+        return ("fbs",)
+    return tuple(dict.fromkeys(valid))
+
+
 def _insert_rows(client: Any, table: str, columns: list[str], rows: list[dict[str, Any]]) -> int:
     if not rows:
         return 0
@@ -99,7 +108,11 @@ def _collect_postings(account_id: str, from_ts: datetime | None = None) -> dict[
         try:
             watermark = from_ts or get_watermark(ch_client, "ozon_postings", account_id)
             now_ts = datetime.now(UTC)
-            records = ozon.postings_since(from_ts=watermark, to_ts=now_ts)
+            records = ozon.postings_since(
+                from_ts=watermark,
+                to_ts=now_ts,
+                schemas=_postings_schemas(),
+            )
             posting_rows, item_rows = parse_postings(records, run_id=run_id, account_id=account_id)
 
             inserted = 0

@@ -1307,7 +1307,7 @@ SELECT * FROM v_kpi_sales_30d;
 - `[x]` WB backfill: реализован дневной режим `flag=1` по дням с отдельной задачей и обновлением watermark
 - `[x]` WB orders backfill: реализован отдельный дневной backfill `flag=1` по дням, а не только инкремент
 - `[x]` WB funnel: hourly roll работает на скользящем 7-дневном окне, backfill поддерживает период до 365 дней с чанкингом
-- `[~]` Ozon postings: базовый collector есть, но покрытие ограничено и не видно полной обработки FBO/FBS/capability flags
+- `[x]` Ozon postings/orders: добавлены пагинация, агрегированный сбор по схемам `fbs/fbo` и дедупликация по posting number
 - `[~]` Observability: есть `sys_task_runs`, базовый JSON logging в backend и maintenance task, но нет `/metrics`, Prometheus/Grafana и явных alerting hooks
 - `[~]` Документация есть, но пока короче, чем целевая спецификация
 
@@ -1350,7 +1350,7 @@ SELECT * FROM v_kpi_sales_30d;
 - [x] funnel hourly + backfill
 
 ### Этап D — Ozon ingestion
-- [~] postings/orders
+- [x] postings/orders
 - [x] stocks snapshot
 - [ ] finance ops
 - [x] ads daily
