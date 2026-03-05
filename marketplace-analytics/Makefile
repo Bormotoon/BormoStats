@@ -1,7 +1,7 @@
-.PHONY: help up down logs ps migrate lint format typecheck test check-tokens
+.PHONY: help up down logs ps migrate bootstrap lint format typecheck test check-tokens
 
 help:
-	@echo "Targets: up down logs ps migrate lint format typecheck test check-tokens"
+	@echo "Targets: up down logs ps migrate bootstrap lint format typecheck test check-tokens"
 
 up:
 	cd infra/docker && docker compose --env-file ../../.env -f docker-compose.yml up -d --build
@@ -17,6 +17,9 @@ ps:
 
 migrate:
 	python3 warehouse/apply_migrations.py
+
+bootstrap:
+	./scripts/bootstrap.sh
 
 lint:
 	ruff check .

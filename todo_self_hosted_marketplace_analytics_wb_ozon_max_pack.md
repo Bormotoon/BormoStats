@@ -1301,8 +1301,8 @@ SELECT * FROM v_kpi_sales_30d;
 - `[x]` BI assets: SQL-шаблоны для Metabase
 
 ### 20.2 Что реализовано частично
-- `[~]` `scripts/bootstrap.sh`: сейчас только применяет миграции, без `docker compose up`, ожидания healthchecks и smoke-checks
-- `[~]` `scripts/check_tokens.py`: проверяет только наличие env-переменных, не делает реальные API smoke-checks
+- `[x]` `scripts/bootstrap.sh`: поднимает compose, ждёт health, применяет миграции, проверяет таблицы, делает token/API smoke checks
+- `[x]` `scripts/check_tokens.py`: проверяет env и выполняет реальные API smoke-checks для WB/Ozon (с мягкой деградацией по Ozon Perf)
 - `[~]` Shared HTTP layer: есть `http_client.py`, retry, time, redaction, но нет WB-specific rate-limit handling, circuit breaker и полноценного structured request logging
 - `[~]` WB backfill: задачи есть, но дневной backfill не реализован через отдельный `flag=1` по дням
 - `[~]` WB funnel: collector и backfill есть, но реализация упрощённая и не соответствует полной спецификации из плана
@@ -1331,7 +1331,7 @@ SELECT * FROM v_kpi_sales_30d;
 - [x] структура репо
 - [x] `.env.example`
 - [x] `docker-compose`
-- [~] bootstrap и smoke checks
+- [x] bootstrap и smoke checks
 - [x] `/health` и `/ready`
 
 ### Этап B — ClickHouse + service layer

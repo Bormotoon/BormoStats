@@ -20,19 +20,13 @@ cp .env.example .env
 
 2. Fill API tokens and admin key in `.env`.
 
-3. Start stack:
+3. Run bootstrap (start services + migrations + smoke checks):
 
 ```bash
-make up
+make bootstrap
 ```
 
-4. Apply migrations (if not applied yet):
-
-```bash
-make migrate
-```
-
-5. Check health:
+4. Check health:
 
 ```bash
 curl http://localhost:8000/health
@@ -57,7 +51,7 @@ Admin (`X-API-Key` required):
 ## Useful commands
 
 - `make logs` — follow container logs
-- `make check-tokens` — validate required credentials
+- `make check-tokens` — validate env values + API credentials
 - `python3 scripts/backfill.py --marketplace wb --dataset sales --days 14 --api-key <KEY>`
 
 ## Data model
