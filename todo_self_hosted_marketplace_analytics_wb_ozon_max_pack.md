@@ -1303,7 +1303,7 @@ SELECT * FROM v_kpi_sales_30d;
 ### 20.2 Что реализовано частично
 - `[x]` `scripts/bootstrap.sh`: поднимает compose, ждёт health, применяет миграции, проверяет таблицы, делает token/API smoke checks
 - `[x]` `scripts/check_tokens.py`: проверяет env и выполняет реальные API smoke-checks для WB/Ozon (с мягкой деградацией по Ozon Perf)
-- `[~]` Shared HTTP layer: есть `http_client.py`, retry, time, redaction, но нет WB-specific rate-limit handling, circuit breaker и полноценного structured request logging
+- `[x]` Shared HTTP layer: реализованы timeout policy, WB/Ozon retry handling (включая 429), circuit breaker, redaction и structured request logging
 - `[~]` WB backfill: задачи есть, но дневной backfill не реализован через отдельный `flag=1` по дням
 - `[~]` WB funnel: collector и backfill есть, но реализация упрощённая и не соответствует полной спецификации из плана
 - `[~]` Ozon postings: базовый collector есть, но покрытие ограничено и не видно полной обработки FBO/FBS/capability flags
@@ -1337,7 +1337,7 @@ SELECT * FROM v_kpi_sales_30d;
 ### Этап B — ClickHouse + service layer
 - [x] migrations `sys/raw/stg/mrt`
 - [x] `apply_migrations.py`
-- [~] `http_client.py`, retry, redaction, time utils
+- [x] `http_client.py`, retry, redaction, time utils
 - [x] watermarks, locks, `sys_task_runs`
 
 ### Этап C — WB ingestion

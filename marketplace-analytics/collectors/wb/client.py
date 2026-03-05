@@ -13,8 +13,8 @@ class WbApiClient:
     def __init__(self, statistics_token: str, analytics_token: str) -> None:
         self.statistics_token = statistics_token
         self.analytics_token = analytics_token
-        self.statistics = JsonHttpClient(endpoints.STATISTICS_BASE_URL)
-        self.analytics = JsonHttpClient(endpoints.ANALYTICS_BASE_URL)
+        self.statistics = JsonHttpClient(endpoints.STATISTICS_BASE_URL, marketplace="wb")
+        self.analytics = JsonHttpClient(endpoints.ANALYTICS_BASE_URL, marketplace="wb")
 
     def _statistics_headers(self) -> dict[str, str]:
         return {"Authorization": self.statistics_token}

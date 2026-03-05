@@ -14,7 +14,7 @@ class OzonApiClient:
         self.client_id = client_id
         self.api_key = api_key
         self.perf_api_key = perf_api_key or api_key
-        self.http = JsonHttpClient(endpoints.BASE_URL)
+        self.http = JsonHttpClient(endpoints.BASE_URL, marketplace="ozon")
 
     def _headers(self) -> dict[str, str]:
         return {
