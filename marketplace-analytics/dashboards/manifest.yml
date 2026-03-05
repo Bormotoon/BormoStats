@@ -1,0 +1,19 @@
+version: 1
+required_dashboards:
+  - name: Sales Overview
+    cards:
+      - dashboards/sql/01_sales_overview.sql
+      - dashboards/sql/02_top_products_30d.sql
+      - dashboards/sql/06_kpi_30d.sql
+  - name: Funnel
+    cards:
+      - dashboards/sql/03_funnel.sql
+  - name: Stocks
+    cards:
+      - dashboards/sql/04_stocks_yesterday.sql
+  - name: Ads
+    cards:
+      - dashboards/sql/05_ads.sql
+notes:
+  - "Create one Metabase SQL question per card file."
+  - "Dashboards above are considered minimum BI baseline for project acceptance."

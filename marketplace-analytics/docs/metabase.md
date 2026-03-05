@@ -27,3 +27,22 @@ Prepared SQL templates are in `dashboards/sql`:
 6. `06_kpi_30d.sql`
 
 Create one Metabase question per file, then build dashboards.
+
+## Dashboard baseline
+
+Use `dashboards/manifest.yml` as source of truth for required dashboards and card composition.
+
+Minimum dashboard set:
+
+1. Sales Overview
+2. Funnel
+3. Stocks
+4. Ads
+
+## Recommended setup flow
+
+1. Connect ClickHouse in Metabase using read-only user.
+2. Create SQL questions from all files in `dashboards/sql`.
+3. Group cards into dashboards according to `dashboards/manifest.yml`.
+4. Save dashboard filters (`from`, `to`, `marketplace`, `account_id`) where applicable.
+5. Validate cards against API output for same period and account.

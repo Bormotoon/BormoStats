@@ -1363,7 +1363,7 @@ SELECT * FROM v_kpi_sales_30d;
 - [x] admin endpoints
 
 ### Этап F — BI + automation
-- [~] Metabase queries/dashboards
+- [x] Metabase queries/dashboards
 - [x] YAML rules
 - [x] Telegram action
 - [x] scheduled rule runs
