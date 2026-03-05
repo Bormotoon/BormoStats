@@ -1011,7 +1011,7 @@ SELECT * FROM v_kpi_sales_30d;
 
 ---
 
-## 12) Acceptance Criteria
+## 12) Acceptance Criteria ✅
 
 - `docker compose up -d` поднимает всё
 - ingestion пишет raw

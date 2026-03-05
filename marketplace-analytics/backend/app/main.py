@@ -7,8 +7,8 @@ from redis import Redis
 
 from app.api.v1 import admin, ads, funnel, kpis, sales, stocks
 from app.core.config import get_settings
-from app.core.deps import get_ch_client
 from app.core.logging import configure_logging
+from app.db.ch import build_client
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -31,15 +31,11 @@ def health() -> dict[str, str]:
 @app.get("/ready")
 def ready() -> dict[str, str]:
     try:
-        client_gen = get_ch_client(settings)
-        ch_client = next(client_gen)
+        ch_client = build_client(settings)
         try:
             ch_client.query("SELECT 1")
         finally:
-            try:
-                next(client_gen)
-            except StopIteration:
-                pass
+            ch_client.close()
 
         redis_client = Redis.from_url(settings.redis_url)
         redis_client.ping()
