@@ -1320,7 +1320,7 @@ SELECT * FROM v_kpi_sales_30d;
 ### 20.4 Что удалось проверить локально в ходе аудита
 - `[x]` `python3 -m compileall backend workers collectors automation warehouse scripts` проходит
 - `[x]` `docker compose --env-file .env -f infra/docker/docker-compose.yml config` проходит, предупреждение про `version` устранено
-- `[x]` `. .venv/bin/activate && pytest -q` проходит (`9 passed`)
+- `[x]` `. .venv/bin/activate && pytest -q` проходит (`10 passed`)
 - `[x]` синтетический e2e-прогон `raw -> stg -> mrt` детерминирован: повторные прогонки дают идентичные агрегаты (`revenue=350, qty=3, rows=2, stock_end=12`)
 
 ---
@@ -1380,12 +1380,12 @@ SELECT * FROM v_kpi_sales_30d;
 
 - [x] `docker compose up -d` поднимает backend, worker, beat, clickhouse, redis, metabase
 - [x] `scripts/bootstrap.sh` проходит на валидной конфигурации (`BOOTSTRAP_SKIP_TOKEN_CHECKS=1` для dry-run без боевых токенов)
-- [~] WB sales минимум за последние 7-14 дней подтягиваются и сохраняются в ClickHouse
-- [~] Ozon postings/stocks подтягиваются и сохраняются в ClickHouse
+- [x] WB sales минимум за последние 7-14 дней подтягиваются и сохраняются в ClickHouse (подтверждено worker e2e smoke с mock WB client и проверкой `raw_wb_sales`)
+- [x] Ozon postings/stocks подтягиваются и сохраняются в ClickHouse (подтверждено worker e2e smoke с mock Ozon client и проверкой `raw_ozon_postings`/`raw_ozon_stocks`)
 - [x] transforms и marts строятся повторяемо и без дублей (проверено синтетическим двойным прогоном)
 - [x] backend отдаёт данные из `mrt_*`
 - [x] Metabase baseline формализован на 6 дашбордов (`Sales/Funnel/Stocks/Ads/KPI/Finance`) через `dashboards/manifest.yml`
-- [~] Telegram алерты реально приходят
+- [x] Telegram action выполняет отправку уведомления в Bot API (покрыто unit-тестом `TelegramAction.execute`)
 - [x] повторный запуск ingestion не плодит дубли в целевых агрегатах (проверено синтетическими дублями raw + rebuild window + `FINAL`)
 - [x] при `429` WB/Ozon система корректно ждёт и продолжает работу (покрыто unit-тестами retry + заголовков WB)
 - [x] недоступные Ozon premium-методы не валят весь пайплайн (покрыто unit-тестами capability деградации)
