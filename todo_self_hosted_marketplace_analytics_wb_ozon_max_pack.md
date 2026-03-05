@@ -11,6 +11,10 @@
 
 Ограничение: только данные своего кабинета (без конкурентов и категорий).
 
+Важно:
+- `✅` у секции означает, что спецификация для реализации в todo прописана достаточно подробно; это не равно фактической готовности кода.
+- Реальный прогресс вести по чек-листам этапов и acceptance criteria в конце файла.
+
 ---
 
 ## 1) Стек и зависимости (только OSS) ✅
@@ -1011,13 +1015,335 @@ SELECT * FROM v_kpi_sales_30d;
 
 ---
 
-## 12) Acceptance Criteria ✅
+## 12) Bootstrap, smoke checks и служебные скрипты ✅
 
-- `docker compose up -d` поднимает всё
-- ingestion пишет raw
-- transforms и marts работают
-- backend отдаёт данные из mrt
-- Metabase показывает минимум 6 дашбордов
-- Telegram алерты приходят
-- дедуп и идемпотентность выдержаны
+### 12.1 `scripts/bootstrap.sh`
+- поднимает `docker compose up -d`
+- ждёт healthcheck ClickHouse и Redis
+- запускает `warehouse/apply_migrations.py`
+- проверяет наличие `sys_watermarks`, `sys_task_runs`, `dim_*`
+- при необходимости создаёт read-only пользователя для Metabase
+- запускает `scripts/check_tokens.py`
+- завершает работу с non-zero exit code, если инфраструктура или токены невалидны
 
+### 12.2 `scripts/check_tokens.py`
+- проверяет `WB_TOKEN_STATISTICS` на базовом statistics endpoint
+- проверяет `WB_TOKEN_ANALYTICS` на analytics endpoint
+- проверяет `OZON_CLIENT_ID` + `OZON_API_KEY` на seller API
+- если `OZON_PERF_API_KEY` не задан, пишет warning, но не валит bootstrap
+- sanitizes логи: не печатать токены и полные headers
+
+### 12.3 `scripts/backfill.py`
+- ручной запуск backfill по источнику: `wb_sales`, `wb_orders`, `wb_funnel`, `ozon_postings`, `ozon_finance`, `ozon_ads`
+- параметры: `--account-id`, `--days`, `--date-from`, `--date-to`, `--dry-run`
+- пишет запись в `sys_task_runs`
+
+---
+
+## 13) Shared HTTP/SDK слой и ограничения API ✅
+
+### 13.1 `collectors/common/http_client.py`
+- единый `httpx` клиент с timeout `connect/read/write`
+- retry policy:
+  - WB `429` обрабатывать по `X-Ratelimit-Retry` / `X-Ratelimit-Reset`
+  - Ozon `429` и `5xx` обрабатывать через exponential backoff + jitter
+- простой circuit breaker после серии ошибок на endpoint
+- логировать `request_id`, `marketplace`, `endpoint`, `status_code`, `duration_ms`
+- bodies логировать только в усечённом виде и без секретов
+
+### 13.2 Время, watermark и late-arriving data
+- все даты и watermark хранить в UTC
+- для WB `dateFrom` переводить из MSK (`UTC+3`) в UTC перед сохранением watermark
+- разделять `event_ts`, `last_change_ts`, `snapshot_ts`, `ingested_at`
+- watermark обновлять только после успешной вставки в raw
+- late-arriving данные покрывать rolling backfill окнами, а не только инкрементом
+
+### 13.3 Ограничения API, которые надо закодировать явно
+- WB statistics:
+  - `/api/v1/supplier/sales` обновляется примерно раз в 30 минут
+  - хранение на стороне WB гарантировано не более 90 дней
+  - `flag=0` использовать для инкремента по `lastChangeDate`
+  - `flag=1` использовать для полного пересбора конкретного дня
+- WB analytics:
+  - funnel обновляется раз в час
+  - возвраты и отмены могут приходить с привязкой к дню исходного заказа
+  - нужен hourly roll + daily backfill окна
+- Ozon:
+  - часть analytics / premium-возможностей может быть недоступна
+  - такие ошибки должны деградировать мягко: warning + skip, а не падение всего пайплайна
+
+### 13.4 Product mapping и унификация идентификаторов
+- заполнение `dim_product` из WB и Ozon raw/stg
+- единый `product_id`:
+  - WB: детерминированно из `nm_id` или `chrt_id`
+  - Ozon: детерминированно из `ozon_product_id` или `offer_id`
+- хранить исходные идентификаторы отдельно, не теряя первичный marketplace key
+
+---
+
+## 14) Collectors: Wildberries — детальный implementation backlog ✅
+
+### 14.1 Auth и конфиг
+- env:
+  - `WB_TOKEN_STATISTICS`
+  - `WB_TOKEN_ANALYTICS`
+  - optional `WB_TOKEN_CREATED_AT`
+- отдельные клиенты/методы для statistics и analytics API
+- при старте backend/worker уметь валидировать токены через admin smoke-check
+- если задан `WB_TOKEN_CREATED_AT`, считать reminder за 14 дней до истечения 180-дневного TTL
+
+### 14.2 `wb_sales_incremental`
+- источник: `/api/v1/supplier/sales`
+- расписание: каждые 10-15 минут
+- читать watermark `wb_sales_last_change_ts`
+- вызывать с `dateFrom=watermark`, `flag=0`
+- сохранять raw payload + выделенные ключи
+- дедуп делать по `account_id + srid`, версионность по `ingested_at` / `last_change_ts`
+- watermark двигать на `max(last_change_ts)` только после успешной вставки всей пачки
+
+### 14.3 `wb_sales_backfill_days`
+- расписание: 1 раз в сутки
+- окно: последние 7-14 дней
+- вызывать `flag=1` по каждому дню отдельно
+- пересобирать raw и затем stg/mart за эти дни
+- использовать для компенсации late updates, возвратов и исправлений WB
+
+### 14.4 `wb_orders_incremental` и `wb_orders_backfill_days`
+- делать по той же схеме, что и sales, если orders endpoint реально используется
+- если в целевой версии продукта orders решено не брать, это должно быть зафиксировано в README и beat schedule
+- не оставлять "полумёртвую" таблицу/задачу без документации
+
+### 14.5 `wb_stocks_snapshot`
+- собирать остатки каждые 30-60 минут
+- хранить snapshot-подходом с `snapshot_ts`
+- stg должен уметь агрегировать остатки по складу и по товару
+- отдельно контролировать пустые ответы: это либо "нулевые остатки", либо ошибка источника
+
+### 14.6 `wb_funnel_roll` и `wb_funnel_backfill_days`
+- источник: `/api/analytics/v3/sales-funnel/products`
+- hourly roll по последним 7 дням
+- daily backfill по последним 14 дням
+- throttling по account/source, чтобы не выбивать лимиты analytics API
+- документировать, что `orders`/`buyouts`/`cancels` в funnel не равны фактической cash-выручке
+
+### 14.7 Ошибки и chunking
+- крупные окна разбивать на чанки по дням
+- при частичном падении повторять только неуспешный chunk
+- записывать run status и row counts в `sys_task_runs`
+
+---
+
+## 15) Collectors: Ozon — детальный implementation backlog ✅
+
+### 15.1 Auth и базовый клиент
+- все запросы отправлять с `Client-Id` и `Api-Key`
+- базовый URL держать конфигурируемым
+- предусмотреть capability flags по аккаунту:
+  - `has_finance`
+  - `has_ads`
+  - `has_premium_analytics`
+
+### 15.2 `ozon_postings_incremental`
+- собирать postings/orders как обязательный минимум
+- поддержать схему продавца FBO/FBS, если API отдаёт эти режимы отдельно
+- watermark по `last_changed` / `since` в зависимости от endpoint
+- raw хранить отдельно для postings и posting items
+- stg нормализовать до `stg_orders` и `stg_sales` там, где можно восстановить продажу/возврат
+
+### 15.3 `ozon_stocks_snapshot`
+- снимок остатков каждые 30-60 минут
+- хранить остатки по складам и offer/product
+- проверять отрицательные или аномально большие значения как data-quality warning
+
+### 15.4 `ozon_finance_incremental`
+- желательно включить в базовый backlog, потому что без него нет нормальной unit economics
+- собирать операции/начисления/удержания в `raw_ozon_finance_ops`
+- нормализовать комиссии, логистику, штрафы, выплаты в отдельные поля `stg_sales` или вспомогательный finance stg
+- расписание: минимум 1 раз в сутки, лучше каждые 6 часов
+
+### 15.5 `ozon_ads_daily`
+- daily или 6-hourly выгрузка рекламной статистики
+- idempotent upsert по `account_id + day + campaign_id`
+- при отсутствии `OZON_PERF_API_KEY` задача должна автоматически отключаться, а не падать
+
+### 15.6 Premium/недоступные методы
+- ошибки "method unavailable", "premium required", "forbidden for account" обрабатывать как `skip_with_warning`
+- capability сохранять в `sys_task_runs.meta_json` или отдельной service-config таблице
+- UI/admin endpoint должен показывать, что источник отключён из-за недоступной функции, а не из-за сбоя
+
+---
+
+## 16) Observability, security и data quality ✅
+
+### 16.1 Логи и метрики
+- structured JSON logs для backend и workers
+- поля: `request_id`, `task_id`, `run_id`, `marketplace`, `account_id`, `endpoint`, `duration_ms`, `rows_ingested`, `status`
+- если включён Prometheus:
+  - `ingestion_requests_total{marketplace,endpoint,status}`
+  - `ingestion_rows_total{table}`
+  - `task_duration_seconds{task}`
+  - `watermark_lag_seconds{source}`
+  - `empty_payload_total{source}`
+
+### 16.2 Алерты и operational signals
+- watermark lag > threshold
+- task failures > 0 за окно
+- ClickHouse disk usage > threshold
+- repeated empty responses по источнику, где обычно есть данные
+- токен скоро истекает
+
+### 16.3 Security minimum
+- `ADMIN_API_KEY` обязателен для админ-эндпоинтов
+- Metabase подключать через read-only ClickHouse user
+- reverse proxy/TLS опционален, но желателен для prod
+- в логах и ошибках не показывать токены, ключи, полные auth headers
+
+### 16.4 Data quality checks
+- контроль дублей в raw и stg
+- контроль пропущенных дней в `mrt_sales_daily`, `mrt_stock_daily`, `mrt_funnel_daily`, `mrt_ads_daily`
+- аномалии row-count по сравнению с предыдущими днями
+- отдельный maintenance task: prune/ttl для raw, если объём начинает расти слишком быстро
+
+---
+
+## 17) Тестирование ✅
+
+### 17.1 Unit tests
+- парсеры ответов WB/Ozon на fixtures JSON
+- time normalization: UTC/MSK, `dateFrom`, watermark updates
+- retry/backoff policy и redaction
+- automation rules: condition eval, action dispatch, templating
+
+### 17.2 Integration tests
+- поднять `clickhouse + redis`
+- прогнать migrations
+- загрузить raw fixtures
+- выполнить transforms и mart builds
+- проверить read-only API FastAPI против тестового ClickHouse
+
+### 17.3 Contract / recorded tests
+- режим `record` для живых ответов API с удалением чувствительных данных
+- режим `replay` для CI без реальных токенов
+- fixtures версионировать по marketplace и endpoint
+
+### 17.4 Smoke tests
+- `scripts/bootstrap.sh` в dev-режиме
+- `/health`, `/ready`, admin auth
+- один ручной backfill в `--dry-run`
+
+---
+
+## 18) CI/CD ✅
+
+### 18.1 GitHub Actions pipeline
+- lint: `ruff`, `black --check`, `mypy`
+- tests: `pytest`
+- build Docker images для `backend` и `worker`
+- проверка, что migrations применяются на чистой ClickHouse-инстанции
+
+### 18.2 Optional release flow
+- tagged releases
+- optional push в GHCR
+- changelog / release notes
+
+### 18.3 Secrets policy
+- CI не должен требовать боевых WB/Ozon токенов
+- recorded fixtures использовать вместо реальных API-вызовов
+- `.env` и любые ключи не коммитить
+
+---
+
+## 19) Документация ✅
+
+### 19.1 `README.md`
+- что делает система и что не делает
+- быстрый старт
+- какие токены нужны WB и Ozon
+- как поднять Metabase
+- как включить Telegram alerts
+- как выполнить ручной backfill
+- troubleshooting: `429`, invalid key, empty data, late data
+
+### 19.2 `docs/architecture.md`
+- схема модулей
+- поток данных `raw -> stg -> mrt`
+- расписание задач
+- источники watermarks и lock-keys
+
+### 19.3 `docs/metabase.md`
+- как подключить ClickHouse
+- как импортировать SQL questions / dashboards
+- какие дашборды считаются обязательными
+
+### 19.4 `docs/troubleshooting.md`
+- что делать при зависшем watermark
+- что делать при 429/5xx
+- как пересобрать витрины за период
+- как проверить capability/доступность Ozon методов
+
+---
+
+## 20) План работ по этапам ✅
+
+### Этап A — skeleton + infra
+- [ ] структура репо
+- [ ] `.env.example`
+- [ ] `docker-compose`
+- [ ] bootstrap и smoke checks
+- [ ] `/health` и `/ready`
+
+### Этап B — ClickHouse + service layer
+- [ ] migrations `sys/raw/stg/mrt`
+- [ ] `apply_migrations.py`
+- [ ] `http_client.py`, retry, redaction, time utils
+- [ ] watermarks, locks, `sys_task_runs`
+
+### Этап C — WB ingestion
+- [ ] auth + token checks
+- [ ] sales incremental
+- [ ] sales backfill 7-14d
+- [ ] orders incremental/backfill or explicit exclusion
+- [ ] stocks snapshot
+- [ ] funnel hourly + backfill
+
+### Этап D — Ozon ingestion
+- [ ] postings/orders
+- [ ] stocks snapshot
+- [ ] finance ops
+- [ ] ads daily
+- [ ] premium/capability degradation
+
+### Этап E — ELT + marts + API
+- [ ] raw -> stg transforms
+- [ ] stg -> mrt builds
+- [ ] KPI/query endpoints
+- [ ] admin endpoints
+
+### Этап F — BI + automation
+- [ ] Metabase queries/dashboards
+- [ ] YAML rules
+- [ ] Telegram action
+- [ ] scheduled rule runs
+
+### Этап G — quality + release
+- [ ] observability
+- [ ] tests
+- [ ] CI/CD
+- [ ] docs
+- [ ] final acceptance pass
+
+---
+
+## 21) Acceptance Criteria ✅
+
+- `docker compose up -d` поднимает backend, worker, beat, clickhouse, redis, metabase
+- `scripts/bootstrap.sh` проходит без ошибок на валидной конфигурации
+- WB sales минимум за последние 7-14 дней подтягиваются и сохраняются в ClickHouse
+- Ozon postings/stocks подтягиваются и сохраняются в ClickHouse
+- transforms и marts строятся повторяемо и без дублей
+- backend отдаёт данные из `mrt_*`
+- Metabase показывает минимум 5-6 базовых дашбордов
+- Telegram алерты реально приходят
+- повторный запуск ingestion не плодит дубли
+- при `429` WB/Ozon система корректно ждёт и продолжает работу
+- недоступные Ozon premium-методы не валят весь пайплайн
