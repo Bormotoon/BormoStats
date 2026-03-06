@@ -51,7 +51,7 @@ cp .env.example .env
 
 Bootstrap now fails fast if `.env` still contains placeholders or blank required credentials.
 If ports conflict with other containers (`pykumir` or anything else), change:
-`CH_HTTP_HOST_PORT`, `BACKEND_HOST_PORT`, `METABASE_HOST_PORT`, `STACK_NAME`.
+`CH_HTTP_HOST_PORT`, `BACKEND_HOST_PORT`, `BACKEND_TLS_HOST_PORT`, `METABASE_HOST_PORT`, `STACK_NAME`.
 
 3. Run bootstrap (start services + migrations + smoke checks):
 
@@ -63,27 +63,29 @@ make bootstrap
 
 ```bash
 curl http://localhost:18080/health
-curl http://localhost:18080/ready
-curl http://localhost:18080/metrics
+curl -k https://localhost:18443/ready
+curl -k https://localhost:18443/metrics
 ```
 
 Open GUI:
 
 ```bash
-xdg-open http://localhost:18080/ui/
+xdg-open https://localhost:18443/ui/
 ```
 
 The web UI keeps `ADMIN_API_KEY` only in memory for the current tab.
 Reloading the page or opening a new tab requires entering the key again.
 The backend, worker and beat containers run as an unprivileged user with a read-only root
 filesystem and a writable `tmpfs` mounted at `/tmp`.
+The public entrypoint is the nginx reverse proxy; backend is not published directly on a host port.
 
 Default ports from `.env.example`:
-- backend: `http://localhost:18080`
-- metabase: `http://localhost:13000`
-- clickhouse http: `http://localhost:18123`
-- worker metrics: `http://localhost:19101/metrics`
-- beat metrics: `http://localhost:19102/metrics`
+- backend http proxy: `http://localhost:18080`
+- backend https proxy: `https://localhost:18443`
+- metabase (loopback only): `http://localhost:13000`
+- clickhouse http (loopback only): `http://localhost:18123`
+- worker metrics (loopback only): `http://localhost:19101/metrics`
+- beat metrics (loopback only): `http://localhost:19102/metrics`
 
 5. Open Metabase at `http://localhost:13000` (or your `METABASE_HOST_PORT`) and connect to ClickHouse using your configured app credentials or the optional `CH_RO_USER` / `CH_RO_PASSWORD`.
 

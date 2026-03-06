@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="$ROOT_DIR/.env"
 COMPOSE_FILE="$ROOT_DIR/infra/docker/docker-compose.yml"
+NGINX_CERT_DIR="$ROOT_DIR/infra/nginx/certs"
 PYTHON_BIN="python3"
 
 if [[ -x "$ROOT_DIR/.venv/bin/python" ]]; then
@@ -12,6 +13,32 @@ fi
 
 compose_cmd() {
   docker compose --project-name "$STACK_NAME" --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
+}
+
+ensure_proxy_tls_certs() {
+  local cert_file="$NGINX_CERT_DIR/tls.crt"
+  local key_file="$NGINX_CERT_DIR/tls.key"
+  local server_name="${TLS_SERVER_NAME:-localhost}"
+  local cert_days="${TLS_CERT_DAYS:-30}"
+
+  mkdir -p "$NGINX_CERT_DIR"
+  if [[ -s "$cert_file" && -s "$key_file" ]]; then
+    return 0
+  fi
+  if ! command -v openssl >/dev/null 2>&1; then
+    echo "openssl is required to generate TLS certs for the reverse proxy."
+    return 1
+  fi
+
+  echo "Generating self-signed TLS certificate for ${server_name}..."
+  openssl req \
+    -x509 \
+    -nodes \
+    -newkey rsa:2048 \
+    -days "$cert_days" \
+    -keyout "$key_file" \
+    -out "$cert_file" \
+    -subj "/CN=${server_name}" >/dev/null 2>&1
 }
 
 wait_for_service() {
@@ -78,13 +105,17 @@ set +a
 
 STACK_NAME="${STACK_NAME:-bormostats}"
 BACKEND_HOST_PORT="${BACKEND_HOST_PORT:-18080}"
+BACKEND_TLS_HOST_PORT="${BACKEND_TLS_HOST_PORT:-18443}"
 METABASE_HOST_PORT="${METABASE_HOST_PORT:-13000}"
 BOOTSTRAP_CH_HOST="${BOOTSTRAP_CH_HOST:-localhost}"
 BOOTSTRAP_CH_PORT="${BOOTSTRAP_CH_PORT:-${CH_HTTP_HOST_PORT:-18123}}"
 BOOTSTRAP_CH_ADMIN_USER="${BOOTSTRAP_CH_ADMIN_USER:-default}"
 BOOTSTRAP_CH_ADMIN_PASSWORD="${BOOTSTRAP_CH_ADMIN_PASSWORD:-}"
 
-check_host_port_conflict "$BACKEND_HOST_PORT" "backend"
+ensure_proxy_tls_certs
+
+check_host_port_conflict "$BACKEND_HOST_PORT" "proxy-http"
+check_host_port_conflict "$BACKEND_TLS_HOST_PORT" "proxy-https"
 check_host_port_conflict "$METABASE_HOST_PORT" "metabase"
 check_host_port_conflict "$BOOTSTRAP_CH_PORT" "clickhouse-http"
 
@@ -175,14 +206,15 @@ finally:
 PY
 
 echo "Starting application services..."
-if ! compose_cmd up -d --build backend worker beat metabase; then
+if ! compose_cmd up -d --build backend worker beat metabase proxy; then
   echo "docker compose build failed; retrying with classic builder fallback..."
-  COMPOSE_DOCKER_CLI_BUILD=0 DOCKER_BUILDKIT=0 compose_cmd up -d --build backend worker beat metabase || compose_cmd up -d backend worker beat metabase
+  COMPOSE_DOCKER_CLI_BUILD=0 DOCKER_BUILDKIT=0 compose_cmd up -d --build backend worker beat metabase proxy || compose_cmd up -d backend worker beat metabase proxy
 fi
 
 wait_for_service backend 180
 wait_for_service worker 180
 wait_for_service beat 180
+wait_for_service proxy 180
 
 echo "Running API token smoke checks..."
 if [[ "${BOOTSTRAP_SKIP_TOKEN_CHECKS:-0}" == "1" ]]; then
@@ -195,18 +227,20 @@ echo "Running backend health checks..."
 "$PYTHON_BIN" - <<'PY'
 import json
 import os
+import ssl
 import time
 import urllib.request
 from urllib.error import URLError
 
 
-def check(url: str) -> None:
+def check(url: str, *, insecure_tls: bool = False) -> None:
     attempts = 15
     delay_seconds = 2.0
     last_error: Exception | None = None
     for attempt in range(1, attempts + 1):
         try:
-            with urllib.request.urlopen(url, timeout=15.0) as response:  # noqa: S310
+            context = ssl._create_unverified_context() if insecure_tls else None
+            with urllib.request.urlopen(url, timeout=15.0, context=context) as response:  # noqa: S310
                 if response.status != 200:
                     raise RuntimeError(f"{url} returned status={response.status}")
                 payload = json.loads(response.read().decode("utf-8"))
@@ -221,8 +255,9 @@ def check(url: str) -> None:
 
 
 backend_port = os.getenv("BACKEND_HOST_PORT", "18080")
+backend_tls_port = os.getenv("BACKEND_TLS_HOST_PORT", "18443")
 check(f"http://localhost:{backend_port}/health")
-check(f"http://localhost:{backend_port}/ready")
+check(f"https://localhost:{backend_tls_port}/ready", insecure_tls=True)
 PY
 
 echo "Bootstrap finished successfully."

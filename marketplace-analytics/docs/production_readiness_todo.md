@@ -313,11 +313,11 @@
 
 ### P2-01. Reverse proxy, TLS, network segmentation
 
-- [ ] Реализовать nginx/reverse proxy слой
-- [ ] Настроить TLS termination
-- [ ] Добавить security headers
-- [ ] Изолировать internal services в private network
-- [ ] Ограничить внешний доступ к ClickHouse/Redis/worker endpoints
+- [x] Реализовать nginx/reverse proxy слой
+- [x] Настроить TLS termination
+- [x] Добавить security headers
+- [x] Изолировать internal services в private network
+- [x] Ограничить внешний доступ к ClickHouse/Redis/worker endpoints
 
 ### P2-02. Разделить окружения
 
