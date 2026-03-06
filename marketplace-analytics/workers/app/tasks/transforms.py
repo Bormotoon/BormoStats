@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from celery import shared_task
 
-from app.utils.runtime import get_ch_client, log_task_run, new_run_context
+from app.utils.locking import LockNotAcquired
+from app.utils.rebuilds import LOGGER as REBUILD_LOGGER
+from app.utils.rebuilds import rebuild_task_scope
+from app.utils.runtime import get_ch_client, get_redis_client, log_task_run, new_run_context
 
 WB_SALES_TO_STG_SQL = """
 INSERT INTO stg_sales
@@ -426,27 +429,61 @@ STG_LONG_REBUILD_TABLES = (
 def _run_transform(days: int, task_name: str) -> dict[str, int | str]:
     run_id, started_at = new_run_context(task_name)
     client = get_ch_client()
+    redis_client = get_redis_client()
     try:
-        ads_days = max(days, 60)
-        client.command("SET mutations_sync = 1")
-        for table_name, day_column in STG_REBUILD_TABLES:
-            client.command(f"ALTER TABLE {table_name} DELETE WHERE {day_column} >= today() - {days}")
-        for table_name, day_column in STG_LONG_REBUILD_TABLES:
-            client.command(f"ALTER TABLE {table_name} DELETE WHERE {day_column} >= today() - {ads_days}")
+        with rebuild_task_scope(
+            redis_client=redis_client,
+            task_lock_source=task_name.rsplit(".", maxsplit=1)[-1],
+        ):
+            ads_days = max(days, 60)
+            client.command("SET mutations_sync = 1")
+            for table_name, day_column in STG_REBUILD_TABLES:
+                client.command(
+                    f"ALTER TABLE {table_name} DELETE WHERE {day_column} >= today() - {days}"
+                )
+            for table_name, day_column in STG_LONG_REBUILD_TABLES:
+                client.command(
+                    f"ALTER TABLE {table_name} DELETE WHERE {day_column} >= today() - {ads_days}"
+                )
 
-        client.command(WB_SALES_TO_STG_SQL.format(days=days))
-        client.command(WB_ORDERS_TO_STG_SQL.format(days=days))
-        client.command(WB_STOCKS_TO_STG_SQL.format(days=days))
-        client.command(WB_FUNNEL_TO_STG_SQL.format(days=days))
-        client.command(OZON_SALES_TO_STG_SQL.format(days=days))
-        client.command(OZON_ORDERS_TO_STG_SQL.format(days=days))
-        client.command(OZON_STOCKS_TO_STG_SQL.format(days=days))
-        client.command(OZON_ADS_TO_STG_SQL.format(days=ads_days))
-        client.command(OZON_FINANCE_TO_STG_SQL.format(days=ads_days))
-        client.command(SYNC_DIM_PRODUCT_WB_SQL.format(days=max(days, 30)))
-        client.command(SYNC_DIM_PRODUCT_OZON_SQL.format(days=max(days, 30)))
-        log_task_run(client, task_name, run_id, started_at, "success", 0, f"transform done for {days} days")
+            client.command(WB_SALES_TO_STG_SQL.format(days=days))
+            client.command(WB_ORDERS_TO_STG_SQL.format(days=days))
+            client.command(WB_STOCKS_TO_STG_SQL.format(days=days))
+            client.command(WB_FUNNEL_TO_STG_SQL.format(days=days))
+            client.command(OZON_SALES_TO_STG_SQL.format(days=days))
+            client.command(OZON_ORDERS_TO_STG_SQL.format(days=days))
+            client.command(OZON_STOCKS_TO_STG_SQL.format(days=days))
+            client.command(OZON_ADS_TO_STG_SQL.format(days=ads_days))
+            client.command(OZON_FINANCE_TO_STG_SQL.format(days=ads_days))
+            client.command(SYNC_DIM_PRODUCT_WB_SQL.format(days=max(days, 30)))
+            client.command(SYNC_DIM_PRODUCT_OZON_SQL.format(days=max(days, 30)))
+        log_task_run(
+            client,
+            task_name,
+            run_id,
+            started_at,
+            "success",
+            0,
+            f"transform done for {days} days",
+        )
         return {"status": "success", "days": days, "run_id": run_id}
+    except LockNotAcquired as exc:
+        REBUILD_LOGGER.warning(
+            "rebuild_launch_skipped task_name=%s reason=lock_conflict error=%s",
+            task_name,
+            str(exc),
+        )
+        log_task_run(
+            client,
+            task_name,
+            run_id,
+            started_at,
+            "skipped",
+            0,
+            "transform skipped: conflicting rebuild lock",
+            meta={"reason": "lock_not_acquired", "conflict": True},
+        )
+        return {"status": "skipped", "reason": "lock_not_acquired", "run_id": run_id}
     except Exception as exc:
         log_task_run(client, task_name, run_id, started_at, "failed", 0, str(exc))
         raise

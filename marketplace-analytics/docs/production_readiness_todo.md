@@ -90,20 +90,20 @@
 
 ### P0-06. Сериализовать destructive rebuild tasks
 
-- [ ] Добавить lock для `transform_all_recent`
-- [ ] Добавить lock для `transform_backfill_days`
-- [ ] Добавить lock для `build_marts_recent`
-- [ ] Добавить lock для `build_marts_backfill_days`
-- [ ] Исключить одновременный запуск конфликтующих rebuild jobs
-- [ ] Пересобрать расписание beat так, чтобы marts не стартовали поверх transform
-- [ ] Добавить логирование skipped/conflicting launches
-- [ ] Добавить integration test на serialization rebuild jobs
+- [x] Добавить lock для `transform_all_recent`
+- [x] Добавить lock для `transform_backfill_days`
+- [x] Добавить lock для `build_marts_recent`
+- [x] Добавить lock для `build_marts_backfill_days`
+- [x] Исключить одновременный запуск конфликтующих rebuild jobs
+- [x] Пересобрать расписание beat так, чтобы marts не стартовали поверх transform
+- [x] Добавить логирование skipped/conflicting launches
+- [x] Добавить integration test на serialization rebuild jobs
 
 Критерии закрытия:
 
-- [ ] нет параллельных `DELETE + INSERT` конфликтов в `stg_*`
-- [ ] нет параллельных `DELETE + INSERT` конфликтов в `mrt_*`
-- [ ] marts запускаются только после консистентного transform stage
+- [x] нет параллельных `DELETE + INSERT` конфликтов в `stg_*`
+- [x] нет параллельных `DELETE + INSERT` конфликтов в `mrt_*`
+- [x] marts запускаются только после консистентного transform stage
 
 ### P0-07. Сделать locks продлеваемыми
 

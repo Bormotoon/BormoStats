@@ -49,15 +49,15 @@ beat_schedule = {
     },
     "transform_raw_to_stg": {
         "task": "tasks.transforms.transform_all_recent",
-        "schedule": crontab(minute="*/30"),
+        "schedule": crontab(minute="5,35"),
     },
     "build_marts_recent": {
         "task": "tasks.marts.build_marts_recent",
-        "schedule": crontab(minute="0", hour="*/1"),
+        "schedule": crontab(minute="20,50"),
     },
     "build_marts_backfill_14d": {
         "task": "tasks.marts.build_marts_backfill_days",
-        "schedule": crontab(minute="0", hour="4"),
+        "schedule": crontab(minute="20", hour="4"),
     },
     "automation_rules_run": {
         "task": "tasks.maintenance.run_automation_rules",

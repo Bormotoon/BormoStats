@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from celery import shared_task
 
-from app.utils.runtime import get_ch_client, log_task_run, new_run_context
+from app.utils.locking import LockNotAcquired
+from app.utils.rebuilds import LOGGER as REBUILD_LOGGER
+from app.utils.rebuilds import rebuild_task_scope
+from app.utils.runtime import get_ch_client, get_redis_client, log_task_run, new_run_context
 
 MRT_SALES_DAILY_SQL = """
 INSERT INTO mrt_sales_daily
@@ -86,20 +89,52 @@ MART_REBUILD_TABLES = (
 def _run_marts(days: int, task_name: str) -> dict[str, str | int]:
     run_id, started_at = new_run_context(task_name)
     client = get_ch_client()
+    redis_client = get_redis_client()
 
     try:
-        ads_days = max(days, 60)
-        client.command("SET mutations_sync = 1")
-        for table_name, day_column in MART_REBUILD_TABLES:
-            client.command(f"ALTER TABLE {table_name} DELETE WHERE {day_column} >= today() - {days}")
-        client.command(f"ALTER TABLE mrt_ads_daily DELETE WHERE day >= today() - {ads_days}")
+        with rebuild_task_scope(
+            redis_client=redis_client,
+            task_lock_source=task_name.rsplit(".", maxsplit=1)[-1],
+        ):
+            ads_days = max(days, 60)
+            client.command("SET mutations_sync = 1")
+            for table_name, day_column in MART_REBUILD_TABLES:
+                client.command(
+                    f"ALTER TABLE {table_name} DELETE WHERE {day_column} >= today() - {days}"
+                )
+            client.command(f"ALTER TABLE mrt_ads_daily DELETE WHERE day >= today() - {ads_days}")
 
-        client.command(MRT_SALES_DAILY_SQL.format(days=days))
-        client.command(MRT_STOCK_DAILY_SQL.format(days=days))
-        client.command(MRT_FUNNEL_DAILY_SQL.format(days=days))
-        client.command(MRT_ADS_DAILY_SQL.format(days=ads_days))
-        log_task_run(client, task_name, run_id, started_at, "success", 0, f"marts built for {days} days")
+            client.command(MRT_SALES_DAILY_SQL.format(days=days))
+            client.command(MRT_STOCK_DAILY_SQL.format(days=days))
+            client.command(MRT_FUNNEL_DAILY_SQL.format(days=days))
+            client.command(MRT_ADS_DAILY_SQL.format(days=ads_days))
+        log_task_run(
+            client,
+            task_name,
+            run_id,
+            started_at,
+            "success",
+            0,
+            f"marts built for {days} days",
+        )
         return {"run_id": run_id, "status": "success", "days": days}
+    except LockNotAcquired as exc:
+        REBUILD_LOGGER.warning(
+            "rebuild_launch_skipped task_name=%s reason=lock_conflict error=%s",
+            task_name,
+            str(exc),
+        )
+        log_task_run(
+            client,
+            task_name,
+            run_id,
+            started_at,
+            "skipped",
+            0,
+            "marts skipped: conflicting rebuild lock",
+            meta={"reason": "lock_not_acquired", "conflict": True},
+        )
+        return {"run_id": run_id, "status": "skipped", "reason": "lock_not_acquired"}
     except Exception as exc:
         log_task_run(client, task_name, run_id, started_at, "failed", 0, str(exc))
         raise
