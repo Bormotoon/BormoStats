@@ -1,0 +1,23 @@
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+rule_files:
+  - alerts.yml
+
+scrape_configs:
+  - job_name: marketplace-backend
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - backend:8000
+
+  - job_name: marketplace-worker
+    static_configs:
+      - targets:
+          - worker:9101
+
+  - job_name: marketplace-beat
+    static_configs:
+      - targets:
+          - beat:9102

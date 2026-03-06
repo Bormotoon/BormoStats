@@ -1,0 +1,65 @@
+groups:
+  - name: marketplace-analytics
+    rules:
+      - alert: MarketplaceTaskFailures
+        expr: sum by (task_name) (increase(task_runs_total{status="failed"}[15m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Task failures detected
+          description: "{{ $labels.task_name }} has recorded failed runs during the last 15 minutes."
+
+      - alert: MarketplaceWatermarkStale
+        expr: max by (source, account_id) (watermark_lag_seconds) > 21600
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Watermark lag is stale
+          description: "{{ $labels.source }}/{{ $labels.account_id }} watermark lag is above 6 hours."
+
+      - alert: MarketplaceEmptyPayloadAnomaly
+        expr: increase(empty_payload_total[1h]) > 20
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Empty payload anomaly detected
+          description: "Collector sources returned empty payloads more than 20 times during the last hour."
+
+      - alert: RedisMemorySaturation
+        expr: redis_memory_limit_bytes > 0 and redis_memory_utilization_ratio > 0.80
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: Redis memory saturation
+          description: "Redis memory utilization is above 80 percent of configured maxmemory."
+
+      - alert: RedisUnavailable
+        expr: service_readiness{service="redis"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Redis readiness failed
+          description: "Backend scrape could not reach Redis successfully."
+
+      - alert: ClickHouseUnavailable
+        expr: service_readiness{service="clickhouse"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: ClickHouse readiness failed
+          description: "Backend scrape could not reach ClickHouse successfully."
+
+      - alert: ClickHouseDiskPressure
+        expr: min by (disk) (clickhouse_disk_free_ratio) < 0.15
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: ClickHouse disk pressure
+          description: "{{ $labels.disk }} free disk ratio is below 15 percent."

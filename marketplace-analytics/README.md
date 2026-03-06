@@ -138,3 +138,4 @@ Admin (`X-API-Key` required):
 
 See `docs/architecture.md` and `docs/metabase.md` for details.
 Prometheus scrape examples for worker and beat are in `docs/prometheus.md`.
+Alert rules and operational dashboards are documented in `docs/observability.md`.

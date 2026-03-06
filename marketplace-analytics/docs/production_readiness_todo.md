@@ -187,18 +187,18 @@
 
 ### P1-02. Настроить alerting и dashboards
 
-- [ ] Определить alert rules для failed task runs
-- [ ] Определить alert rules для stale watermarks
-- [ ] Определить alert rules для empty payload anomalies
-- [ ] Определить alert rules для Redis saturation
-- [ ] Определить alert rules для ClickHouse disk / readiness
-- [ ] Подготовить базовый operational dashboard
-- [ ] Подготовить dashboard по ingestion freshness
+- [x] Определить alert rules для failed task runs
+- [x] Определить alert rules для stale watermarks
+- [x] Определить alert rules для empty payload anomalies
+- [x] Определить alert rules для Redis saturation
+- [x] Определить alert rules для ClickHouse disk / readiness
+- [x] Подготовить базовый operational dashboard
+- [x] Подготовить dashboard по ingestion freshness
 
 Критерии закрытия:
 
-- [ ] alerts описаны, настроены и тестово срабатывают
-- [ ] есть dashboard для ежедневной эксплуатации
+- [x] alerts описаны, настроены и тестово срабатывают
+- [x] есть dashboard для ежедневной эксплуатации
 
 ### P1-03. Ограничить рост Redis/Celery metadata
 

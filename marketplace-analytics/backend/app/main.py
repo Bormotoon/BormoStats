@@ -7,6 +7,7 @@ from pathlib import Path
 from app.api.v1 import admin, ads, funnel, kpis, sales, stocks
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.core.ops_metrics import refresh_operational_metrics
 from app.db.ch import build_client
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import RedirectResponse, Response
@@ -54,6 +55,7 @@ def ready() -> dict[str, str]:
 
 @app.get("/metrics")
 def metrics() -> Response:
+    refresh_operational_metrics(settings)
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
