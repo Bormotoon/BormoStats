@@ -365,10 +365,10 @@
 
 ### P2-08. Дисциплина миграций
 
-- [ ] Зафиксировать forward-only migration policy
-- [ ] Описать dry-run validation для schema changes
-- [ ] Описать rollback/mitigation strategy для неудачной миграции
-- [ ] Добавить migration review checklist
+- [x] Зафиксировать forward-only migration policy
+- [x] Описать dry-run validation для schema changes
+- [x] Описать rollback/mitigation strategy для неудачной миграции
+- [x] Добавить migration review checklist
 
 ## Global Verification Checklist
 
