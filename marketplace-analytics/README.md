@@ -164,6 +164,7 @@ and exposed via `GET /api/v1/admin/task-runs`.
 - `docs/environments.md` for `dev/stage/prod` env model and promotion flow
 - `docs/disaster_recovery.md` for backups, restore flow, and RPO/RTO
 - `docs/performance.md` for load targets, measured perf smoke results, and safe concurrency limits
+- `docs/release_management.md` and `docs/release_notes_template.md` for versioning, rollout, and rollback discipline
 - `docs/troubleshooting.md` for fast incident lookup
 - `docs/runbooks.md` for step-by-step recovery procedures
 - `docs/release_checklist.md` for deployment and rollback checks

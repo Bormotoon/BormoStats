@@ -351,10 +351,10 @@
 
 ### P2-06. Release management
 
-- [ ] Ввести versioning policy
-- [ ] Ввести release notes template
-- [ ] Описать rollback procedure
-- [ ] Описать production deploy checklist
+- [x] Ввести versioning policy
+- [x] Ввести release notes template
+- [x] Описать rollback procedure
+- [x] Описать production deploy checklist
 
 ### P2-07. Security review и rotation
 
