@@ -14,10 +14,9 @@
 
 ## No data in marts
 
-- Trigger ingestion tasks manually via admin `/run-task`
-- Run transform and mart tasks:
-  - `tasks.transforms.transform_all_recent`
-  - `tasks.marts.build_marts_recent`
+- Trigger rebuilds via explicit admin actions:
+  - `POST /api/v1/admin/transforms/recent`
+  - `POST /api/v1/admin/marts/recent`
 - Confirm raw tables have rows before transforms
 
 ## Frequent `429` / `5xx` from WB/Ozon
@@ -61,3 +60,4 @@
 
 - Use header `X-API-Key: <ADMIN_API_KEY>`
 - Ensure backend uses same `.env` value
+- The web UI does not persist the admin key in browser storage; paste it again after reload

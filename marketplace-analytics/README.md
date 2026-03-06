@@ -69,6 +69,9 @@ Open GUI:
 xdg-open http://localhost:18080/ui/
 ```
 
+The web UI keeps `ADMIN_API_KEY` only in memory for the current tab.
+Reloading the page or opening a new tab requires entering the key again.
+
 Default ports from `.env.example`:
 - backend: `http://localhost:18080`
 - metabase: `http://localhost:13000`

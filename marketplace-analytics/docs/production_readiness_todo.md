@@ -47,15 +47,15 @@
 
 ### P0-03. Убрать хранение admin key в localStorage
 
-- [ ] Перестать сохранять admin key в `localStorage` в [app.js](/home/borm/VibeCoding/BormoStats/marketplace-analytics/backend/app/ui/app.js)
-- [ ] Перевести хранение ключа на in-memory/session-only модель
-- [ ] Добавить явный UX для повторного ввода ключа после reload
-- [ ] Обновить UI help text и документацию
+- [x] Перестать сохранять admin key в `localStorage` в [app.js](/home/borm/VibeCoding/BormoStats/marketplace-analytics/backend/app/ui/app.js)
+- [x] Перевести хранение ключа на in-memory/session-only модель
+- [x] Добавить явный UX для повторного ввода ключа после reload
+- [x] Обновить UI help text и документацию
 
 Критерии закрытия:
 
-- [ ] admin key не сохраняется между перезапусками браузера
-- [ ] UI не оставляет секрет в persistent browser storage
+- [x] admin key не сохраняется между перезапусками браузера
+- [x] UI не оставляет секрет в persistent browser storage
 
 ### P0-04. Исправить retry semantics и circuit breaker
 

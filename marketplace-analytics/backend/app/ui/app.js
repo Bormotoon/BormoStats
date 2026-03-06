@@ -63,9 +63,9 @@ const PAGE_DEFS = [
 
 const STORE_KEYS = {
   apiBase: "bormostats_ui_api_base",
-  adminKey: "bormostats_ui_admin_key",
   theme: "bormostats_ui_theme",
 };
+const LEGACY_ADMIN_KEY_STORAGE_KEY = "bormostats_ui_admin_key";
 
 const ADMIN_ACTIONS = [
   {
@@ -185,6 +185,7 @@ const refs = {
   themeToggle: document.getElementById("theme-toggle"),
   apiBaseInput: document.getElementById("api-base-input"),
   adminKeyInput: document.getElementById("admin-key-input"),
+  adminKeyStatus: document.getElementById("admin-key-status"),
   saveSettingsButton: document.getElementById("save-settings-button"),
 };
 
@@ -215,6 +216,16 @@ function activeAdminAction() {
   return ADMIN_ACTIONS_BY_ID[state.adminActionId] || ADMIN_ACTIONS[0];
 }
 
+function updateAdminKeyStatus() {
+  if (!refs.adminKeyStatus) {
+    return;
+  }
+
+  refs.adminKeyStatus.textContent = state.adminKey.trim()
+    ? "Admin key is loaded in memory for this tab only. Reload clears it."
+    : "Admin key is empty. Paste it again after reload to use admin endpoints.";
+}
+
 function toApiUrl(path, query = null) {
   const hasBase = Boolean(state.apiBase);
   const url = new URL(
@@ -237,7 +248,9 @@ async function request(path, options = {}) {
   const headers = {};
   if (admin) {
     if (!state.adminKey.trim()) {
-      throw new Error("Admin API key не задан. Укажите ключ в Settings.");
+      throw new Error(
+        "Admin API key не задан. Укажите ключ в Settings; он хранится только в памяти текущей вкладки и очищается после reload.",
+      );
     }
     headers["X-API-Key"] = state.adminKey.trim();
   }
@@ -762,6 +775,14 @@ async function renderTaskRuns() {
 
 async function renderAdminActions() {
   const action = activeAdminAction();
+  const keyWarning = state.adminKey.trim()
+    ? ""
+    : `
+        <section class="panel">
+          <h3>Admin Key Required</h3>
+          <p>Paste the Admin API key in Settings to use these operations. The key is kept only in memory and must be entered again after every reload.</p>
+        </section>
+      `;
   const dayControls = action.days
     ? `
         <label class="field">
@@ -783,6 +804,7 @@ async function renderAdminActions() {
       `;
 
   return `
+    ${keyWarning}
     <section class="panel">
       <h3>Allowed Admin Actions</h3>
       <label class="field">
@@ -927,10 +949,12 @@ async function loadPage() {
 }
 
 function loadSettings() {
+  localStorage.removeItem(LEGACY_ADMIN_KEY_STORAGE_KEY);
   state.apiBase = normalizeBaseUrl(localStorage.getItem(STORE_KEYS.apiBase) || "");
-  state.adminKey = localStorage.getItem(STORE_KEYS.adminKey) || "";
+  state.adminKey = "";
   refs.apiBaseInput.value = state.apiBase;
   refs.adminKeyInput.value = state.adminKey;
+  updateAdminKeyStatus();
 
   const theme = localStorage.getItem(STORE_KEYS.theme) || "light";
   document.documentElement.dataset.theme = theme;
@@ -941,8 +965,13 @@ function bindGlobalControls() {
     state.apiBase = normalizeBaseUrl(refs.apiBaseInput.value);
     state.adminKey = refs.adminKeyInput.value;
     localStorage.setItem(STORE_KEYS.apiBase, state.apiBase);
-    localStorage.setItem(STORE_KEYS.adminKey, state.adminKey);
-    setFeedback("Settings saved", "success");
+    updateAdminKeyStatus();
+    setFeedback(
+      state.adminKey.trim()
+        ? "API Base saved. Admin API key is kept only in memory for this tab."
+        : "API Base saved. Paste Admin API key again whenever you need admin endpoints.",
+      "success",
+    );
     loadPage();
   });
 

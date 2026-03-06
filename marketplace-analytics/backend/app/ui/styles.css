@@ -186,6 +186,13 @@ body {
   font-weight: 600;
 }
 
+.helper-text {
+  margin: -2px 0 12px;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
 .field input,
 .field select,
 .field textarea {
