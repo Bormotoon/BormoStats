@@ -120,6 +120,13 @@ class JsonHttpClient:
             return exponential_jitter_delay_seconds(attempt)
         return None
 
+    def _retry_reason(self, response: httpx.Response) -> str | None:
+        if response.status_code == 429:
+            return "throttled"
+        if 500 <= response.status_code <= 599:
+            return "server_error"
+        return None
+
     def _request(
         self,
         method: str,
@@ -151,7 +158,10 @@ class JsonHttpClient:
 
                 latency_ms = round((time.perf_counter() - started_at) * 1000.0, 2)
                 self._logger.info(
-                    "http_request marketplace=%s request_id=%s method=%s path=%s status_code=%s latency_ms=%s attempt=%s",
+                    (
+                        "http_request marketplace=%s request_id=%s method=%s path=%s "
+                        "status_code=%s latency_ms=%s attempt=%s"
+                    ),
                     self.marketplace,
                     request_id,
                     method,
@@ -166,9 +176,13 @@ class JsonHttpClient:
                     return response.json()
 
                 retry_delay = self._retry_delay(response, attempt)
+                retry_reason = self._retry_reason(response)
                 if retry_delay is not None and attempt < self.max_attempts:
                     self._logger.warning(
-                        "http_retry marketplace=%s request_id=%s method=%s path=%s status_code=%s delay_s=%s attempt=%s headers=%s params=%s",
+                        (
+                            "http_retry marketplace=%s request_id=%s method=%s path=%s "
+                            "status_code=%s delay_s=%s attempt=%s reason=%s headers=%s params=%s"
+                        ),
                         self.marketplace,
                         request_id,
                         method,
@@ -176,21 +190,62 @@ class JsonHttpClient:
                         response.status_code,
                         round(retry_delay, 3),
                         attempt,
+                        retry_reason,
                         sanitized_headers,
                         safe_params,
                     )
                     sleep_seconds(retry_delay)
                     continue
 
+                failure_reason = retry_reason or "client_error"
+                if retry_reason is not None and attempt >= self.max_attempts:
+                    failure_reason = f"{retry_reason}_retry_exhausted"
+                self._logger.warning(
+                    (
+                        "http_fail_fast marketplace=%s request_id=%s method=%s path=%s "
+                        "status_code=%s latency_ms=%s attempt=%s reason=%s headers=%s params=%s"
+                    ),
+                    self.marketplace,
+                    request_id,
+                    method,
+                    path,
+                    response.status_code,
+                    latency_ms,
+                    attempt,
+                    failure_reason,
+                    sanitized_headers,
+                    safe_params,
+                )
                 self._record_failure()
                 response.raise_for_status()
-            except (httpx.RequestError, CircuitOpenError, httpx.HTTPStatusError) as exc:
+            except CircuitOpenError:
+                self._logger.warning(
+                    (
+                        "http_fail_fast marketplace=%s request_id=%s method=%s path=%s "
+                        "latency_ms=%s attempt=%s reason=%s headers=%s params=%s"
+                    ),
+                    self.marketplace,
+                    request_id,
+                    method,
+                    path,
+                    round((time.perf_counter() - started_at) * 1000.0, 2),
+                    attempt,
+                    "circuit_open",
+                    sanitized_headers,
+                    safe_params,
+                )
+                raise
+            except httpx.RequestError as exc:
                 last_exception = exc
                 latency_ms = round((time.perf_counter() - started_at) * 1000.0, 2)
                 if attempt < self.max_attempts:
                     retry_delay = exponential_jitter_delay_seconds(attempt)
                     self._logger.warning(
-                        "http_exception_retry marketplace=%s request_id=%s method=%s path=%s latency_ms=%s delay_s=%s attempt=%s error=%s headers=%s params=%s",
+                        (
+                            "http_retry marketplace=%s request_id=%s method=%s path=%s "
+                            "latency_ms=%s delay_s=%s attempt=%s reason=%s error=%s "
+                            "headers=%s params=%s"
+                        ),
                         self.marketplace,
                         request_id,
                         method,
@@ -198,12 +253,29 @@ class JsonHttpClient:
                         latency_ms,
                         round(retry_delay, 3),
                         attempt,
+                        "transport_error",
                         exc.__class__.__name__,
                         sanitized_headers,
                         safe_params,
                     )
                     sleep_seconds(retry_delay)
                     continue
+                self._logger.warning(
+                    (
+                        "http_fail_fast marketplace=%s request_id=%s method=%s path=%s "
+                        "latency_ms=%s attempt=%s reason=%s error=%s headers=%s params=%s"
+                    ),
+                    self.marketplace,
+                    request_id,
+                    method,
+                    path,
+                    latency_ms,
+                    attempt,
+                    "transport_error_retry_exhausted",
+                    exc.__class__.__name__,
+                    sanitized_headers,
+                    safe_params,
+                )
                 self._record_failure()
                 raise
             except ValueError:

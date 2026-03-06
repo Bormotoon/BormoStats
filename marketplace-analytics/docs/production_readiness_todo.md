@@ -59,21 +59,21 @@
 
 ### P0-04. Исправить retry semantics и circuit breaker
 
-- [ ] Разделить retryable и non-retryable ошибки в [http_client.py](/home/borm/VibeCoding/BormoStats/marketplace-analytics/collectors/common/http_client.py)
-- [ ] Убрать retry для `CircuitOpenError`
-- [ ] Убрать retry для non-retryable `4xx`
-- [ ] Оставить retry только для `429`, `5xx` и network/transport errors
-- [ ] Привести logging к явному разделению причин retry/fail-fast
-- [ ] Добавить unit tests на `429`
-- [ ] Добавить unit tests на `500`
-- [ ] Добавить unit tests на `400/401/403`
-- [ ] Добавить unit tests на open circuit path
+- [x] Разделить retryable и non-retryable ошибки в [http_client.py](/home/borm/VibeCoding/BormoStats/marketplace-analytics/collectors/common/http_client.py)
+- [x] Убрать retry для `CircuitOpenError`
+- [x] Убрать retry для non-retryable `4xx`
+- [x] Оставить retry только для `429`, `5xx` и network/transport errors
+- [x] Привести logging к явному разделению причин retry/fail-fast
+- [x] Добавить unit tests на `429`
+- [x] Добавить unit tests на `500`
+- [x] Добавить unit tests на `400/401/403`
+- [x] Добавить unit tests на open circuit path
 
 Критерии закрытия:
 
-- [ ] `429` и `5xx` повторяются по policy
-- [ ] `4xx` завершаются без лишних retry loops
-- [ ] circuit breaker действительно "режет" поток запросов при open state
+- [x] `429` и `5xx` повторяются по policy
+- [x] `4xx` завершаются без лишних retry loops
+- [x] circuit breaker действительно "режет" поток запросов при open state
 
 ### P0-05. Исправить парсинг Ozon cancellation timestamps
 
