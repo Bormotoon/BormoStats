@@ -181,6 +181,8 @@ if ! compose_cmd up -d --build backend worker beat metabase; then
 fi
 
 wait_for_service backend 180
+wait_for_service worker 180
+wait_for_service beat 180
 
 echo "Running API token smoke checks..."
 if [[ "${BOOTSTRAP_SKIP_TOKEN_CHECKS:-0}" == "1" ]]; then

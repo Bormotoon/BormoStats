@@ -215,18 +215,18 @@
 
 ### P1-04. Harden Docker runtime
 
-- [ ] Перевести backend container на non-root user
-- [ ] Перевести worker container на non-root user
-- [ ] Добавить `restart` policies в compose
-- [ ] Добавить resource limits / reservations
-- [ ] Добавить/уточнить healthchecks для backend, worker, beat
-- [ ] Рассмотреть read-only filesystem где возможно
-- [ ] Обновить docs по runtime assumptions
+- [x] Перевести backend container на non-root user
+- [x] Перевести worker container на non-root user
+- [x] Добавить `restart` policies в compose
+- [x] Добавить resource limits / reservations
+- [x] Добавить/уточнить healthchecks для backend, worker, beat
+- [x] Рассмотреть read-only filesystem где возможно
+- [x] Обновить docs по runtime assumptions
 
 Критерии закрытия:
 
-- [ ] контейнеры не работают от root без необходимости
-- [ ] базовые эксплуатационные guardrails настроены
+- [x] контейнеры не работают от root без необходимости
+- [x] базовые эксплуатационные guardrails настроены
 
 ### P1-05. Расширить test coverage
 

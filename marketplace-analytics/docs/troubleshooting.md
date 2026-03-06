@@ -11,6 +11,20 @@
 - Check `worker` and `beat` container logs (`make logs`)
 - Verify Celery can connect to Redis
 - Ensure task names in beat schedule match task decorators
+- Confirm healthchecks succeed:
+  - backend: `curl http://localhost:18080/ready`
+  - worker: `curl http://localhost:19101/metrics`
+  - beat: `curl http://localhost:19102/metrics`
+
+## Containers keep restarting or stay unhealthy
+
+- Check `docker compose ps` and `make logs`
+- Verify the configured guardrails in `.env`:
+  - `*_MEMORY_LIMIT`
+  - `*_MEMORY_RESERVATION`
+  - `*_CPU_LIMIT`
+- If the host is small, lower the limits for `metabase`, `worker`, or `clickhouse` and restart the stack
+- Backend healthcheck uses `/ready`, so Redis/ClickHouse outages will mark the backend unhealthy
 
 ## No data in marts
 

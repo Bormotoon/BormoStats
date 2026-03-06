@@ -75,6 +75,8 @@ xdg-open http://localhost:18080/ui/
 
 The web UI keeps `ADMIN_API_KEY` only in memory for the current tab.
 Reloading the page or opening a new tab requires entering the key again.
+The backend, worker and beat containers run as an unprivileged user with a read-only root
+filesystem and a writable `tmpfs` mounted at `/tmp`.
 
 Default ports from `.env.example`:
 - backend: `http://localhost:18080`
@@ -117,6 +119,13 @@ Admin (`X-API-Key` required):
 - `requirements.txt` and `requirements-dev.txt` are fully pinned snapshots of tested environments.
 - Update Python pins only from a clean virtualenv and rerun `ruff check .`, `black --check .`, `mypy backend workers collectors automation warehouse scripts`, and `pytest -q`.
 - Dockerfiles and `infra/docker/docker-compose.yml` pin images by digest. When refreshing them, pull the candidate image first, update the digest, then rerun bootstrap and migration smoke checks before merging.
+
+## Runtime guardrails
+
+- `backend`, `worker` and `beat` run as non-root user `app` (uid/gid `10001`).
+- These application containers use `read_only: true`, `no-new-privileges`, and `tmpfs` for `/tmp`.
+- Healthchecks probe backend `/ready` and worker/beat `/metrics`.
+- CPU and memory limits are configurable through the `*_MEMORY_LIMIT`, `*_MEMORY_RESERVATION` and `*_CPU_LIMIT` variables in `.env`.
 
 ## Telegram alerts
 
