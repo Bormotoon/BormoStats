@@ -297,17 +297,17 @@
 
 ### P1-10. Обновить docs и runbooks
 
-- [ ] Обновить [README.md](/home/borm/VibeCoding/BormoStats/marketplace-analytics/README.md)
-- [ ] Обновить [troubleshooting.md](/home/borm/VibeCoding/BormoStats/marketplace-analytics/docs/troubleshooting.md)
-- [ ] Добавить runbook по stalled watermark
-- [ ] Добавить runbook по Redis issues
-- [ ] Добавить runbook по ClickHouse storage pressure
-- [ ] Добавить runbook по upstream 429/5xx
-- [ ] Добавить release checklist в docs
+- [x] Обновить [README.md](/home/borm/VibeCoding/BormoStats/marketplace-analytics/README.md)
+- [x] Обновить [troubleshooting.md](/home/borm/VibeCoding/BormoStats/marketplace-analytics/docs/troubleshooting.md)
+- [x] Добавить runbook по stalled watermark
+- [x] Добавить runbook по Redis issues
+- [x] Добавить runbook по ClickHouse storage pressure
+- [x] Добавить runbook по upstream 429/5xx
+- [x] Добавить release checklist в docs
 
 Критерии закрытия:
 
-- [ ] оператор может восстановить систему по документации без знания автора
+- [x] оператор может восстановить систему по документации без знания автора
 
 ## Phase P2: Production Platform Maturity
 

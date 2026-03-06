@@ -1,5 +1,7 @@
 # Troubleshooting
 
+Detailed recovery procedures live in `docs/runbooks.md`.
+
 ## Backend `/ready` returns 503
 
 - Check `clickhouse` and `redis` containers are healthy (`make ps`)
@@ -40,6 +42,7 @@
 - Ensure workers are not over-concurrent for same source/account
 - Review retry behavior in `collectors/common/http_client.py`
 - Validate upstream API status and quotas before increasing schedule frequency
+- For the full incident workflow, see the upstream throttling runbook in `docs/runbooks.md`
 - Backfill after incident window:
   - `python3 scripts/backfill.py --marketplace wb --dataset sales --days 14 --api-key <KEY>`
   - `python3 scripts/backfill.py --marketplace ozon --dataset postings --days 14 --api-key <KEY>`
@@ -49,6 +52,7 @@
 - Inspect latest values in `/api/v1/admin/watermarks`
 - Check corresponding task in `/api/v1/admin/task-runs`
 - Verify source lock is not permanently held (`lock:{source}:{account_id}` in Redis)
+- Follow the full stalled watermark runbook in `docs/runbooks.md`
 - Run explicit backfill for affected dataset and account
 
 ## Rebuild marts for a period

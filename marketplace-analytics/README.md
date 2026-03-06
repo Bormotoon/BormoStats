@@ -150,6 +150,12 @@ and exposed via `GET /api/v1/admin/task-runs`.
 - No new data: check watermarks and manual backfill instructions
 - Capability/premium issues on Ozon methods: check `sys_task_runs.meta_json`
 
+## Operations docs
+
+- `docs/troubleshooting.md` for fast incident lookup
+- `docs/runbooks.md` for step-by-step recovery procedures
+- `docs/release_checklist.md` for deployment and rollback checks
+
 ## Data model
 
 - Raw ingestion tables: `raw_*`
