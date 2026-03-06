@@ -84,6 +84,9 @@ Reloading the page or opening a new tab requires entering the key again.
 The backend, worker and beat containers run as an unprivileged user with a read-only root
 filesystem and a writable `tmpfs` mounted at `/tmp`.
 The public entrypoint is the nginx reverse proxy; backend is not published directly on a host port.
+Loopback-only host ports (ClickHouse, Metabase, worker metrics, beat metrics) are attached to a
+separate `ops` network so they stay reachable from the host while application traffic remains on
+the isolated `private` network.
 
 Default ports from `.env.example`:
 - backend http proxy: `http://localhost:18080`

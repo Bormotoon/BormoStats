@@ -67,6 +67,28 @@ wait_for_service() {
   done
 }
 
+wait_for_clickhouse_http_endpoint() {
+  local host="$1"
+  local port="$2"
+  local timeout_seconds="$3"
+  local started_at now
+
+  started_at="$(date +%s)"
+  while true; do
+    if wget -qO- "http://${host}:${port}/ping" 2>/dev/null | grep -q "^Ok"; then
+      echo "ClickHouse HTTP endpoint is reachable at ${host}:${port}"
+      return 0
+    fi
+
+    now="$(date +%s)"
+    if (( now - started_at >= timeout_seconds )); then
+      echo "Timed out waiting for ClickHouse HTTP endpoint at ${host}:${port}"
+      return 1
+    fi
+    sleep 2
+  done
+}
+
 check_host_port_conflict() {
   local host_port="$1"
   local service_name="$2"
@@ -107,7 +129,7 @@ STACK_NAME="${STACK_NAME:-bormostats}"
 BACKEND_HOST_PORT="${BACKEND_HOST_PORT:-18080}"
 BACKEND_TLS_HOST_PORT="${BACKEND_TLS_HOST_PORT:-18443}"
 METABASE_HOST_PORT="${METABASE_HOST_PORT:-13000}"
-BOOTSTRAP_CH_HOST="${BOOTSTRAP_CH_HOST:-localhost}"
+BOOTSTRAP_CH_HOST="${BOOTSTRAP_CH_HOST:-127.0.0.1}"
 BOOTSTRAP_CH_PORT="${BOOTSTRAP_CH_PORT:-${CH_HTTP_HOST_PORT:-18123}}"
 BOOTSTRAP_CH_ADMIN_USER="${BOOTSTRAP_CH_ADMIN_USER:-default}"
 BOOTSTRAP_CH_ADMIN_PASSWORD="${BOOTSTRAP_CH_ADMIN_PASSWORD:-}"
@@ -151,6 +173,7 @@ fi
 
 wait_for_service clickhouse 180
 wait_for_service redis 120
+wait_for_clickhouse_http_endpoint "$BOOTSTRAP_CH_HOST" "$BOOTSTRAP_CH_PORT" 120
 
 echo "Provisioning ClickHouse application users..."
 run_python_with_bootstrap_admin_ch "$ROOT_DIR/scripts/provision_clickhouse_users.py"

@@ -372,21 +372,22 @@
 
 ## Global Verification Checklist
 
-- [ ] `ruff check .`
-- [ ] `black --check .`
-- [ ] `mypy backend workers collectors automation warehouse scripts`
-- [ ] `pytest -q`
-- [ ] GitHub Actions green
-- [ ] Docker bootstrap проходит на чистой машине
-- [ ] Migrations проходят на чистой базе
-- [ ] Worker, beat, backend метрики доступны
-- [ ] Alerts настроены и протестированы
-- [ ] Backup/restore проверены
-- [ ] Release checklist выполнен
+- [x] `ruff check .`
+- [x] `black --check .`
+- [x] `mypy backend workers collectors automation warehouse scripts`
+- [x] `pytest -q`
+- [~] GitHub Actions green
+- latest public `CI` workflow runs on `main` from `2026-03-05` are still `failure`; local equivalent gates are green, remote rerun/push is still required
+- [x] Docker bootstrap проходит на чистой машине
+- [x] Migrations проходят на чистой базе
+- [x] Worker, beat, backend метрики доступны
+- [x] Alerts настроены и протестированы
+- [x] Backup/restore проверены
+- [x] Release checklist выполнен
 
 ## Suggested Execution Order
 
-- [ ] Sprint 1: `P0-01`, `P0-02`, `P0-04`, `P0-05`, `P0-09`
-- [ ] Sprint 2: `P0-06`, `P0-07`, `P0-08`, `P0-10`
-- [ ] Sprint 3: `P1-01`, `P1-03`, `P1-04`, `P1-05`, `P1-08`
-- [ ] Sprint 4: `P1-06`, `P1-07`, `P1-10`, `P2-03`
+- [x] Sprint 1: `P0-01`, `P0-02`, `P0-04`, `P0-05`, `P0-09`
+- [x] Sprint 2: `P0-06`, `P0-07`, `P0-08`, `P0-10`
+- [x] Sprint 3: `P1-01`, `P1-03`, `P1-04`, `P1-05`, `P1-08`
+- [x] Sprint 4: `P1-06`, `P1-07`, `P1-10`, `P2-03`
