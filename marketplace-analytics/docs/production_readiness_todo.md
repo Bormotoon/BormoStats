@@ -140,17 +140,17 @@
 
 ### P0-09. Починить migration smoke workflow
 
-- [ ] Исправить host/port assumptions в [ci.yml](/home/borm/VibeCoding/BormoStats/.github/workflows/ci.yml)
-- [ ] Убедиться, что `.env.example` не ломает GitHub runner networking
-- [ ] Исправить bootstrap переменные для CI ClickHouse endpoint
-- [ ] Проверить `apply_migrations.py` в CI runtime
-- [ ] Добавить явную проверку ключевых таблиц после migrations
-- [ ] Проверить cleanup docker services в `always()`
+- [x] Исправить host/port assumptions в [ci.yml](/home/borm/VibeCoding/BormoStats/.github/workflows/ci.yml)
+- [x] Убедиться, что `.env.example` не ломает GitHub runner networking
+- [x] Исправить bootstrap переменные для CI ClickHouse endpoint
+- [x] Проверить `apply_migrations.py` в CI runtime
+- [x] Добавить явную проверку ключевых таблиц после migrations
+- [x] Проверить cleanup docker services в `always()`
 
 Критерии закрытия:
 
-- [ ] migration smoke job стабильно проходит на GitHub Actions
-- [ ] migrations реально применяются, а не падают на неверном host/port
+- [x] migration smoke job стабильно проходит на GitHub Actions
+- [x] migrations реально применяются, а не падают на неверном host/port
 
 ### P0-10. Пиновать зависимости и образы
 

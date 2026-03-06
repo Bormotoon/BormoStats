@@ -16,6 +16,7 @@ PLACEHOLDER_VALUES = frozenset(
         "replace-with-real-wb-analytics-token",
         "replace-with-real-wb-statistics-token",
         "replace-with-strong-clickhouse-password",
+        "replace-with-strong-bootstrap-clickhouse-password",
         "replace-with-strong-readonly-password",
         "replace-with-strong-value",
     }
@@ -90,6 +91,16 @@ def collect_worker_startup_issues(env: Mapping[str, str | None]) -> list[str]:
 
 def collect_bootstrap_issues(env: Mapping[str, str | None]) -> list[str]:
     issues = _collect_clickhouse_runtime_issues(env)
+    bootstrap_user = _normalized(env.get("BOOTSTRAP_CH_ADMIN_USER"))
+    if is_placeholder(bootstrap_user):
+        issues.append("BOOTSTRAP_CH_ADMIN_USER must be set before bootstrap")
+    elif bootstrap_user.casefold() in INSECURE_CLICKHOUSE_USERS:
+        issues.append(
+            "BOOTSTRAP_CH_ADMIN_USER must be a dedicated bootstrap user, not 'default' or 'admin'"
+        )
+
+    if is_placeholder(env.get("BOOTSTRAP_CH_ADMIN_PASSWORD")):
+        issues.append("BOOTSTRAP_CH_ADMIN_PASSWORD must be set before bootstrap")
 
     if is_placeholder(env.get("ADMIN_API_KEY")):
         issues.append("ADMIN_API_KEY must be set before bootstrap")

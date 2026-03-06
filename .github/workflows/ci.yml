@@ -69,7 +69,44 @@ jobs:
           pip install -r requirements.txt
 
       - name: Prepare env
-        run: cp .env.example .env
+        run: |
+          cp .env.example .env
+          python - <<'PY'
+          from pathlib import Path
+
+          env_path = Path(".env")
+          updates = {
+              "STACK_NAME": "bormostats-ci",
+              "CH_HTTP_HOST_PORT": "18123",
+              "BOOTSTRAP_CH_HOST": "localhost",
+              "BOOTSTRAP_CH_PORT": "18123",
+              "BOOTSTRAP_CH_ADMIN_USER": "bootstrap_ci",
+              "BOOTSTRAP_CH_ADMIN_PASSWORD": "ci-bootstrap-admin-password",
+              "CH_USER": "analytics_ci",
+              "CH_PASSWORD": "ci-clickhouse-password",
+              "ADMIN_API_KEY": "ci-admin-api-key",
+          }
+
+          lines: list[str] = []
+          seen: set[str] = set()
+          for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+              stripped = raw_line.strip()
+              if not stripped or stripped.startswith("#") or "=" not in raw_line:
+                  lines.append(raw_line)
+                  continue
+              key, _, _ = raw_line.partition("=")
+              if key in updates:
+                  lines.append(f"{key}={updates[key]}")
+                  seen.add(key)
+                  continue
+              lines.append(raw_line)
+
+          for key, value in updates.items():
+              if key not in seen:
+                  lines.append(f"{key}={value}")
+
+          env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+          PY
 
       - name: Start ClickHouse and Redis
         run: |
@@ -78,28 +115,58 @@ jobs:
 
       - name: Wait for ClickHouse
         run: |
+          set -a
+          source .env
+          set +a
           for i in {1..60}; do
-            if curl -fsS http://localhost:8123/ping >/dev/null; then
+            if curl -fsS "http://${BOOTSTRAP_CH_HOST}:${BOOTSTRAP_CH_PORT}/ping" >/dev/null; then
               exit 0
             fi
             sleep 2
           done
+          cd infra/docker
+          docker compose --env-file ../../.env -f docker-compose.yml logs clickhouse
           exit 1
 
+      - name: Provision ClickHouse users
+        run: |
+          set -a
+          source .env
+          set +a
+          APP_CH_USER="$CH_USER" \
+          APP_CH_PASSWORD="$CH_PASSWORD" \
+          APP_CH_DB="$CH_DB" \
+          APP_CH_RO_USER="${CH_RO_USER:-}" \
+          APP_CH_RO_PASSWORD="${CH_RO_PASSWORD:-}" \
+          CH_HOST="${BOOTSTRAP_CH_HOST}" \
+          CH_PORT="${BOOTSTRAP_CH_PORT}" \
+          CH_USER="${BOOTSTRAP_CH_ADMIN_USER:-default}" \
+          CH_PASSWORD="${BOOTSTRAP_CH_ADMIN_PASSWORD:-}" \
+          python scripts/provision_clickhouse_users.py
+
       - name: Apply migrations
-        run: python warehouse/apply_migrations.py
+        run: |
+          set -a
+          source .env
+          set +a
+          CH_HOST="${BOOTSTRAP_CH_HOST}" \
+          CH_PORT="${BOOTSTRAP_CH_PORT}" \
+          python warehouse/apply_migrations.py
 
       - name: Verify schema
         run: |
+          set -a
+          source .env
+          set +a
           python - <<'PY'
           import os
           import clickhouse_connect
 
           client = clickhouse_connect.get_client(
-              host=os.getenv("CH_HOST", "localhost"),
-              port=int(os.getenv("CH_PORT", "8123")),
-              username=os.getenv("CH_USER", "admin"),
-              password=os.getenv("CH_PASSWORD", "admin_password"),
+              host=os.getenv("BOOTSTRAP_CH_HOST", "localhost"),
+              port=int(os.getenv("BOOTSTRAP_CH_PORT", "8123")),
+              username=os.getenv("CH_USER", "default"),
+              password=os.getenv("CH_PASSWORD", ""),
               database=os.getenv("CH_DB", "mp_analytics"),
           )
           try:
@@ -118,6 +185,9 @@ jobs:
               ).result_rows
               if len(rows) != 4:
                   raise SystemExit(f"Expected 4 key tables, got {rows}")
+              applied = client.query("SELECT count() FROM sys_schema_migrations").result_rows
+              if not applied or int(applied[0][0]) <= 0:
+                  raise SystemExit("No migration versions were recorded in sys_schema_migrations")
               print("Schema verification passed")
           finally:
               client.close()

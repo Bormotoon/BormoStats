@@ -122,55 +122,7 @@ wait_for_service clickhouse 180
 wait_for_service redis 120
 
 echo "Provisioning ClickHouse application users..."
-run_python_with_bootstrap_admin_ch - <<'PY'
-import os
-import re
-
-import clickhouse_connect
-
-identifier_pattern = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-db_name = os.getenv("APP_CH_DB", "mp_analytics")
-app_user = os.getenv("APP_CH_USER", "")
-app_password = os.getenv("APP_CH_PASSWORD", "")
-ro_user = os.getenv("APP_CH_RO_USER", "")
-ro_password = os.getenv("APP_CH_RO_PASSWORD", "")
-
-for label, value in {
-    "APP_CH_DB": db_name,
-    "APP_CH_USER": app_user,
-}.items():
-    if not identifier_pattern.fullmatch(value):
-        raise SystemExit(f"Invalid {label} identifier: {value}")
-
-client = clickhouse_connect.get_client(
-    host=os.getenv("CH_HOST", "localhost"),
-    port=int(os.getenv("CH_PORT", "8123")),
-    username=os.getenv("CH_USER", "default"),
-    password=os.getenv("CH_PASSWORD", ""),
-    database="default",
-)
-try:
-    quoted_db = f"`{db_name}`"
-    quoted_app_user = f"`{app_user}`"
-    client.command(f"CREATE DATABASE IF NOT EXISTS {quoted_db}")
-    client.command(
-        f"CREATE USER IF NOT EXISTS {quoted_app_user} IDENTIFIED WITH plaintext_password BY %(password)s",
-        parameters={"password": app_password},
-    )
-    client.command(f"GRANT ALL ON {quoted_db}.* TO {quoted_app_user}")
-
-    if ro_user or ro_password:
-        if not identifier_pattern.fullmatch(ro_user):
-            raise SystemExit(f"Invalid APP_CH_RO_USER identifier: {ro_user}")
-        quoted_ro_user = f"`{ro_user}`"
-        client.command(
-            f"CREATE USER IF NOT EXISTS {quoted_ro_user} IDENTIFIED WITH plaintext_password BY %(password)s",
-            parameters={"password": ro_password},
-        )
-        client.command(f"GRANT SELECT ON {quoted_db}.* TO {quoted_ro_user}")
-finally:
-    client.close()
-PY
+run_python_with_bootstrap_admin_ch "$ROOT_DIR/scripts/provision_clickhouse_users.py"
 
 echo "Applying ClickHouse migrations..."
 cd "$ROOT_DIR"

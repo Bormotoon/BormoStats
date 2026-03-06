@@ -77,6 +77,8 @@ def test_worker_import_fails_with_placeholder_marketplace_credentials() -> None:
 def test_check_tokens_rejects_placeholder_clickhouse_password() -> None:
     env = {
         **os.environ,
+        "BOOTSTRAP_CH_ADMIN_USER": "bootstrap_admin",
+        "BOOTSTRAP_CH_ADMIN_PASSWORD": "super-secret-bootstrap-password",
         "CH_USER": "analytics_app",
         "CH_PASSWORD": "replace-with-strong-clickhouse-password",
         "ADMIN_API_KEY": "real-admin-key",
@@ -96,3 +98,29 @@ def test_check_tokens_rejects_placeholder_clickhouse_password() -> None:
 
     assert result.returncode == 1
     assert "CH_PASSWORD" in f"{result.stdout}\n{result.stderr}"
+
+
+def test_check_tokens_rejects_placeholder_bootstrap_clickhouse_password() -> None:
+    env = {
+        **os.environ,
+        "BOOTSTRAP_CH_ADMIN_USER": "bootstrap_admin",
+        "BOOTSTRAP_CH_ADMIN_PASSWORD": "replace-with-strong-bootstrap-clickhouse-password",
+        "CH_USER": "analytics_app",
+        "CH_PASSWORD": "super-secret-clickhouse-password",
+        "ADMIN_API_KEY": "real-admin-key",
+        "WB_TOKEN_STATISTICS": "real-wb-statistics-token",
+        "WB_TOKEN_ANALYTICS": "real-wb-analytics-token",
+        "OZON_CLIENT_ID": "real-ozon-client-id",
+        "OZON_API_KEY": "real-ozon-api-key",
+    }
+    result = subprocess.run(
+        [sys.executable, "scripts/check_tokens.py", "--skip-api"],
+        cwd=ROOT_DIR,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "BOOTSTRAP_CH_ADMIN_PASSWORD" in f"{result.stdout}\n{result.stderr}"

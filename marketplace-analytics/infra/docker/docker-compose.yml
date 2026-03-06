@@ -7,6 +7,10 @@ services:
       - "${CH_HTTP_HOST_PORT:-18123}:8123"
     environment:
       - TZ=${TZ:-Europe/Warsaw}
+      - CLICKHOUSE_DB=${CH_DB:-mp_analytics}
+      - CLICKHOUSE_USER=${BOOTSTRAP_CH_ADMIN_USER:-default}
+      - CLICKHOUSE_PASSWORD=${BOOTSTRAP_CH_ADMIN_PASSWORD:-}
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
     volumes:
       - ch_data:/var/lib/clickhouse
       - ./clickhouse/initdb:/docker-entrypoint-initdb.d:ro
