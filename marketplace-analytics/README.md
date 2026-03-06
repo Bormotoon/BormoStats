@@ -95,6 +95,10 @@ Default ports from `.env.example`:
 - `GET /api/v1/ads/daily`
 - `GET /api/v1/kpis`
 
+Public analytics endpoints validate `marketplace` (`wb|ozon`), constrain `account_id` format,
+enforce pagination via `limit` + `offset`, and cap heavy date-range queries at 92 days.
+Error responses use a shared envelope: `{"detail":"...","error":{"code":"...","message":"..."}}`.
+
 Admin (`X-API-Key` required):
 
 - `GET /api/v1/admin/watermarks`

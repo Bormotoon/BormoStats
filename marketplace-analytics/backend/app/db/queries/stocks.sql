@@ -17,3 +17,4 @@ WHERE s.day = max_day.current_day
 GROUP BY s.day, s.marketplace, s.account_id, s.product_id, s.warehouse_id
 ORDER BY stock_end ASC
 LIMIT %(limit)s
+OFFSET %(offset)s

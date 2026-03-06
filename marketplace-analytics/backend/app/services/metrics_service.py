@@ -27,6 +27,7 @@ class MetricsService:
         marketplace: str,
         account_id: str,
         limit: int,
+        offset: int,
     ) -> list[dict[str, Any]]:
         return query_dicts(
             self.client,
@@ -37,14 +38,26 @@ class MetricsService:
                 "marketplace": marketplace,
                 "account_id": account_id,
                 "limit": limit,
+                "offset": offset,
             },
         )
 
-    def stocks_current(self, marketplace: str, account_id: str, limit: int) -> list[dict[str, Any]]:
+    def stocks_current(
+        self,
+        marketplace: str,
+        account_id: str,
+        limit: int,
+        offset: int,
+    ) -> list[dict[str, Any]]:
         return query_dicts(
             self.client,
             _load_sql("stocks.sql"),
-            {"marketplace": marketplace, "account_id": account_id, "limit": limit},
+            {
+                "marketplace": marketplace,
+                "account_id": account_id,
+                "limit": limit,
+                "offset": offset,
+            },
         )
 
     def funnel_daily(
@@ -54,6 +67,7 @@ class MetricsService:
         marketplace: str,
         account_id: str,
         limit: int,
+        offset: int,
     ) -> list[dict[str, Any]]:
         return query_dicts(
             self.client,
@@ -64,6 +78,7 @@ class MetricsService:
                 "marketplace": marketplace,
                 "account_id": account_id,
                 "limit": limit,
+                "offset": offset,
             },
         )
 
@@ -74,6 +89,7 @@ class MetricsService:
         marketplace: str,
         account_id: str,
         limit: int,
+        offset: int,
     ) -> list[dict[str, Any]]:
         return query_dicts(
             self.client,
@@ -84,15 +100,24 @@ class MetricsService:
                 "marketplace": marketplace,
                 "account_id": account_id,
                 "limit": limit,
+                "offset": offset,
             },
         )
 
-    def kpis(self, marketplace: str, account_id: str) -> list[dict[str, Any]]:
+    def kpis(
+        self,
+        marketplace: str,
+        account_id: str,
+        limit: int,
+        offset: int,
+    ) -> list[dict[str, Any]]:
         return query_dicts(
             self.client,
             _load_sql("kpis.sql"),
             {
                 "marketplace": marketplace,
                 "account_id": account_id,
+                "limit": limit,
+                "offset": offset,
             },
         )

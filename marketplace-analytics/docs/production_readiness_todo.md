@@ -261,17 +261,17 @@
 
 ### P1-07. Усилить API contract и query safety
 
-- [ ] Добавить более строгую валидацию query params
-- [ ] Ограничить max date windows для тяжелых endpoint'ов
-- [ ] Рассмотреть pagination вместо простого `limit`
-- [ ] Добавить стандартную error model для API
-- [ ] Явно типизировать dependency-injected clients в endpoints
-- [ ] Санитизировать internal errors в response payload
+- [x] Добавить более строгую валидацию query params
+- [x] Ограничить max date windows для тяжелых endpoint'ов
+- [x] Рассмотреть pagination вместо простого `limit`
+- [x] Добавить стандартную error model для API
+- [x] Явно типизировать dependency-injected clients в endpoints
+- [x] Санитизировать internal errors в response payload
 
 Критерии закрытия:
 
-- [ ] API ведет себя предсказуемо при некорректных входных параметрах
-- [ ] тяжелые запросы нельзя вызвать без ограничений
+- [x] API ведет себя предсказуемо при некорректных входных параметрах
+- [x] тяжелые запросы нельзя вызвать без ограничений
 
 ### P1-08. Скрыть внутренние детали в readiness/errors
 

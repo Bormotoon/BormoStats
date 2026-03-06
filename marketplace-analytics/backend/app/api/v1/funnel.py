@@ -2,33 +2,41 @@
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, timedelta
-
-from app.core.deps import ChClientDependency
+import clickhouse_connect
+from app.api.errors import API_ERROR_RESPONSES
+from app.core.deps import get_ch_client
+from app.models.api import (
+    DateRangeQueryParams,
+    build_paginated_response,
+    get_date_range_query_params,
+)
 from app.services.metrics_service import MetricsService
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends
 
-router = APIRouter(prefix="/funnel", tags=["funnel"])
+router = APIRouter(prefix="/funnel", tags=["funnel"], responses=API_ERROR_RESPONSES)
 
 
 @router.get("/daily")
 def funnel_daily(
     *,
-    date_from: date | None = Query(default=None),
-    date_to: date | None = Query(default=None),
-    marketplace: str = Query(default=""),
-    account_id: str = Query(default=""),
-    limit: int = Query(default=1000, ge=1, le=10000),
-    client: ChClientDependency,
+    filters: DateRangeQueryParams = Depends(get_date_range_query_params),
+    client: clickhouse_connect.driver.Client = Depends(get_ch_client),
 ) -> dict[str, object]:
-    resolved_to = date_to or datetime.now(UTC).date()
-    resolved_from = date_from or (resolved_to - timedelta(days=30))
     service = MetricsService(client)
     items = service.funnel_daily(
-        date_from=resolved_from,
-        date_to=resolved_to,
-        marketplace=marketplace,
-        account_id=account_id,
-        limit=limit,
+        date_from=filters.date_from,
+        date_to=filters.date_to,
+        marketplace=filters.marketplace,
+        account_id=filters.account_id,
+        limit=filters.query_limit,
+        offset=filters.offset,
     )
-    return {"items": items, "from": resolved_from.isoformat(), "to": resolved_to.isoformat()}
+    return build_paginated_response(
+        items=items,
+        limit=filters.limit,
+        offset=filters.offset,
+        **{
+            "from": filters.date_from.isoformat(),
+            "to": filters.date_to.isoformat(),
+        },
+    )

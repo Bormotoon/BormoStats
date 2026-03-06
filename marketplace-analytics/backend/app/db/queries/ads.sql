@@ -17,3 +17,4 @@ WHERE a.day BETWEEN %(date_from)s AND %(date_to)s
 GROUP BY a.day, a.marketplace, a.account_id, a.campaign_id
 ORDER BY a.day, a.campaign_id
 LIMIT %(limit)s
+OFFSET %(offset)s

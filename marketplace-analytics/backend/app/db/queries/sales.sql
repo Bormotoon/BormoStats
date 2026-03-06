@@ -14,3 +14,4 @@ WHERE day BETWEEN %(date_from)s AND %(date_to)s
 GROUP BY day, marketplace, account_id, product_id
 ORDER BY day, revenue DESC
 LIMIT %(limit)s
+OFFSET %(offset)s

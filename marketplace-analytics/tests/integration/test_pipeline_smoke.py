@@ -353,6 +353,13 @@ def test_pipeline_smoke_bootstrap_ingest_transform_marts_api(
             "payout": 80.0,
         }
     ]
+    assert sales_response.json()["pagination"] == {
+        "limit": 1000,
+        "offset": 0,
+        "returned": 1,
+        "next_offset": None,
+        "has_more": False,
+    }
 
     assert kpis_response.status_code == 200
     assert kpis_response.json()["items"] == [
@@ -366,6 +373,13 @@ def test_pipeline_smoke_bootstrap_ingest_transform_marts_api(
             "acos_30d": pytest.approx(25.0 / 300.0),
         }
     ]
+    assert kpis_response.json()["pagination"] == {
+        "limit": 1000,
+        "offset": 0,
+        "returned": 1,
+        "next_offset": None,
+        "has_more": False,
+    }
 
     assert watermarks_response.status_code == 200
     assert {

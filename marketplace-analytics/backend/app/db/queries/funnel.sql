@@ -15,3 +15,4 @@ WHERE f.day BETWEEN %(date_from)s AND %(date_to)s
 GROUP BY f.day, f.marketplace, f.account_id, f.product_id
 ORDER BY f.day, f.product_id
 LIMIT %(limit)s
+OFFSET %(offset)s

@@ -266,7 +266,14 @@ async function request(path, options = {}) {
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`HTTP ${response.status} ${response.statusText}: ${text}`);
+    let message = text;
+    try {
+      const payload = JSON.parse(text);
+      message = payload?.error?.message || payload?.detail || text;
+    } catch {
+      message = text;
+    }
+    throw new Error(`HTTP ${response.status} ${response.statusText}: ${message}`);
   }
 
   if (expectText) {
