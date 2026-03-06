@@ -107,17 +107,17 @@
 
 ### P0-07. Сделать locks продлеваемыми
 
-- [ ] Добавить heartbeat/renew для Redis locks
-- [ ] Обновить API lock utils под renewable lifecycle
-- [ ] Встроить renew в long-running collector/backfill tasks
-- [ ] Добавить telemetry по длительности владения lock
-- [ ] Добавить tests на renew path
-- [ ] Добавить tests на safe release после renewal
+- [x] Добавить heartbeat/renew для Redis locks
+- [x] Обновить API lock utils под renewable lifecycle
+- [x] Встроить renew в long-running collector/backfill tasks
+- [x] Добавить telemetry по длительности владения lock
+- [x] Добавить tests на renew path
+- [x] Добавить tests на safe release после renewal
 
 Критерии закрытия:
 
-- [ ] долгий backfill не теряет эксклюзивность после истечения начального TTL
-- [ ] release чужого lock невозможен
+- [x] долгий backfill не теряет эксклюзивность после истечения начального TTL
+- [x] release чужого lock невозможен
 
 ### P0-08. Довести CI до полностью зеленого состояния
 

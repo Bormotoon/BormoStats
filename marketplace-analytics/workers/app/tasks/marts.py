@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from celery import shared_task
 
-from app.utils.locking import LockNotAcquired
+from app.utils.locking import LockNotAcquiredError
 from app.utils.rebuilds import LOGGER as REBUILD_LOGGER
 from app.utils.rebuilds import rebuild_task_scope
 from app.utils.runtime import get_ch_client, get_redis_client, log_task_run, new_run_context
@@ -118,7 +118,7 @@ def _run_marts(days: int, task_name: str) -> dict[str, str | int]:
             f"marts built for {days} days",
         )
         return {"run_id": run_id, "status": "success", "days": days}
-    except LockNotAcquired as exc:
+    except LockNotAcquiredError as exc:
         REBUILD_LOGGER.warning(
             "rebuild_launch_skipped task_name=%s reason=lock_conflict error=%s",
             task_name,

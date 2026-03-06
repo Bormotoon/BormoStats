@@ -9,7 +9,7 @@ from typing import Any
 from celery import shared_task
 
 from app.utils.chunking import date_chunks
-from app.utils.locking import LockNotAcquired, lock_scope
+from app.utils.locking import LockNotAcquiredError, lock_scope
 from app.utils.metrics import observe_empty_payload, observe_rows
 from app.utils.runtime import get_ch_client, get_redis_client, log_task_run, new_run_context
 from app.utils.watermarks import get_watermark, set_watermark
@@ -99,7 +99,9 @@ def _insert_rows(client: Any, table: str, columns: list[str], rows: list[dict[st
     return len(rows)
 
 
-def _collect_sales_incremental(account_id: str, start_from: datetime | None = None) -> dict[str, Any]:
+def _collect_sales_incremental(
+    account_id: str, start_from: datetime | None = None
+) -> dict[str, Any]:
     task_name = "tasks.wb_collect.wb_sales_incremental"
     run_id, started_at = new_run_context(task_name)
     wb = _wb_client()
@@ -107,7 +109,13 @@ def _collect_sales_incremental(account_id: str, start_from: datetime | None = No
         return {"status": "skipped", "reason": "missing WB tokens"}
 
     redis_client = get_redis_client()
-    with lock_scope(redis_client=redis_client, source="wb_sales", account_id=account_id, ttl_seconds=1200):
+    with lock_scope(
+        redis_client=redis_client,
+        source="wb_sales",
+        account_id=account_id,
+        ttl_seconds=1200,
+        auto_renew=True,
+    ):
         ch_client = get_ch_client()
         try:
             watermark = start_from or get_watermark(ch_client, "wb_sales", account_id)
@@ -117,16 +125,22 @@ def _collect_sales_incremental(account_id: str, start_from: datetime | None = No
                 observe_empty_payload("wb_sales")
             inserted = _insert_rows(ch_client, "raw_wb_sales", RAW_WB_SALES_COLUMNS, rows)
 
-            latest_ts = max((row["last_change_ts"] for row in rows), default=watermark.replace(tzinfo=None))
+            latest_ts = max(
+                (row["last_change_ts"] for row in rows), default=watermark.replace(tzinfo=None)
+            )
             set_watermark(ch_client, "wb_sales", account_id, latest_ts.replace(tzinfo=UTC))
-            log_task_run(ch_client, task_name, run_id, started_at, "success", inserted, "wb sales collected")
+            log_task_run(
+                ch_client, task_name, run_id, started_at, "success", inserted, "wb sales collected"
+            )
             return {"status": "success", "rows": inserted, "watermark": str(latest_ts)}
         except Exception as exc:
             log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
             raise
 
 
-def _collect_orders_incremental(account_id: str, start_from: datetime | None = None) -> dict[str, Any]:
+def _collect_orders_incremental(
+    account_id: str, start_from: datetime | None = None
+) -> dict[str, Any]:
     task_name = "tasks.wb_collect.wb_orders_incremental"
     run_id, started_at = new_run_context(task_name)
     wb = _wb_client()
@@ -134,7 +148,13 @@ def _collect_orders_incremental(account_id: str, start_from: datetime | None = N
         return {"status": "skipped", "reason": "missing WB tokens"}
 
     redis_client = get_redis_client()
-    with lock_scope(redis_client=redis_client, source="wb_orders", account_id=account_id, ttl_seconds=1200):
+    with lock_scope(
+        redis_client=redis_client,
+        source="wb_orders",
+        account_id=account_id,
+        ttl_seconds=1200,
+        auto_renew=True,
+    ):
         ch_client = get_ch_client()
         try:
             watermark = start_from or get_watermark(ch_client, "wb_orders", account_id)
@@ -144,9 +164,13 @@ def _collect_orders_incremental(account_id: str, start_from: datetime | None = N
                 observe_empty_payload("wb_orders")
             inserted = _insert_rows(ch_client, "raw_wb_orders", RAW_WB_ORDERS_COLUMNS, rows)
 
-            latest_ts = max((row["last_change_ts"] for row in rows), default=watermark.replace(tzinfo=None))
+            latest_ts = max(
+                (row["last_change_ts"] for row in rows), default=watermark.replace(tzinfo=None)
+            )
             set_watermark(ch_client, "wb_orders", account_id, latest_ts.replace(tzinfo=UTC))
-            log_task_run(ch_client, task_name, run_id, started_at, "success", inserted, "wb orders collected")
+            log_task_run(
+                ch_client, task_name, run_id, started_at, "success", inserted, "wb orders collected"
+            )
             return {"status": "success", "rows": inserted, "watermark": str(latest_ts)}
         except Exception as exc:
             log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
@@ -157,7 +181,7 @@ def _collect_orders_incremental(account_id: str, start_from: datetime | None = N
 def wb_sales_incremental(account_id: str = WB_ACCOUNT_ID) -> dict[str, Any]:
     try:
         return _collect_sales_incremental(account_id=account_id)
-    except LockNotAcquired:
+    except LockNotAcquiredError:
         return {"status": "skipped", "reason": "lock_not_acquired"}
 
 
@@ -165,7 +189,7 @@ def wb_sales_incremental(account_id: str = WB_ACCOUNT_ID) -> dict[str, Any]:
 def wb_orders_incremental(account_id: str = WB_ACCOUNT_ID) -> dict[str, Any]:
     try:
         return _collect_orders_incremental(account_id=account_id)
-    except LockNotAcquired:
+    except LockNotAcquiredError:
         return {"status": "skipped", "reason": "lock_not_acquired"}
 
 
@@ -180,20 +204,36 @@ def wb_stocks_snapshot(account_id: str = WB_ACCOUNT_ID) -> dict[str, Any]:
     snapshot_ts = datetime.now(UTC)
     redis_client = get_redis_client()
     try:
-        with lock_scope(redis_client=redis_client, source="wb_stocks", account_id=account_id, ttl_seconds=900):
+        with lock_scope(
+            redis_client=redis_client,
+            source="wb_stocks",
+            account_id=account_id,
+            ttl_seconds=900,
+            auto_renew=True,
+        ):
             ch_client = get_ch_client()
             try:
                 records = wb.stocks()
-                rows = parse_stocks(records, run_id=run_id, account_id=account_id, snapshot_ts=snapshot_ts)
+                rows = parse_stocks(
+                    records, run_id=run_id, account_id=account_id, snapshot_ts=snapshot_ts
+                )
                 if not rows:
                     observe_empty_payload("wb_stocks")
                 inserted = _insert_rows(ch_client, "raw_wb_stocks", RAW_WB_STOCKS_COLUMNS, rows)
-                log_task_run(ch_client, task_name, run_id, started_at, "success", inserted, "wb stocks snapshot")
+                log_task_run(
+                    ch_client,
+                    task_name,
+                    run_id,
+                    started_at,
+                    "success",
+                    inserted,
+                    "wb stocks snapshot",
+                )
                 return {"status": "success", "rows": inserted}
             except Exception as exc:
                 log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
                 raise
-    except LockNotAcquired:
+    except LockNotAcquiredError:
         return {"status": "skipped", "reason": "lock_not_acquired"}
 
 
@@ -210,16 +250,25 @@ def wb_funnel_roll(account_id: str = WB_ACCOUNT_ID) -> dict[str, Any]:
 
     redis_client = get_redis_client()
     try:
-        with lock_scope(redis_client=redis_client, source="wb_funnel", account_id=account_id, ttl_seconds=1200):
+        with lock_scope(
+            redis_client=redis_client,
+            source="wb_funnel",
+            account_id=account_id,
+            ttl_seconds=1200,
+            auto_renew=True,
+        ) as lock:
             ch_client = get_ch_client()
             try:
                 inserted = 0
                 for chunk_from, chunk_to in date_chunks(from_day, to_day, chunk_days=3):
+                    lock.ensure_held()
                     records = wb.funnel_daily(from_day=chunk_from, to_day=chunk_to)
                     rows = parse_funnel(records, run_id=run_id, account_id=account_id)
                     if not rows:
                         observe_empty_payload("wb_funnel")
-                    inserted += _insert_rows(ch_client, "raw_wb_funnel_daily", RAW_WB_FUNNEL_COLUMNS, rows)
+                    inserted += _insert_rows(
+                        ch_client, "raw_wb_funnel_daily", RAW_WB_FUNNEL_COLUMNS, rows
+                    )
                 log_task_run(
                     ch_client,
                     task_name,
@@ -233,7 +282,7 @@ def wb_funnel_roll(account_id: str = WB_ACCOUNT_ID) -> dict[str, Any]:
             except Exception as exc:
                 log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
                 raise
-    except LockNotAcquired:
+    except LockNotAcquiredError:
         return {"status": "skipped", "reason": "lock_not_acquired"}
 
 
@@ -254,8 +303,15 @@ def wb_sales_backfill_days(days: int = 14, account_id: str = WB_ACCOUNT_ID) -> d
     ch_client = get_ch_client()
     redis_client = get_redis_client()
     try:
-        with lock_scope(redis_client=redis_client, source="wb_sales", account_id=account_id, ttl_seconds=1800):
+        with lock_scope(
+            redis_client=redis_client,
+            source="wb_sales",
+            account_id=account_id,
+            ttl_seconds=1800,
+            auto_renew=True,
+        ) as lock:
             for day_cursor, _ in date_chunks(start_day, now_day, chunk_days=1):
+                lock.ensure_held()
                 records = wb.sales_for_day(day_cursor)
                 rows = parse_sales(records, run_id=run_id, account_id=account_id)
                 if not rows:
@@ -279,7 +335,7 @@ def wb_sales_backfill_days(days: int = 14, account_id: str = WB_ACCOUNT_ID) -> d
                 f"wb sales backfill by day ({safe_days} days)",
             )
             return {"status": "success", "rows": total_rows, "days": safe_days}
-    except LockNotAcquired:
+    except LockNotAcquiredError:
         return {"status": "skipped", "reason": "lock_not_acquired"}
     except Exception as exc:
         log_task_run(ch_client, task_name, run_id, started_at, "failed", total_rows, str(exc))
@@ -303,8 +359,15 @@ def wb_orders_backfill_days(days: int = 14, account_id: str = WB_ACCOUNT_ID) -> 
     ch_client = get_ch_client()
     redis_client = get_redis_client()
     try:
-        with lock_scope(redis_client=redis_client, source="wb_orders", account_id=account_id, ttl_seconds=1800):
+        with lock_scope(
+            redis_client=redis_client,
+            source="wb_orders",
+            account_id=account_id,
+            ttl_seconds=1800,
+            auto_renew=True,
+        ) as lock:
             for day_cursor, _ in date_chunks(start_day, now_day, chunk_days=1):
+                lock.ensure_held()
                 records = wb.orders_for_day(day_cursor)
                 rows = parse_orders(records, run_id=run_id, account_id=account_id)
                 if not rows:
@@ -328,7 +391,7 @@ def wb_orders_backfill_days(days: int = 14, account_id: str = WB_ACCOUNT_ID) -> 
                 f"wb orders backfill by day ({safe_days} days)",
             )
             return {"status": "success", "rows": total_rows, "days": safe_days}
-    except LockNotAcquired:
+    except LockNotAcquiredError:
         return {"status": "skipped", "reason": "lock_not_acquired"}
     except Exception as exc:
         log_task_run(ch_client, task_name, run_id, started_at, "failed", total_rows, str(exc))
@@ -351,13 +414,22 @@ def wb_funnel_backfill_days(days: int = 14, account_id: str = WB_ACCOUNT_ID) -> 
     ch_client = get_ch_client()
     redis_client = get_redis_client()
     try:
-        with lock_scope(redis_client=redis_client, source="wb_funnel", account_id=account_id, ttl_seconds=1200):
+        with lock_scope(
+            redis_client=redis_client,
+            source="wb_funnel",
+            account_id=account_id,
+            ttl_seconds=1200,
+            auto_renew=True,
+        ) as lock:
             for chunk_from, chunk_to in date_chunks(start_day, now_day, chunk_days=3):
+                lock.ensure_held()
                 records = wb.funnel_daily(from_day=chunk_from, to_day=chunk_to)
                 rows = parse_funnel(records, run_id=run_id, account_id=account_id)
                 if not rows:
                     observe_empty_payload("wb_funnel")
-                total_rows += _insert_rows(ch_client, "raw_wb_funnel_daily", RAW_WB_FUNNEL_COLUMNS, rows)
+                total_rows += _insert_rows(
+                    ch_client, "raw_wb_funnel_daily", RAW_WB_FUNNEL_COLUMNS, rows
+                )
 
             log_task_run(
                 ch_client,
@@ -369,7 +441,7 @@ def wb_funnel_backfill_days(days: int = 14, account_id: str = WB_ACCOUNT_ID) -> 
                 f"wb funnel backfill {safe_days} days",
             )
             return {"status": "success", "rows": total_rows, "days": safe_days}
-    except LockNotAcquired:
+    except LockNotAcquiredError:
         return {"status": "skipped", "reason": "lock_not_acquired"}
     except Exception as exc:
         log_task_run(ch_client, task_name, run_id, started_at, "failed", total_rows, str(exc))

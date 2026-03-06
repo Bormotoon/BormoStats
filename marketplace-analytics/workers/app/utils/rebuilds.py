@@ -31,6 +31,7 @@ def rebuild_task_scope(
                 source=REBUILD_PIPELINE_SOURCE,
                 account_id=REBUILD_ACCOUNT_ID,
                 ttl_seconds=ttl_seconds,
+                auto_renew=True,
             )
         )
         task_lock = stack.enter_context(
@@ -39,6 +40,7 @@ def rebuild_task_scope(
                 source=task_lock_source,
                 account_id=REBUILD_ACCOUNT_ID,
                 ttl_seconds=ttl_seconds,
+                auto_renew=True,
             )
         )
         yield pipeline_lock, task_lock
