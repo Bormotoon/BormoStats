@@ -286,14 +286,14 @@
 
 ### P1-09. Кэшировать SQL templates
 
-- [ ] Кэшировать SQL-файлы в `MetricsService`
-- [ ] Кэшировать SQL-файлы в `AdminService`
-- [ ] Проверить поведение на hot reload/dev режиме
-- [ ] Добавить тест или profiling note на отсутствие лишнего file IO
+- [x] Кэшировать SQL-файлы в `MetricsService`
+- [x] Кэшировать SQL-файлы в `AdminService`
+- [x] Проверить поведение на hot reload/dev режиме
+- [x] Добавить тест или profiling note на отсутствие лишнего file IO
 
 Критерии закрытия:
 
-- [ ] SQL templates не читаются с диска на каждый запрос
+- [x] SQL templates не читаются с диска на каждый запрос
 
 ### P1-10. Обновить docs и runbooks
 

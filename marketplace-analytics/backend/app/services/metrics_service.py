@@ -8,12 +8,13 @@ from typing import Any
 
 import clickhouse_connect
 from app.db.ch import query_dicts
+from app.services.sql_loader import load_sql
 
 _QUERIES_DIR = Path(__file__).resolve().parents[1] / "db" / "queries"
 
 
 def _load_sql(name: str) -> str:
-    return (_QUERIES_DIR / name).read_text(encoding="utf-8")
+    return load_sql(_QUERIES_DIR, name)
 
 
 class MetricsService:

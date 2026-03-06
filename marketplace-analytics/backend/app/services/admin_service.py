@@ -21,6 +21,7 @@ from app.models.admin import (
     TransformBackfillRequest,
     TransformRecentRequest,
 )
+from app.services.sql_loader import load_sql
 from celery import Celery
 
 from common.celery_config import DEFAULT_TASK_QUEUE, TASK_ROUTES
@@ -30,7 +31,7 @@ LOGGER = structlog.get_logger(__name__)
 
 
 def _load_sql(name: str) -> str:
-    return (_QUERIES_DIR / name).read_text(encoding="utf-8")
+    return load_sql(_QUERIES_DIR, name)
 
 
 class AdminService:
