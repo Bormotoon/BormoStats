@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from collectors.ozon.parsers import parse_finance_ops, parse_postings
+from collectors.ozon.parsers import parse_finance_ops, parse_postings, parse_stocks
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures"
 
@@ -60,3 +60,48 @@ def test_parse_postings_supports_top_level_canceled_at_variant() -> None:
     )
 
     assert posting_rows[0]["canceled_at"] == datetime(2026, 3, 4, 1, 2, 3)
+
+
+def test_parse_finance_ops_supports_flat_amount_and_alias_fields() -> None:
+    records = [
+        {
+            "transaction_id": "txn-1",
+            "created_at": "2026-03-01T10:15:00Z",
+            "operation_type": "service_fee",
+            "accruals_for_sale": "17.25",
+            "currency": "RUB",
+        }
+    ]
+
+    rows = parse_finance_ops(records, run_id="run-1", account_id="acc-1")
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["operation_id"] == "txn-1"
+    assert row["type"] == "service_fee"
+    assert row["amount"] == 17.25
+    assert row["currency"] == "RUB"
+
+
+def test_parse_stocks_supports_flat_variant_without_nested_stocks() -> None:
+    rows = parse_stocks(
+        [
+            {
+                "product_id": 100500,
+                "offer_id": "offer-1",
+                "warehouse_id": 12,
+                "present": 9,
+                "reserved": 2,
+            }
+        ],
+        run_id="run-1",
+        account_id="acc-1",
+        snapshot_ts=datetime(2026, 3, 1, 12, 0, 0),
+    )
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["ozon_product_id"] == 100500
+    assert row["warehouse_id"] == 12
+    assert row["present"] == 9
+    assert row["reserved"] == 2

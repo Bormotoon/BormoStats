@@ -14,6 +14,7 @@ from app.utils.metrics_export import (
 from celery import Celery
 from celery.signals import worker_process_shutdown
 
+from common.celery_config import DEFAULT_TASK_QUEUE, TASK_ROUTES
 from common.env_validation import collect_worker_startup_issues, raise_for_issues
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
@@ -38,16 +39,9 @@ celery_app = Celery(
 
 celery_app.conf.update(
     broker_url=REDIS_URL,
-    task_default_queue="etl",
+    task_default_queue=DEFAULT_TASK_QUEUE,
     task_ignore_result=True,
-    task_routes={
-        "tasks.wb_collect.*": {"queue": "wb"},
-        "tasks.ozon_collect.*": {"queue": "ozon"},
-        "tasks.transforms.*": {"queue": "etl"},
-        "tasks.marts.*": {"queue": "etl"},
-        "tasks.maintenance.run_automation_rules": {"queue": "automation"},
-        "tasks.maintenance.prune_old_raw": {"queue": "etl"},
-    },
+    task_routes=TASK_ROUTES,
     beat_schedule=beat_schedule,
     timezone=os.getenv("TZ", "Europe/Warsaw"),
     enable_utc=True,

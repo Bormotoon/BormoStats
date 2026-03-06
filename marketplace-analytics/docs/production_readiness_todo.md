@@ -230,19 +230,19 @@
 
 ### P1-05. Расширить test coverage
 
-- [ ] Добавить integration tests для ClickHouse migrations
-- [ ] Добавить integration tests для `sys_watermarks`
-- [ ] Добавить integration tests для Redis locks
-- [ ] Добавить integration tests для transforms correctness
-- [ ] Добавить integration tests для marts correctness
-- [ ] Добавить tests на admin whitelist
-- [ ] Добавить e2e smoke flow `bootstrap -> ingest -> transform -> marts -> api`
-- [ ] Добавить coverage для Ozon/WB edge payload variants
+- [x] Добавить integration tests для ClickHouse migrations
+- [x] Добавить integration tests для `sys_watermarks`
+- [x] Добавить integration tests для Redis locks
+- [x] Добавить integration tests для transforms correctness
+- [x] Добавить integration tests для marts correctness
+- [x] Добавить tests на admin whitelist
+- [x] Добавить e2e smoke flow `bootstrap -> ingest -> transform -> marts -> api`
+- [x] Добавить coverage для Ozon/WB edge payload variants
 
 Критерии закрытия:
 
-- [ ] ключевые data paths покрыты не только unit tests
-- [ ] есть smoke test для всей цепочки
+- [x] ключевые data paths покрыты не только unit tests
+- [x] есть smoke test для всей цепочки
 
 ### P1-06. Ввести data quality checks
 

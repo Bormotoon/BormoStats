@@ -23,6 +23,8 @@ from app.models.admin import (
 )
 from celery import Celery
 
+from common.celery_config import DEFAULT_TASK_QUEUE, TASK_ROUTES
+
 _QUERIES_DIR = Path(__file__).resolve().parents[1] / "db" / "queries"
 LOGGER = structlog.get_logger(__name__)
 
@@ -35,7 +37,12 @@ class AdminService:
     def __init__(self, client: clickhouse_connect.driver.Client, settings: Settings) -> None:
         self.client = client
         self.celery = Celery("backend-admin", broker=settings.redis_url)
-        self.celery.conf.task_ignore_result = True
+        self.celery.conf.update(
+            broker_url=settings.redis_url,
+            task_default_queue=DEFAULT_TASK_QUEUE,
+            task_routes=TASK_ROUTES,
+            task_ignore_result=True,
+        )
 
     def watermarks(self) -> list[dict[str, Any]]:
         return query_dicts(self.client, _load_sql("admin_watermarks.sql"))
