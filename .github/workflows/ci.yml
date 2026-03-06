@@ -167,7 +167,7 @@ jobs:
           updates = {
               "STACK_NAME": "bormostats-ci",
               "CH_HTTP_HOST_PORT": "18123",
-              "BOOTSTRAP_CH_HOST": "localhost",
+              "BOOTSTRAP_CH_HOST": "127.0.0.1",
               "BOOTSTRAP_CH_PORT": "18123",
               "BOOTSTRAP_CH_ADMIN_USER": "bootstrap_ci",
               "BOOTSTRAP_CH_ADMIN_PASSWORD": "ci-bootstrap-admin-password",
@@ -252,7 +252,7 @@ jobs:
           import clickhouse_connect
 
           client = clickhouse_connect.get_client(
-              host=os.getenv("BOOTSTRAP_CH_HOST", "localhost"),
+              host=os.getenv("BOOTSTRAP_CH_HOST", "127.0.0.1"),
               port=int(os.getenv("BOOTSTRAP_CH_PORT", "8123")),
               username=os.getenv("CH_USER", "default"),
               password=os.getenv("CH_PASSWORD", ""),
