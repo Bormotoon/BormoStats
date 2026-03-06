@@ -5,6 +5,8 @@
 - Check `clickhouse` and `redis` containers are healthy (`make ps`)
 - Verify `.env` credentials (`CH_*`, `REDIS_URL`)
 - Check ClickHouse ping: `curl http://localhost:18123/ping` (or `CH_HTTP_HOST_PORT` from `.env`)
+- `/ready` now returns a sanitized `service not ready` error on purpose; inspect backend logs for
+  the exact failing dependency (`service=clickhouse|redis`) and exception text
 
 ## Worker tasks are not running
 
@@ -81,3 +83,5 @@
 - Use header `X-API-Key: <ADMIN_API_KEY>`
 - Ensure backend uses same `.env` value
 - The web UI does not persist the admin key in browser storage; paste it again after reload
+- API responses are intentionally generic (`unauthorized` or `admin access unavailable`);
+  check backend logs for `admin_request_rejected` and the exact `reason`

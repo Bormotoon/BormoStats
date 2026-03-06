@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import NoReturn
 
 import structlog
 from app.api.v1 import admin, ads, funnel, kpis, sales, stocks
@@ -58,6 +59,48 @@ def _http_error_code(status_code: int) -> str:
     if status_code == 503:
         return "service_unavailable"
     return "http_error"
+
+
+def _log_readiness_failure(service: str, exc: Exception) -> None:
+    LOGGER.warning(
+        "readiness_check_failed",
+        service=service,
+        error=str(exc),
+        exception_type=type(exc).__name__,
+    )
+
+
+def _raise_readiness_failure(service: str, exc: Exception) -> NoReturn:
+    _log_readiness_failure(service, exc)
+    raise HTTPException(status_code=503, detail="service not ready") from exc
+
+
+def _check_clickhouse_ready() -> None:
+    try:
+        ch_client = build_client(settings)
+    except Exception as exc:
+        _raise_readiness_failure("clickhouse", exc)
+
+    try:
+        ch_client.query("SELECT 1")
+    except Exception as exc:
+        _raise_readiness_failure("clickhouse", exc)
+    finally:
+        ch_client.close()
+
+
+def _check_redis_ready() -> None:
+    try:
+        redis_client = Redis.from_url(settings.redis_url)
+    except Exception as exc:
+        _raise_readiness_failure("redis", exc)
+
+    try:
+        redis_client.ping()
+    except Exception as exc:
+        _raise_readiness_failure("redis", exc)
+    finally:
+        redis_client.close()
 
 
 @app.exception_handler(RequestValidationError)
@@ -125,17 +168,8 @@ def health() -> dict[str, str]:
 
 @app.get("/ready")
 def ready() -> dict[str, str]:
-    try:
-        ch_client = build_client(settings)
-        try:
-            ch_client.query("SELECT 1")
-        finally:
-            ch_client.close()
-
-        redis_client = Redis.from_url(settings.redis_url)
-        redis_client.ping()
-    except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"not ready: {exc}") from exc
+    _check_clickhouse_ready()
+    _check_redis_ready()
 
     return {"status": "ready"}
 

@@ -24,8 +24,9 @@ os.environ.setdefault("CH_DB", "mp_analytics")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 
 import app.api.v1.admin as admin_api  # noqa: E402
+import app.core.deps as deps_module  # noqa: E402
 import app.services.admin_service as admin_service_module  # noqa: E402
-from app.core.deps import get_ch_client  # noqa: E402
+from app.core.deps import get_app_settings, get_ch_client  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models.admin import (  # noqa: E402
     AdminRequestContext,
@@ -147,3 +148,80 @@ def test_admin_service_logs_queued_backfill(monkeypatch: pytest.MonkeyPatch) -> 
         "dataset": "sales",
         "days": 14,
     }
+
+
+def test_admin_invalid_key_returns_sanitized_response(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    log_entries: list[tuple[str, dict[str, object]]] = []
+
+    class FakeLogger:
+        def warning(self, event: str, **kwargs: object) -> None:
+            log_entries.append((event, dict(kwargs)))
+
+    monkeypatch.setattr(deps_module, "LOGGER", FakeLogger())
+
+    response = client.get("/api/v1/admin/watermarks", headers={"X-API-Key": "wrong-key"})
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "ApiKey"
+    assert response.json() == {
+        "detail": "unauthorized",
+        "error": {
+            "code": "unauthorized",
+            "message": "unauthorized",
+            "details": [],
+        },
+    }
+    assert log_entries == [
+        (
+            "admin_request_rejected",
+            {
+                "reason": "invalid_api_key",
+                "path": "/api/v1/admin/watermarks",
+                "method": "GET",
+                "remote_addr": "testclient",
+            },
+        )
+    ]
+
+
+def test_admin_disabled_returns_sanitized_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    log_entries: list[tuple[str, dict[str, object]]] = []
+
+    class FakeLogger:
+        def warning(self, event: str, **kwargs: object) -> None:
+            log_entries.append((event, dict(kwargs)))
+
+    monkeypatch.setattr(deps_module, "LOGGER", FakeLogger())
+    app.dependency_overrides[get_ch_client] = lambda: object()
+    app.dependency_overrides[get_app_settings] = lambda: SimpleNamespace(admin_api_key="")
+    try:
+        with TestClient(app) as test_client:
+            response = test_client.get("/api/v1/admin/watermarks")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "detail": "admin access unavailable",
+        "error": {
+            "code": "service_unavailable",
+            "message": "admin access unavailable",
+            "details": [],
+        },
+    }
+    assert log_entries == [
+        (
+            "admin_request_rejected",
+            {
+                "reason": "admin_disabled",
+                "path": "/api/v1/admin/watermarks",
+                "method": "GET",
+                "remote_addr": "testclient",
+            },
+        )
+    ]

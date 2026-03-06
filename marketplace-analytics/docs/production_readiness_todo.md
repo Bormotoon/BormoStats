@@ -275,14 +275,14 @@
 
 ### P1-08. Скрыть внутренние детали в readiness/errors
 
-- [ ] Убрать raw exception text из `/ready`
-- [ ] Убрать лишние инфраструктурные детали из admin error responses
-- [ ] Перенести детальные причины в structured logs
-- [ ] Проверить, что troubleshooting не страдает после sanitization
+- [x] Убрать raw exception text из `/ready`
+- [x] Убрать лишние инфраструктурные детали из admin error responses
+- [x] Перенести детальные причины в structured logs
+- [x] Проверить, что troubleshooting не страдает после sanitization
 
 Критерии закрытия:
 
-- [ ] public responses не раскрывают внутреннюю топологию и stack details
+- [x] public responses не раскрывают внутреннюю топологию и stack details
 
 ### P1-09. Кэшировать SQL templates
 

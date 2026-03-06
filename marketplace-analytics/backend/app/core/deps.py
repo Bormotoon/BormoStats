@@ -73,7 +73,7 @@ def require_admin_api_key(
         )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="admin disabled",
+            detail="admin access unavailable",
         )
 
     if x_api_key != settings.admin_api_key:
@@ -84,7 +84,11 @@ def require_admin_api_key(
             method=request.method,
             remote_addr=request.client.host if request.client is not None else "unknown",
         )
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid api key")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="unauthorized",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
 
 
 ChClientDependency = Annotated[clickhouse_connect.driver.Client, Depends(get_ch_client)]

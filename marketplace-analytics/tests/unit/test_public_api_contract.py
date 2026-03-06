@@ -22,6 +22,7 @@ os.environ.setdefault("CH_DB", "mp_analytics")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 
 import app.api.v1.sales as sales_api  # noqa: E402
+import app.main as main_module  # noqa: E402
 from app.core.deps import get_ch_client  # noqa: E402
 from app.main import app  # noqa: E402
 
@@ -132,3 +133,43 @@ def test_public_endpoint_sanitizes_unhandled_errors(
         },
     }
     assert "secret@redis" not in response.text
+
+
+def test_ready_endpoint_sanitizes_dependency_failures_and_logs_details(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    log_entries: list[tuple[str, dict[str, object]]] = []
+
+    class FakeLogger:
+        def warning(self, event: str, **kwargs: object) -> None:
+            log_entries.append((event, dict(kwargs)))
+
+        def info(self, event: str, **kwargs: object) -> None:
+            log_entries.append((event, dict(kwargs)))
+
+    class ExplodingClient:
+        def query(self, sql: str) -> None:
+            raise RuntimeError("clickhouse://analytics:secret@clickhouse:8123")
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(main_module, "LOGGER", FakeLogger())
+    monkeypatch.setattr(main_module, "build_client", lambda settings: ExplodingClient())
+
+    with TestClient(app) as test_client:
+        response = test_client.get("/ready")
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "detail": "service not ready",
+        "error": {
+            "code": "service_unavailable",
+            "message": "service not ready",
+            "details": [],
+        },
+    }
+    assert "secret@clickhouse" not in response.text
+    assert log_entries[0][0] == "readiness_check_failed"
+    assert log_entries[0][1]["service"] == "clickhouse"
+    assert "secret@clickhouse" in str(log_entries[0][1]["error"])
