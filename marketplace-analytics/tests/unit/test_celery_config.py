@@ -51,3 +51,16 @@ def test_worker_celery_uses_redis_as_broker_only() -> None:
     assert celery_module.celery_app.conf.task_ignore_result is True
     assert celery_module.celery_app.conf.result_backend is None
     assert type(celery_module.celery_app.backend).__name__ == "DisabledBackend"
+
+
+def test_beat_schedule_includes_data_quality_task() -> None:
+    if str(WORKERS_DIR) not in sys.path:
+        sys.path.insert(0, str(WORKERS_DIR))
+    if str(ROOT_DIR) not in sys.path:
+        sys.path.insert(0, str(ROOT_DIR))
+
+    from app.beat_schedule import beat_schedule
+
+    assert beat_schedule["maintenance_data_quality"]["task"] == (
+        "tasks.maintenance.run_data_quality_checks"
+    )

@@ -126,6 +126,7 @@ Admin (`X-API-Key` required):
 - These application containers use `read_only: true`, `no-new-privileges`, and `tmpfs` for `/tmp`.
 - Healthchecks probe backend `/ready` and worker/beat `/metrics`.
 - CPU and memory limits are configurable through the `*_MEMORY_LIMIT`, `*_MEMORY_RESERVATION` and `*_CPU_LIMIT` variables in `.env`.
+- `tasks.maintenance.run_data_quality_checks` runs hourly and logs structured failures into `sys_task_runs.meta_json`.
 
 ## Telegram alerts
 

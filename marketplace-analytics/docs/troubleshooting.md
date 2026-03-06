@@ -70,6 +70,12 @@
 - Check `TG_BOT_TOKEN` and `TG_CHAT_ID` in `.env`
 - Ensure `tasks.maintenance.run_automation_rules` is scheduled/executed
 
+## Data quality task fails
+
+- Inspect the latest `tasks.maintenance.run_data_quality_checks` entry in `/api/v1/admin/task-runs`
+- Check `meta_json` for offending checks and sample rows
+- Current checks cover stale marts, backward-moving watermarks, duplicate canonical grains, impossible timestamps, and negative/impossible aggregate values
+
 ## API auth failures for admin
 
 - Use header `X-API-Key: <ADMIN_API_KEY>`

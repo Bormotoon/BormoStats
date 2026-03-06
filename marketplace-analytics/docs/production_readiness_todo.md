@@ -246,18 +246,18 @@
 
 ### P1-06. Ввести data quality checks
 
-- [ ] Проверять stale `mrt_*`
-- [ ] Проверять monotonicity watermark
-- [ ] Проверять duplicate keys на ожидаемом grain
-- [ ] Проверять impossible timestamps
-- [ ] Проверять отрицательные/аномальные значения, где это недопустимо
-- [ ] Добавить scheduled quality task
-- [ ] Логировать quality failures в понятный audit trail
+- [x] Проверять stale `mrt_*`
+- [x] Проверять monotonicity watermark
+- [x] Проверять duplicate keys на ожидаемом grain
+- [x] Проверять impossible timestamps
+- [x] Проверять отрицательные/аномальные значения, где это недопустимо
+- [x] Добавить scheduled quality task
+- [x] Логировать quality failures в понятный audit trail
 
 Критерии закрытия:
 
-- [ ] silent data corruption выявляется автоматически
-- [ ] quality failures видны в monitoring и task logs
+- [x] silent data corruption выявляется автоматически
+- [x] quality failures видны в monitoring и task logs
 
 ### P1-07. Усилить API contract и query safety
 

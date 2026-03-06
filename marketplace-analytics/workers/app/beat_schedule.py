@@ -67,4 +67,8 @@ beat_schedule = {
         "task": "tasks.maintenance.prune_old_raw",
         "schedule": crontab(minute="0", hour="2"),
     },
+    "maintenance_data_quality": {
+        "task": "tasks.maintenance.run_data_quality_checks",
+        "schedule": crontab(minute="58", hour="*"),
+    },
 }

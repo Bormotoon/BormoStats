@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from app.tasks import marts, ozon_collect, transforms, wb_collect
+from app.tasks import maintenance, marts, ozon_collect, transforms, wb_collect
 from app.utils.locking import LockNotAcquiredError, acquire_lock, release_lock, renew_lock
 from app.utils.watermarks import get_watermark, set_watermark
 from fastapi.testclient import TestClient
@@ -376,3 +376,198 @@ def test_pipeline_smoke_bootstrap_ingest_transform_marts_api(
         ("ozon_postings", "default"),
         ("ozon_finance", "default"),
     }
+
+
+def test_data_quality_task_passes_for_clean_pipeline(
+    integration_runtime,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _ingest_sample_marketplace_data(monkeypatch)
+    assert transforms.transform_backfill_days(14)["status"] == "success"
+    assert marts.build_marts_backfill_days(14)["status"] == "success"
+
+    report = maintenance.run_data_quality_checks()
+
+    assert report["status"] == "success"
+    assert report["issue_count"] == 0
+
+    client = integration_runtime.ch_client()
+    try:
+        latest = client.query("""
+            SELECT status, message
+            FROM sys_task_runs
+            WHERE task_name = 'tasks.maintenance.run_data_quality_checks'
+            ORDER BY started_at DESC
+            LIMIT 1
+            """).result_rows
+        assert latest == [("success", "data quality checks passed")]
+    finally:
+        client.close()
+
+
+def test_data_quality_task_logs_failures_for_bad_data(
+    integration_runtime,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _ingest_sample_marketplace_data(monkeypatch)
+    assert transforms.transform_backfill_days(14)["status"] == "success"
+    assert marts.build_marts_backfill_days(14)["status"] == "success"
+
+    client = integration_runtime.ch_client()
+    try:
+        stale_updated_at = (datetime.now(UTC) - timedelta(hours=6)).replace(tzinfo=None)
+        current_day = datetime.now(UTC).date() - timedelta(days=1)
+        client.command("TRUNCATE TABLE mrt_ads_daily")
+        client.command(
+            """
+            INSERT INTO mrt_ads_daily
+            (
+              day,
+              marketplace,
+              account_id,
+              campaign_id,
+              impressions,
+              clicks,
+              cost,
+              orders,
+              revenue,
+              acos,
+              romi,
+              updated_at
+            )
+            VALUES (
+              %(day)s, 'ozon', 'default', 'stale-camp', 0, 0, 0, 0, 0, 0, 0, %(updated_at)s
+            )
+            """,
+            parameters={"day": current_day, "updated_at": stale_updated_at},
+        )
+        client.command(
+            """
+            INSERT INTO sys_watermarks (source, account_id, watermark_ts, updated_at)
+            VALUES
+              ('wb_sales', 'default', %(newer)s, %(newer)s),
+              ('wb_sales', 'default', %(older)s, %(older)s)
+            """,
+            parameters={
+                "newer": (datetime.now(UTC) - timedelta(minutes=10)).replace(tzinfo=None),
+                "older": (datetime.now(UTC) - timedelta(minutes=20)).replace(tzinfo=None),
+            },
+        )
+        client.command("""
+            INSERT INTO stg_sales
+            (
+              event_ts,
+              marketplace,
+              account_id,
+              order_id,
+              posting_number,
+              srid,
+              product_id,
+              nm_id,
+              ozon_product_id,
+              offer_id,
+              qty,
+              price_gross,
+              payout,
+              is_return,
+              last_change_ts,
+              meta_json,
+              ingested_at
+            )
+            SELECT
+              event_ts,
+              marketplace,
+              account_id,
+              order_id,
+              posting_number,
+              srid,
+              product_id,
+              nm_id,
+              ozon_product_id,
+              offer_id,
+              qty,
+              price_gross,
+              payout,
+              is_return,
+              last_change_ts,
+              meta_json,
+              ingested_at
+            FROM stg_sales
+            LIMIT 1
+            """)
+        client.command(
+            """
+            INSERT INTO raw_ozon_postings
+            (
+              run_id,
+              account_id,
+              posting_number,
+              status,
+              created_at,
+              in_process_at,
+              shipped_at,
+              delivered_at,
+              canceled_at,
+              ozon_warehouse_id,
+              payload
+            )
+            VALUES
+            (
+              generateUUIDv4(),
+              'default',
+              'bad-posting',
+              'delivered',
+              %(created_at)s,
+              %(created_at)s,
+              %(created_at)s,
+              %(delivered_at)s,
+              NULL,
+              2,
+              '{}'
+            )
+            """,
+            parameters={
+                "created_at": datetime.now(UTC).replace(tzinfo=None),
+                "delivered_at": (datetime.now(UTC) - timedelta(hours=1)).replace(tzinfo=None),
+            },
+        )
+        client.command(
+            """
+            INSERT INTO mrt_stock_daily
+            (day, marketplace, account_id, product_id, warehouse_id, stock_end, updated_at)
+            VALUES (%(day)s, 'wb', 'default', 'negative-stock', 1, -5, %(updated_at)s)
+            """,
+            parameters={
+                "day": current_day,
+                "updated_at": datetime.now(UTC).replace(tzinfo=None),
+            },
+        )
+    finally:
+        client.close()
+
+    with pytest.raises(RuntimeError) as exc_info:
+        maintenance.run_data_quality_checks()
+
+    assert "stale_marts" in str(exc_info.value)
+    assert "watermark_monotonicity" in str(exc_info.value)
+    assert "duplicate_grains" in str(exc_info.value)
+    assert "impossible_timestamps" in str(exc_info.value)
+    assert "invalid_values" in str(exc_info.value)
+
+    client = integration_runtime.ch_client()
+    try:
+        latest = client.query("""
+            SELECT status, meta_json
+            FROM sys_task_runs
+            WHERE task_name = 'tasks.maintenance.run_data_quality_checks'
+            ORDER BY started_at DESC
+            LIMIT 1
+            """).result_rows[0]
+        assert latest[0] == "failed"
+        assert "stale_marts" in str(latest[1])
+        assert "watermark_monotonicity" in str(latest[1])
+        assert "duplicate_grains" in str(latest[1])
+        assert "impossible_timestamps" in str(latest[1])
+        assert "invalid_values" in str(latest[1])
+    finally:
+        client.close()
