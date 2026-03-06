@@ -77,16 +77,16 @@
 
 ### P0-05. Исправить парсинг Ozon cancellation timestamps
 
-- [ ] Найти корректное поле времени отмены в payload Ozon postings
-- [ ] Исправить mapping в [parsers.py](/home/borm/VibeCoding/BormoStats/marketplace-analytics/collectors/ozon/parsers.py)
-- [ ] Добавить fixture cancelled posting в тесты
-- [ ] Добавить regression test на `canceled_at`
-- [ ] Проверить совместимость со старыми payload variants
+- [x] Найти корректное поле времени отмены в payload Ozon postings
+- [x] Исправить mapping в [parsers.py](/home/borm/VibeCoding/BormoStats/marketplace-analytics/collectors/ozon/parsers.py)
+- [x] Добавить fixture cancelled posting в тесты
+- [x] Добавить regression test на `canceled_at`
+- [x] Проверить совместимость со старыми payload variants
 
 Критерии закрытия:
 
-- [ ] cancelled postings пишут корректный `canceled_at`
-- [ ] тест на cancelled payload проходит стабильно
+- [x] cancelled postings пишут корректный `canceled_at`
+- [x] тест на cancelled payload проходит стабильно
 
 ### P0-06. Сериализовать destructive rebuild tasks
 

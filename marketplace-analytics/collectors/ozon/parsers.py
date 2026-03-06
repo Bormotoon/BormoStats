@@ -33,6 +33,23 @@ def _to_datetime(value: Any) -> datetime | None:
     return None
 
 
+def _nested_value(payload: dict[str, Any], path: str) -> Any:
+    current: Any = payload
+    for part in path.split("."):
+        if not isinstance(current, dict):
+            return None
+        current = current.get(part)
+    return current
+
+
+def _first_datetime(payload: dict[str, Any], *paths: str) -> datetime | None:
+    for path in paths:
+        parsed = _to_datetime(_nested_value(payload, path))
+        if parsed is not None:
+            return parsed
+    return None
+
+
 def parse_postings(
     records: list[dict[str, Any]],
     run_id: str,
@@ -46,7 +63,13 @@ def parse_postings(
         in_process_at = _to_datetime(posting.get("in_process_at"))
         shipped_at = _to_datetime(posting.get("shipment_date"))
         delivered_at = _to_datetime(posting.get("delivering_date"))
-        canceled_at = _to_datetime(posting.get("cancel_reason_id"))
+        canceled_at = _first_datetime(
+            posting,
+            "canceled_at",
+            "cancelled_at",
+            "cancellation.canceled_at",
+            "cancellation.cancelled_at",
+        )
 
         posting_number = str(posting.get("posting_number") or "")
         postings_rows.append(
@@ -130,7 +153,11 @@ def parse_stocks(
     return rows
 
 
-def parse_ads_daily(records: list[dict[str, Any]], run_id: str, account_id: str) -> list[dict[str, Any]]:
+def parse_ads_daily(
+    records: list[dict[str, Any]],
+    run_id: str,
+    account_id: str,
+) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for item in records:
         day_raw = item.get("date") or item.get("day")
@@ -152,7 +179,11 @@ def parse_ads_daily(records: list[dict[str, Any]], run_id: str, account_id: str)
     return rows
 
 
-def parse_finance_ops(records: list[dict[str, Any]], run_id: str, account_id: str) -> list[dict[str, Any]]:
+def parse_finance_ops(
+    records: list[dict[str, Any]],
+    run_id: str,
+    account_id: str,
+) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for item in records:
         operation_id = str(
