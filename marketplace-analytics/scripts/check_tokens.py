@@ -6,22 +6,20 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-REQUIRED = [
-    "WB_TOKEN_STATISTICS",
-    "WB_TOKEN_ANALYTICS",
-    "OZON_CLIENT_ID",
-    "OZON_API_KEY",
-    "ADMIN_API_KEY",
-]
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
-PLACEHOLDER_VALUES = {"", "...", "change_me"}
+from common.env_validation import collect_bootstrap_issues  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -33,7 +31,9 @@ class CheckResult:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Validate env + API credentials for WB/Ozon")
+    parser = argparse.ArgumentParser(
+        description="Validate runtime env and smoke-check marketplace APIs"
+    )
     parser.add_argument(
         "--skip-api",
         action="store_true",
@@ -71,7 +71,7 @@ def _request_json(
         body_bytes = json.dumps(json_body, ensure_ascii=True).encode("utf-8")
 
     req = Request(target_url, data=body_bytes, headers=req_headers, method=method.upper())
-    with urlopen(req, timeout=timeout_seconds) as response:  # noqa: S310
+    with urlopen(req, timeout=timeout_seconds) as response:
         status = int(response.status)
         payload = response.read().decode("utf-8", errors="replace")
         if not payload:
@@ -92,24 +92,28 @@ def _as_error_detail(exc: Exception) -> str:
 
 
 def _validate_env() -> list[str]:
-    missing: list[str] = []
-    for key in REQUIRED:
-        value = os.getenv(key, "")
-        if value.strip() in PLACEHOLDER_VALUES:
-            missing.append(key)
-    return missing
+    return collect_bootstrap_issues(os.environ)
 
 
 def _check_wb_token_ttl() -> CheckResult:
     created_raw = os.getenv("WB_TOKEN_CREATED_AT", "").strip()
     if not created_raw:
-        return CheckResult("wb_token_ttl", True, "WB_TOKEN_CREATED_AT not set; ttl reminder disabled", warning=True)
+        return CheckResult(
+            "wb_token_ttl",
+            True,
+            "WB_TOKEN_CREATED_AT not set; ttl reminder disabled",
+            warning=True,
+        )
 
     normalized = created_raw.replace("Z", "+00:00")
     try:
         created_at = datetime.fromisoformat(normalized)
     except ValueError:
-        return CheckResult("wb_token_ttl", False, f"invalid WB_TOKEN_CREATED_AT format: {created_raw}")
+        return CheckResult(
+            "wb_token_ttl",
+            False,
+            f"invalid WB_TOKEN_CREATED_AT format: {created_raw}",
+        )
 
     if created_at.tzinfo is None:
         created_at = created_at.replace(tzinfo=UTC)
@@ -120,10 +124,23 @@ def _check_wb_token_ttl() -> CheckResult:
     days_left = (expires_at - datetime.now(UTC)).days
 
     if days_left < 0:
-        return CheckResult("wb_token_ttl", False, f"expired {abs(days_left)}d ago ({expires_at.date().isoformat()})")
+        return CheckResult(
+            "wb_token_ttl",
+            False,
+            f"expired {abs(days_left)}d ago ({expires_at.date().isoformat()})",
+        )
     if days_left <= 14:
-        return CheckResult("wb_token_ttl", True, f"expires in {days_left}d ({expires_at.date().isoformat()})", warning=True)
-    return CheckResult("wb_token_ttl", True, f"days_left={days_left} (expires {expires_at.date().isoformat()})")
+        return CheckResult(
+            "wb_token_ttl",
+            True,
+            f"expires in {days_left}d ({expires_at.date().isoformat()})",
+            warning=True,
+        )
+    return CheckResult(
+        "wb_token_ttl",
+        True,
+        f"days_left={days_left} (expires {expires_at.date().isoformat()})",
+    )
 
 
 def _check_wb_statistics(timeout_seconds: float) -> CheckResult:
@@ -214,16 +231,16 @@ def _check_ozon_perf(timeout_seconds: float) -> CheckResult:
 def main() -> int:
     args = parse_args()
 
-    missing = _validate_env()
-    if missing and not args.allow_placeholder:
-        print("Missing or placeholder values:")
-        for key in missing:
-            print(f"- {key}")
+    issues = _validate_env()
+    if issues and not args.allow_placeholder:
+        print("Missing or unsafe configuration:")
+        for issue in issues:
+            print(f"- {issue}")
         return 1
-    if missing and args.allow_placeholder:
+    if issues and args.allow_placeholder:
         print("Environment placeholders are allowed for this run:")
-        for key in missing:
-            print(f"- {key}")
+        for issue in issues:
+            print(f"- {issue}")
 
     print("Environment values look configured.")
     if args.skip_api:

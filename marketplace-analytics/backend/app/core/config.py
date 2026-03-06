@@ -7,6 +7,8 @@ from functools import lru_cache
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from common.env_validation import collect_backend_startup_issues, raise_for_issues
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
@@ -22,9 +24,22 @@ class Settings(BaseSettings):
     ch_db: str = Field(default="mp_analytics", alias="CH_DB")
 
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
-    admin_api_key: str = Field(default="change_me", alias="ADMIN_API_KEY")
+    admin_api_key: str = Field(default="", alias="ADMIN_API_KEY")
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    return Settings()
+    settings = Settings()
+    raise_for_issues(
+        "backend startup",
+        collect_backend_startup_issues(
+            {
+                "ADMIN_API_KEY": settings.admin_api_key,
+                "CH_USER": settings.ch_user,
+                "CH_PASSWORD": settings.ch_password,
+                "CH_RO_USER": "",
+                "CH_RO_PASSWORD": "",
+            }
+        ),
+    )
+    return settings

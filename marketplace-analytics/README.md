@@ -39,7 +39,13 @@ It does not collect competitor/category intelligence and does not scrape marketp
 cp .env.example .env
 ```
 
-2. Fill API tokens and admin key in `.env`.
+2. Fill required secrets in `.env` before running anything:
+   - set a dedicated ClickHouse app password in `CH_PASSWORD`
+   - generate a random `ADMIN_API_KEY` (for example `openssl rand -hex 32`)
+   - set all required WB/Ozon credentials
+   - optionally set `CH_RO_USER` + `CH_RO_PASSWORD` for a dedicated Metabase read-only user
+
+Bootstrap now fails fast if `.env` still contains placeholders or blank required credentials.
 If ports conflict with other containers (`pykumir` or anything else), change:
 `CH_HTTP_HOST_PORT`, `BACKEND_HOST_PORT`, `METABASE_HOST_PORT`, `STACK_NAME`.
 
@@ -68,7 +74,7 @@ Default ports from `.env.example`:
 - metabase: `http://localhost:13000`
 - clickhouse http: `http://localhost:18123`
 
-5. Open Metabase at `http://localhost:13000` (or your `METABASE_HOST_PORT`) and connect to ClickHouse using values from `.env`.
+5. Open Metabase at `http://localhost:13000` (or your `METABASE_HOST_PORT`) and connect to ClickHouse using your configured app credentials or the optional `CH_RO_USER` / `CH_RO_PASSWORD`.
 
 ## Main API endpoints
 

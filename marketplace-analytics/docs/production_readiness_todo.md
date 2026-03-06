@@ -15,19 +15,19 @@
 
 ### P0-01. Убрать insecure defaults и placeholder values
 
-- [ ] Удалить рабочие/опасные дефолты из [.env.example](/home/borm/VibeCoding/BormoStats/marketplace-analytics/.env.example)
-- [ ] Убрать `ADMIN_API_KEY=change_me` как рабочий fallback из [config.py](/home/borm/VibeCoding/BormoStats/marketplace-analytics/backend/app/core/config.py)
-- [ ] Убрать hardcoded ClickHouse admin credentials из [001_users.sql](/home/borm/VibeCoding/BormoStats/marketplace-analytics/infra/docker/clickhouse/initdb/001_users.sql)
-- [ ] Добавить startup validation для placeholder credentials в backend
-- [ ] Добавить startup validation для placeholder credentials в worker
-- [ ] Обновить bootstrap flow, чтобы он требовал явной безопасной конфигурации
-- [ ] Обновить README и quickstart под новый secrets flow
+- [x] Удалить рабочие/опасные дефолты из [.env.example](/home/borm/VibeCoding/BormoStats/marketplace-analytics/.env.example)
+- [x] Убрать `ADMIN_API_KEY=change_me` как рабочий fallback из [config.py](/home/borm/VibeCoding/BormoStats/marketplace-analytics/backend/app/core/config.py)
+- [x] Убрать hardcoded ClickHouse admin credentials из [001_users.sql](/home/borm/VibeCoding/BormoStats/marketplace-analytics/infra/docker/clickhouse/initdb/001_users.sql)
+- [x] Добавить startup validation для placeholder credentials в backend
+- [x] Добавить startup validation для placeholder credentials в worker
+- [x] Обновить bootstrap flow, чтобы он требовал явной безопасной конфигурации
+- [x] Обновить README и quickstart под новый secrets flow
 
 Критерии закрытия:
 
-- [ ] backend не стартует с placeholder admin key
-- [ ] worker не стартует с placeholder marketplace credentials
-- [ ] в репозитории нет "боевых" секретов по умолчанию
+- [x] backend не стартует с placeholder admin key
+- [x] worker не стартует с placeholder marketplace credentials
+- [x] в репозитории нет "боевых" секретов по умолчанию
 
 ### P0-02. Ограничить admin control plane
 

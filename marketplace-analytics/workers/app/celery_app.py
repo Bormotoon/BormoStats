@@ -7,8 +7,11 @@ import os
 from celery import Celery
 
 from app.beat_schedule import beat_schedule
+from common.env_validation import collect_worker_startup_issues, raise_for_issues
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+raise_for_issues("worker startup", collect_worker_startup_issues(os.environ))
 
 celery_app = Celery(
     "marketplace_analytics",
