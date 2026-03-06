@@ -2,7 +2,7 @@ name: ${STACK_NAME:-bormostats}
 
 services:
   clickhouse:
-    image: clickhouse/clickhouse-server:latest
+    image: clickhouse/clickhouse-server@sha256:51beb66e790213a53ddacacf133d3067106f5aa0c446c5b40b9b0c3ae0cd39fc
     ports:
       - "${CH_HTTP_HOST_PORT:-18123}:8123"
     environment:
@@ -28,7 +28,7 @@ services:
       retries: 12
 
   redis:
-    image: redis:7-alpine
+    image: redis@sha256:ee64a64eaab618d88051c3ade8f6352d11531fcf79d9a4818b9b183d8c1d18ba
     volumes:
       - redis_data:/data
     command: ["redis-server", "--appendonly", "yes"]
@@ -80,7 +80,7 @@ services:
     command: ["celery", "-A", "app.celery_app:celery_app", "beat", "--loglevel=INFO"]
 
   metabase:
-    image: metabase/metabase:latest
+    image: metabase/metabase@sha256:0d6ac34cfc8b33b2d471ea4c10209c31e3fe073d53ad5c6a8e7da72d3087d6e5
     ports:
       - "${METABASE_HOST_PORT:-13000}:3000"
     environment:

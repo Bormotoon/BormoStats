@@ -154,18 +154,18 @@
 
 ### P0-10. Пиновать зависимости и образы
 
-- [ ] Зафиксировать версии Python dependencies в [requirements.txt](/home/borm/VibeCoding/BormoStats/marketplace-analytics/requirements.txt)
-- [ ] Зафиксировать версии dev dependencies
-- [ ] Пиновать Docker base images в [backend/Dockerfile](/home/borm/VibeCoding/BormoStats/marketplace-analytics/backend/Dockerfile)
-- [ ] Пиновать Docker base images в [workers/Dockerfile](/home/borm/VibeCoding/BormoStats/marketplace-analytics/workers/Dockerfile)
-- [ ] Заменить `latest` на фиксированные версии в [docker-compose.yml](/home/borm/VibeCoding/BormoStats/marketplace-analytics/infra/docker/docker-compose.yml)
-- [ ] Зафиксировать policy обновления зависимостей в docs
+- [x] Зафиксировать версии Python dependencies в [requirements.txt](/home/borm/VibeCoding/BormoStats/marketplace-analytics/requirements.txt)
+- [x] Зафиксировать версии dev dependencies
+- [x] Пиновать Docker base images в [backend/Dockerfile](/home/borm/VibeCoding/BormoStats/marketplace-analytics/backend/Dockerfile)
+- [x] Пиновать Docker base images в [workers/Dockerfile](/home/borm/VibeCoding/BormoStats/marketplace-analytics/workers/Dockerfile)
+- [x] Заменить `latest` на фиксированные версии в [docker-compose.yml](/home/borm/VibeCoding/BormoStats/marketplace-analytics/infra/docker/docker-compose.yml)
+- [x] Зафиксировать policy обновления зависимостей в docs
 
 Критерии закрытия:
 
-- [ ] docker images reproducible
-- [ ] Python environment reproducible
-- [ ] redeploy не меняет behavior без изменения кода
+- [x] docker images reproducible
+- [x] Python environment reproducible
+- [x] redeploy не меняет behavior без изменения кода
 
 ## Phase P1: Operational Hardening
 

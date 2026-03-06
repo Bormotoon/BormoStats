@@ -28,6 +28,9 @@ It does not collect competitor/category intelligence and does not scrape marketp
   - optional `OZON_PERF_API_KEY` for ads/performance endpoints
 - Admin API:
   - `ADMIN_API_KEY`
+- ClickHouse bootstrap admin:
+  - `BOOTSTRAP_CH_ADMIN_USER`
+  - `BOOTSTRAP_CH_ADMIN_PASSWORD`
 - Telegram alerts:
   - `TG_BOT_TOKEN`, `TG_CHAT_ID`
 
@@ -40,6 +43,7 @@ cp .env.example .env
 ```
 
 2. Fill required secrets in `.env` before running anything:
+   - set a dedicated bootstrap ClickHouse admin in `BOOTSTRAP_CH_ADMIN_USER` / `BOOTSTRAP_CH_ADMIN_PASSWORD`
    - set a dedicated ClickHouse app password in `CH_PASSWORD`
    - generate a random `ADMIN_API_KEY` (for example `openssl rand -hex 32`)
    - set all required WB/Ozon credentials
@@ -105,6 +109,12 @@ Admin (`X-API-Key` required):
 - `make check-tokens` — validate env values + API credentials
 - `python3 scripts/backfill.py --marketplace wb --dataset sales --days 14 --api-key <KEY>`
 - `python3 scripts/backfill.py --marketplace ozon --dataset finance --days 30 --api-key <KEY>`
+
+## Dependency policy
+
+- `requirements.txt` and `requirements-dev.txt` are fully pinned snapshots of tested environments.
+- Update Python pins only from a clean virtualenv and rerun `ruff check .`, `black --check .`, `mypy backend workers collectors automation warehouse scripts`, and `pytest -q`.
+- Dockerfiles and `infra/docker/docker-compose.yml` pin images by digest. When refreshing them, pull the candidate image first, update the digest, then rerun bootstrap and migration smoke checks before merging.
 
 ## Telegram alerts
 
