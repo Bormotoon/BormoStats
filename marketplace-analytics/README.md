@@ -42,6 +42,12 @@ It does not collect competitor/category intelligence and does not scrape marketp
 cp .env.example .env
 ```
 
+Alternative environment-specific starting points:
+
+- `cp .env.dev.example .env`
+- `cp .env.stage.example .env`
+- `cp .env.prod.example .env`
+
 2. Fill required secrets in `.env` before running anything:
    - set a dedicated bootstrap ClickHouse admin in `BOOTSTRAP_CH_ADMIN_USER` / `BOOTSTRAP_CH_ADMIN_PASSWORD`
    - set a dedicated ClickHouse app password in `CH_PASSWORD`
@@ -154,6 +160,7 @@ and exposed via `GET /api/v1/admin/task-runs`.
 
 ## Operations docs
 
+- `docs/environments.md` for `dev/stage/prod` env model and promotion flow
 - `docs/troubleshooting.md` for fast incident lookup
 - `docs/runbooks.md` for step-by-step recovery procedures
 - `docs/release_checklist.md` for deployment and rollback checks

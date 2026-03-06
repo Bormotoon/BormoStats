@@ -321,10 +321,10 @@
 
 ### P2-02. Разделить окружения
 
-- [ ] Описать `dev/stage/prod` env model
-- [ ] Развести secrets по окружениям
-- [ ] Развести stack names и published ports
-- [ ] Настроить promotion flow между stage и prod
+- [x] Описать `dev/stage/prod` env model
+- [x] Развести secrets по окружениям
+- [x] Развести stack names и published ports
+- [x] Настроить promotion flow между stage и prod
 
 ### P2-03. Backup and disaster recovery
 
