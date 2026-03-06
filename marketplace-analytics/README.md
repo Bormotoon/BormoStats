@@ -12,6 +12,7 @@ It does not collect competitor/category intelligence and does not scrape marketp
 - `workers` collect data from WB/Ozon APIs into ClickHouse raw tables
 - SQL transforms build `stg_*` and `mrt_*` analytics layers
 - `backend` provides read-only metrics API and admin endpoints
+- `backend /ui` provides a full Material 3 style web interface (dashboard + domain pages)
 - `automation` executes YAML rules and sends Telegram alerts
 - `metabase` is available in docker-compose for dashboards
 
@@ -54,6 +55,12 @@ make bootstrap
 curl http://localhost:18080/health
 curl http://localhost:18080/ready
 curl http://localhost:18080/metrics
+```
+
+Open GUI:
+
+```bash
+xdg-open http://localhost:18080/ui/
 ```
 
 Default ports from `.env.example`:

@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import Response
+from fastapi.responses import RedirectResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from redis import Redis
+from starlette.staticfiles import StaticFiles
 
 from app.api.v1 import admin, ads, funnel, kpis, sales, stocks
 from app.core.config import get_settings
@@ -23,6 +26,7 @@ app.include_router(funnel.router, prefix="/api/v1")
 app.include_router(ads.router, prefix="/api/v1")
 app.include_router(kpis.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
+app.mount("/ui", StaticFiles(directory=Path(__file__).resolve().parent / "ui", html=True), name="ui")
 
 
 @app.get("/health")
@@ -50,3 +54,8 @@ def ready() -> dict[str, str]:
 @app.get("/metrics")
 def metrics() -> Response:
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+@app.get("/", include_in_schema=False)
+def root() -> RedirectResponse:
+    return RedirectResponse(url="/ui/")

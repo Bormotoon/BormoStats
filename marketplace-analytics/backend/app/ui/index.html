@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BormoStats UI</title>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell" id="app-shell">
+      <aside class="nav-drawer" id="nav-drawer">
+        <div class="brand">
+          <div class="brand-logo">BS</div>
+          <div>
+            <p class="brand-title">BormoStats</p>
+            <p class="brand-subtitle">Marketplace Analytics</p>
+          </div>
+        </div>
+
+        <nav id="nav-list" class="nav-list" aria-label="Main navigation"></nav>
+
+        <section class="panel settings-panel">
+          <h3>Settings</h3>
+          <label class="field">
+            <span>API Base URL</span>
+            <input id="api-base-input" type="text" placeholder="http://localhost:18080" />
+          </label>
+          <label class="field">
+            <span>Admin API Key</span>
+            <input id="admin-key-input" type="password" placeholder="X-API-Key" />
+          </label>
+          <button id="save-settings-button" class="button button-primary" type="button">Save Settings</button>
+        </section>
+      </aside>
+
+      <main class="main-content">
+        <header class="top-bar">
+          <div class="top-bar-title-wrap">
+            <button id="menu-toggle" class="icon-button" type="button" aria-label="Toggle navigation">☰</button>
+            <div>
+              <h1 id="page-title">Dashboard</h1>
+              <p id="page-subtitle">Operational overview</p>
+            </div>
+          </div>
+          <div class="top-bar-actions">
+            <button id="reload-button" class="button button-tonal" type="button">Reload</button>
+            <button id="theme-toggle" class="button button-tonal" type="button">Toggle Theme</button>
+          </div>
+        </header>
+
+        <section id="filters" class="filters"></section>
+
+        <section id="feedback" class="feedback hidden" role="status"></section>
+
+        <section id="page-content" class="page-content"></section>
+      </main>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
