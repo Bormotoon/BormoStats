@@ -328,11 +328,11 @@
 
 ### P2-03. Backup and disaster recovery
 
-- [ ] Определить backup strategy для ClickHouse
-- [ ] Определить backup strategy для Metabase
-- [ ] Описать backup strategy для env/secrets
-- [ ] Провести restore drill на чистом окружении
-- [ ] Задокументировать RPO/RTO
+- [x] Определить backup strategy для ClickHouse
+- [x] Определить backup strategy для Metabase
+- [x] Описать backup strategy для env/secrets
+- [x] Провести restore drill на чистом окружении
+- [x] Задокументировать RPO/RTO
 
 ### P2-04. Supply-chain security
 
