@@ -80,6 +80,8 @@ Default ports from `.env.example`:
 - backend: `http://localhost:18080`
 - metabase: `http://localhost:13000`
 - clickhouse http: `http://localhost:18123`
+- worker metrics: `http://localhost:19101/metrics`
+- beat metrics: `http://localhost:19102/metrics`
 
 5. Open Metabase at `http://localhost:13000` (or your `METABASE_HOST_PORT`) and connect to ClickHouse using your configured app credentials or the optional `CH_RO_USER` / `CH_RO_PASSWORD`.
 
@@ -135,3 +137,4 @@ Admin (`X-API-Key` required):
 - BI marts: `mrt_*`
 
 See `docs/architecture.md` and `docs/metabase.md` for details.
+Prometheus scrape examples for worker and beat are in `docs/prometheus.md`.

@@ -171,19 +171,19 @@
 
 ### P1-01. Экспортировать worker и beat metrics
 
-- [ ] Выбрать модель экспорта: отдельный endpoint или sidecar exporter
-- [ ] Поднять metrics endpoint для worker
-- [ ] Поднять metrics endpoint для beat
-- [ ] Добавить scrape config/документацию для Prometheus
-- [ ] Проверить экспорт `task_duration_seconds`
-- [ ] Проверить экспорт `task_runs_total`
-- [ ] Проверить экспорт `watermark_lag_seconds`
-- [ ] Проверить экспорт `empty_payload_total`
+- [x] Выбрать модель экспорта: отдельный endpoint или sidecar exporter
+- [x] Поднять metrics endpoint для worker
+- [x] Поднять metrics endpoint для beat
+- [x] Добавить scrape config/документацию для Prometheus
+- [x] Проверить экспорт `task_duration_seconds`
+- [x] Проверить экспорт `task_runs_total`
+- [x] Проверить экспорт `watermark_lag_seconds`
+- [x] Проверить экспорт `empty_payload_total`
 
 Критерии закрытия:
 
-- [ ] метрики worker и beat доступны снаружи
-- [ ] operational dashboards могут их читать
+- [x] метрики worker и beat доступны снаружи
+- [x] operational dashboards могут их читать
 
 ### P1-02. Настроить alerting и dashboards
 

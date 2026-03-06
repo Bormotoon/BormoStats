@@ -29,6 +29,7 @@ watermark_lag_seconds = Gauge(
     "watermark_lag_seconds",
     "Current lag between now and watermark timestamp",
     ["source", "account_id"],
+    multiprocess_mode="max",
 )
 
 empty_payload_total = Counter(

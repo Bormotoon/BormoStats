@@ -59,11 +59,17 @@ services:
       dockerfile: workers/Dockerfile
     env_file:
       - ../../.env
+    environment:
+      - CELERY_METRICS_ROLE=worker
+      - CELERY_METRICS_PORT=9101
+      - WORKER_PROMETHEUS_MULTIPROC_DIR=/tmp/marketplace-analytics-prometheus/worker
     depends_on:
       clickhouse:
         condition: service_healthy
       redis:
         condition: service_healthy
+    ports:
+      - "${WORKER_METRICS_HOST_PORT:-19101}:9101"
     command: ["celery", "-A", "app.celery_app:celery_app", "worker", "--loglevel=INFO", "--concurrency=4"]
 
   beat:
@@ -72,11 +78,16 @@ services:
       dockerfile: workers/Dockerfile
     env_file:
       - ../../.env
+    environment:
+      - CELERY_METRICS_ROLE=beat
+      - CELERY_METRICS_PORT=9102
     depends_on:
       clickhouse:
         condition: service_healthy
       redis:
         condition: service_healthy
+    ports:
+      - "${BEAT_METRICS_HOST_PORT:-19102}:9102"
     command: ["celery", "-A", "app.celery_app:celery_app", "beat", "--loglevel=INFO"]
 
   metabase:
