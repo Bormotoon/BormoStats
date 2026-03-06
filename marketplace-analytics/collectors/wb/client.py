@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import suppress
 from datetime import UTC, date, datetime, time
 from typing import Any
 
@@ -15,6 +16,20 @@ class WbApiClient:
         self.analytics_token = analytics_token
         self.statistics = JsonHttpClient(endpoints.STATISTICS_BASE_URL, marketplace="wb")
         self.analytics = JsonHttpClient(endpoints.ANALYTICS_BASE_URL, marketplace="wb")
+
+    def __enter__(self) -> WbApiClient:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
+
+    def __del__(self) -> None:
+        with suppress(Exception):
+            self.close()
+
+    def close(self) -> None:
+        self.statistics.close()
+        self.analytics.close()
 
     def _statistics_headers(self) -> dict[str, str]:
         return {"Authorization": self.statistics_token}

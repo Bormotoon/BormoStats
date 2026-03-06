@@ -158,8 +158,6 @@ def _collect_postings(account_id: str, from_ts: datetime | None = None) -> dict[
                 return {"status": "skipped", "reason": "capability_unavailable"}
             log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
             raise
-        finally:
-            ch_client.close()
 
 
 def _collect_finance(account_id: str, from_ts: datetime | None = None) -> dict[str, Any]:
@@ -200,8 +198,6 @@ def _collect_finance(account_id: str, from_ts: datetime | None = None) -> dict[s
                 return {"status": "skipped", "reason": "capability_unavailable"}
             log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
             raise
-        finally:
-            ch_client.close()
 
 
 @shared_task(name="tasks.ozon_collect.ozon_postings_incremental")
@@ -266,8 +262,6 @@ def ozon_stocks_snapshot(account_id: str = OZON_ACCOUNT_ID) -> dict[str, Any]:
             except Exception as exc:
                 log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
                 raise
-            finally:
-                ch_client.close()
     except LockNotAcquired:
         return {"status": "skipped", "reason": "lock_not_acquired"}
 
@@ -282,19 +276,16 @@ def ozon_ads_daily(target_day: str | None = None, account_id: str = OZON_ACCOUNT
         return {"status": "skipped", "reason": "missing Ozon credentials"}
     if not perf_api_key:
         ch_client = get_ch_client()
-        try:
-            log_task_run(
-                ch_client,
-                task_name,
-                run_id,
-                started_at,
-                "skipped",
-                0,
-                "ozon ads disabled: missing OZON_PERF_API_KEY",
-                meta={"capability": "ads", "reason": "missing_perf_api_key"},
-            )
-        finally:
-            ch_client.close()
+        log_task_run(
+            ch_client,
+            task_name,
+            run_id,
+            started_at,
+            "skipped",
+            0,
+            "ozon ads disabled: missing OZON_PERF_API_KEY",
+            meta={"capability": "ads", "reason": "missing_perf_api_key"},
+        )
         return {"status": "skipped", "reason": "missing_perf_api_key"}
 
     day_value = date.fromisoformat(target_day) if target_day else (datetime.now(UTC).date() - timedelta(days=1))
@@ -326,7 +317,5 @@ def ozon_ads_daily(target_day: str | None = None, account_id: str = OZON_ACCOUNT
                     return {"status": "skipped", "reason": "capability_unavailable"}
                 log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
                 raise
-            finally:
-                ch_client.close()
     except LockNotAcquired:
         return {"status": "skipped", "reason": "lock_not_acquired"}

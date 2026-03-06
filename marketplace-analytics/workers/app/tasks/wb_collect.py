@@ -8,13 +8,13 @@ from typing import Any
 
 from celery import shared_task
 
-from collectors.wb.client import WbApiClient
-from collectors.wb.parsers import parse_funnel, parse_orders, parse_sales, parse_stocks
 from app.utils.chunking import date_chunks
 from app.utils.locking import LockNotAcquired, lock_scope
 from app.utils.metrics import observe_empty_payload, observe_rows
 from app.utils.runtime import get_ch_client, get_redis_client, log_task_run, new_run_context
 from app.utils.watermarks import get_watermark, set_watermark
+from collectors.wb.client import WbApiClient
+from collectors.wb.parsers import parse_funnel, parse_orders, parse_sales, parse_stocks
 
 WB_ACCOUNT_ID = os.getenv("WB_ACCOUNT_ID", "default")
 
@@ -124,8 +124,6 @@ def _collect_sales_incremental(account_id: str, start_from: datetime | None = No
         except Exception as exc:
             log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
             raise
-        finally:
-            ch_client.close()
 
 
 def _collect_orders_incremental(account_id: str, start_from: datetime | None = None) -> dict[str, Any]:
@@ -153,8 +151,6 @@ def _collect_orders_incremental(account_id: str, start_from: datetime | None = N
         except Exception as exc:
             log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
             raise
-        finally:
-            ch_client.close()
 
 
 @shared_task(name="tasks.wb_collect.wb_sales_incremental")
@@ -197,8 +193,6 @@ def wb_stocks_snapshot(account_id: str = WB_ACCOUNT_ID) -> dict[str, Any]:
             except Exception as exc:
                 log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
                 raise
-            finally:
-                ch_client.close()
     except LockNotAcquired:
         return {"status": "skipped", "reason": "lock_not_acquired"}
 
@@ -239,8 +233,6 @@ def wb_funnel_roll(account_id: str = WB_ACCOUNT_ID) -> dict[str, Any]:
             except Exception as exc:
                 log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
                 raise
-            finally:
-                ch_client.close()
     except LockNotAcquired:
         return {"status": "skipped", "reason": "lock_not_acquired"}
 
@@ -292,8 +284,6 @@ def wb_sales_backfill_days(days: int = 14, account_id: str = WB_ACCOUNT_ID) -> d
     except Exception as exc:
         log_task_run(ch_client, task_name, run_id, started_at, "failed", total_rows, str(exc))
         raise
-    finally:
-        ch_client.close()
 
 
 @shared_task(name="tasks.wb_collect.wb_orders_backfill_days")
@@ -343,8 +333,6 @@ def wb_orders_backfill_days(days: int = 14, account_id: str = WB_ACCOUNT_ID) -> 
     except Exception as exc:
         log_task_run(ch_client, task_name, run_id, started_at, "failed", total_rows, str(exc))
         raise
-    finally:
-        ch_client.close()
 
 
 @shared_task(name="tasks.wb_collect.wb_funnel_backfill_days")
@@ -386,5 +374,3 @@ def wb_funnel_backfill_days(days: int = 14, account_id: str = WB_ACCOUNT_ID) -> 
     except Exception as exc:
         log_task_run(ch_client, task_name, run_id, started_at, "failed", total_rows, str(exc))
         raise
-    finally:
-        ch_client.close()

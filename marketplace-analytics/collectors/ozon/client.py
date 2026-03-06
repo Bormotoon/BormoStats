@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import suppress
 from datetime import date, datetime
 from typing import Any
 
@@ -17,6 +18,19 @@ class OzonApiClient:
         self.api_key = api_key
         self.perf_api_key = perf_api_key or api_key
         self.http = JsonHttpClient(endpoints.BASE_URL, marketplace="ozon")
+
+    def __enter__(self) -> OzonApiClient:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
+
+    def __del__(self) -> None:
+        with suppress(Exception):
+            self.close()
+
+    def close(self) -> None:
+        self.http.close()
 
     def _headers(self) -> dict[str, str]:
         return {

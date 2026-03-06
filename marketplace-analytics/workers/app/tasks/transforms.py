@@ -450,8 +450,6 @@ def _run_transform(days: int, task_name: str) -> dict[str, int | str]:
     except Exception as exc:
         log_task_run(client, task_name, run_id, started_at, "failed", 0, str(exc))
         raise
-    finally:
-        client.close()
 
 
 @shared_task(name="tasks.transforms.transform_all_recent")

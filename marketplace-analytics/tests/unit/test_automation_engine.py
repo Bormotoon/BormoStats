@@ -4,7 +4,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from automation.engine import run_rules
+import pytest
+
+from automation.engine import _safe_eval_condition, run_rules
 
 
 @dataclass
@@ -57,3 +59,8 @@ def test_run_rules_triggers_action(tmp_path: Path) -> None:
     assert len(fake_action.calls) == 1
     assert fake_action.calls[0]["rule_name"] == "low_stock_test"
     assert "sku-1" in fake_action.calls[0]["message"]
+
+
+def test_safe_eval_rejects_unsafe_expression() -> None:
+    with pytest.raises(ValueError):
+        _safe_eval_condition('__import__("os").system("echo hacked")', row={}, params={})

@@ -2,24 +2,45 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from functools import lru_cache
 
+import clickhouse_connect
 from fastapi import Depends, Header, HTTPException, status
 
 from app.core.config import Settings, get_settings
-from app.db.ch import build_client
 
 
 def get_app_settings() -> Settings:
     return get_settings()
 
 
-def get_ch_client(settings: Settings = Depends(get_app_settings)) -> Iterator:
-    client = build_client(settings)
-    try:
-        yield client
-    finally:
-        client.close()
+@lru_cache(maxsize=1)
+def _get_cached_ch_client(
+    host: str,
+    port: int,
+    user: str,
+    password: str,
+    database: str,
+) -> clickhouse_connect.driver.Client:
+    return clickhouse_connect.get_client(
+        host=host,
+        port=port,
+        username=user,
+        password=password,
+        database=database,
+    )
+
+
+def get_ch_client(
+    settings: Settings = Depends(get_app_settings),
+) -> clickhouse_connect.driver.Client:
+    return _get_cached_ch_client(
+        host=settings.ch_host,
+        port=settings.ch_port,
+        user=settings.ch_user,
+        password=settings.ch_password,
+        database=settings.ch_db,
+    )
 
 
 def require_admin_api_key(

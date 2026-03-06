@@ -103,8 +103,6 @@ def _run_marts(days: int, task_name: str) -> dict[str, str | int]:
     except Exception as exc:
         log_task_run(client, task_name, run_id, started_at, "failed", 0, str(exc))
         raise
-    finally:
-        client.close()
 
 
 @shared_task(name="tasks.marts.build_marts_recent")

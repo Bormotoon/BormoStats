@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import time
 import uuid
+from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -52,6 +53,24 @@ class JsonHttpClient:
         self._failure_count = 0
         self._open_until: datetime | None = None
         self._logger = logging.getLogger("collectors.http")
+        self._client = httpx.Client(base_url=self.base_url, timeout=self.timeout)
+        self._closed = False
+
+    def __enter__(self) -> JsonHttpClient:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
+
+    def __del__(self) -> None:
+        with suppress(Exception):
+            self.close()
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._client.close()
+        self._closed = True
 
     def get(
         self,
@@ -110,6 +129,9 @@ class JsonHttpClient:
         params: dict[str, Any] | None,
         json_body: dict[str, Any] | list[Any] | None,
     ) -> Any:
+        if self._closed:
+            raise RuntimeError("http_client_closed")
+
         sanitized_headers = redact_mapping(headers or {})
         safe_params = params or {}
         last_exception: Exception | None = None
@@ -119,14 +141,13 @@ class JsonHttpClient:
             started_at = time.perf_counter()
             try:
                 self._check_circuit()
-                with httpx.Client(base_url=self.base_url, timeout=self.timeout) as client:
-                    response = client.request(
-                        method=method,
-                        url=path,
-                        headers=headers,
-                        params=params,
-                        json=json_body,
-                    )
+                response = self._client.request(
+                    method=method,
+                    url=path,
+                    headers=headers,
+                    params=params,
+                    json=json_body,
+                )
 
                 latency_ms = round((time.perf_counter() - started_at) * 1000.0, 2)
                 self._logger.info(

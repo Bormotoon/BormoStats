@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import UTC, datetime
+from functools import lru_cache
 from typing import Any
 from uuid import uuid4
 
@@ -14,6 +15,7 @@ from redis import Redis
 from app.utils.metrics import observe_task
 
 
+@lru_cache(maxsize=1)
 def get_ch_client() -> clickhouse_connect.driver.Client:
     return clickhouse_connect.get_client(
         host=os.getenv("CH_HOST", "localhost"),
@@ -24,6 +26,7 @@ def get_ch_client() -> clickhouse_connect.driver.Client:
     )
 
 
+@lru_cache(maxsize=1)
 def get_redis_client() -> Redis:
     return Redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"))
 
