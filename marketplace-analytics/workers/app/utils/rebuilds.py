@@ -6,9 +6,8 @@ import logging
 from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
 
-from redis import Redis
-
 from app.utils.locking import LockHandle, lock_scope
+from redis import Redis
 
 LOGGER = logging.getLogger("workers.rebuilds")
 REBUILD_PIPELINE_SOURCE = "rebuild_pipeline"

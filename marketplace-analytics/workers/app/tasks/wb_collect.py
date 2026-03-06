@@ -6,13 +6,13 @@ import os
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from celery import shared_task
-
+from app.utils.celery_helpers import shared_task
 from app.utils.chunking import date_chunks
 from app.utils.locking import LockNotAcquiredError, lock_scope
 from app.utils.metrics import observe_empty_payload, observe_rows
 from app.utils.runtime import get_ch_client, get_redis_client, log_task_run, new_run_context
 from app.utils.watermarks import get_watermark, set_watermark
+
 from collectors.wb.client import WbApiClient
 from collectors.wb.parsers import parse_funnel, parse_orders, parse_sales, parse_stocks
 

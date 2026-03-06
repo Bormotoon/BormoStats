@@ -2,19 +2,19 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
-
-from app.core.deps import get_ch_client
+from app.core.deps import ChClientDependency
 from app.services.metrics_service import MetricsService
+from fastapi import APIRouter, Query
 
 router = APIRouter(tags=["kpis"])
 
 
 @router.get("/kpis")
 def kpis(
+    *,
     marketplace: str = Query(default=""),
     account_id: str = Query(default=""),
-    client=Depends(get_ch_client),
+    client: ChClientDependency,
 ) -> dict[str, object]:
     service = MetricsService(client)
     items = service.kpis(marketplace=marketplace, account_id=account_id)

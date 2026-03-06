@@ -8,8 +8,6 @@ from typing import Any
 
 import clickhouse_connect
 import structlog
-from celery import Celery
-
 from app.core.config import Settings
 from app.db.ch import query_dicts
 from app.models.admin import (
@@ -23,6 +21,7 @@ from app.models.admin import (
     TransformBackfillRequest,
     TransformRecentRequest,
 )
+from celery import Celery
 
 _QUERIES_DIR = Path(__file__).resolve().parents[1] / "db" / "queries"
 LOGGER = structlog.get_logger(__name__)

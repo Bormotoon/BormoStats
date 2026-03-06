@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 import clickhouse_connect
-
 from app.db.ch import query_dicts
 
 _QUERIES_DIR = Path(__file__).resolve().parents[1] / "db" / "queries"

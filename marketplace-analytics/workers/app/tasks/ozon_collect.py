@@ -6,12 +6,12 @@ import os
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from celery import shared_task
-
+from app.utils.celery_helpers import shared_task
 from app.utils.locking import LockNotAcquiredError, lock_scope
 from app.utils.metrics import observe_empty_payload, observe_rows
 from app.utils.runtime import get_ch_client, get_redis_client, log_task_run, new_run_context
 from app.utils.watermarks import get_watermark, set_watermark
+
 from collectors.ozon.client import OzonApiClient
 from collectors.ozon.errors import is_capability_error
 from collectors.ozon.parsers import parse_ads_daily, parse_finance_ops, parse_postings, parse_stocks

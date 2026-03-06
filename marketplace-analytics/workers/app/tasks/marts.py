@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from celery import shared_task
-
+from app.utils.celery_helpers import shared_task
 from app.utils.locking import LockNotAcquiredError
 from app.utils.rebuilds import LOGGER as REBUILD_LOGGER
 from app.utils.rebuilds import rebuild_task_scope

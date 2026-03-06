@@ -10,9 +10,8 @@ from typing import Any
 from uuid import uuid4
 
 import clickhouse_connect
-from redis import Redis
-
 from app.utils.metrics import observe_task
+from redis import Redis
 
 
 @lru_cache(maxsize=1)
@@ -53,7 +52,10 @@ def log_task_run(
         """
         INSERT INTO sys_task_runs
         (task_name, run_id, started_at, finished_at, status, rows_ingested, message, meta_json)
-        VALUES (%(task_name)s, %(run_id)s, %(started_at)s, %(finished_at)s, %(status)s, %(rows_ingested)s, %(message)s, %(meta_json)s)
+        VALUES (
+            %(task_name)s, %(run_id)s, %(started_at)s, %(finished_at)s,
+            %(status)s, %(rows_ingested)s, %(message)s, %(meta_json)s
+        )
         """,
         parameters={
             "task_name": task_name,
@@ -66,4 +68,6 @@ def log_task_run(
             "meta_json": json.dumps(payload, ensure_ascii=True),
         },
     )
-    observe_task(task_name=task_name, status=status, started_at=started_at, finished_at=finished_at_utc)
+    observe_task(
+        task_name=task_name, status=status, started_at=started_at, finished_at=finished_at_utc
+    )

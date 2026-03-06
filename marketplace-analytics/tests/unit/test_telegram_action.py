@@ -18,7 +18,7 @@ def test_telegram_action_sends_message(monkeypatch: Any) -> None:
         def __init__(self, timeout: float) -> None:
             self.timeout = timeout
 
-        def __enter__(self) -> "FakeClient":
+        def __enter__(self) -> FakeClient:
             return self
 
         def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:

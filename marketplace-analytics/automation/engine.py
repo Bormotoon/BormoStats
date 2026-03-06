@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import operator
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -155,9 +156,7 @@ def _eval_expr(node: ast.AST, names: dict[str, Any]) -> Any:
                 raise UnsafeExpressionError(f"function not allowed: {node.func.id}")
             args = [_eval_expr(arg, names) for arg in node.args]
             kwargs = {
-                kw.arg: _eval_expr(kw.value, names)
-                for kw in node.keywords
-                if kw.arg is not None
+                kw.arg: _eval_expr(kw.value, names) for kw in node.keywords if kw.arg is not None
             }
             return fn(*args, **kwargs)
 
@@ -167,9 +166,7 @@ def _eval_expr(node: ast.AST, names: dict[str, Any]) -> Any:
                 raise UnsafeExpressionError("only dict.get is allowed for attribute calls")
             args = [_eval_expr(arg, names) for arg in node.args]
             kwargs = {
-                kw.arg: _eval_expr(kw.value, names)
-                for kw in node.keywords
-                if kw.arg is not None
+                kw.arg: _eval_expr(kw.value, names) for kw in node.keywords if kw.arg is not None
             }
             return target.get(*args, **kwargs)
 
@@ -206,7 +203,7 @@ def load_rules(rules_dir: Path) -> list[Rule]:
 def run_rules(
     client: clickhouse_connect.driver.Client,
     rules_dir: Path,
-    actions: dict[str, Action],
+    actions: Mapping[str, Action],
 ) -> dict[str, Any]:
     report: dict[str, Any] = {"rules": [], "triggered": 0}
     for rule in load_rules(rules_dir):

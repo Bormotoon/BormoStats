@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 import clickhouse_connect
-from celery import shared_task
+from app.utils.celery_helpers import shared_task
 
 from automation.actions.telegram import TelegramAction
 from automation.engine import run_rules

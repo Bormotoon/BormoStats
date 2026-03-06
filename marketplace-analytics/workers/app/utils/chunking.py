@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import UTC, date, datetime, timedelta
-from typing import Iterator
 
 
 def date_chunks(start: date, end: date, chunk_days: int) -> Iterator[tuple[date, date]]:

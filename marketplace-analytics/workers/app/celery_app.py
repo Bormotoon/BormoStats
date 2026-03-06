@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import os
 
+from app.beat_schedule import beat_schedule
 from celery import Celery
 
-from app.beat_schedule import beat_schedule
 from common.env_validation import collect_worker_startup_issues, raise_for_issues
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")

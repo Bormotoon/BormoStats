@@ -4,22 +4,22 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 
-from fastapi import APIRouter, Depends, Query
-
-from app.core.deps import get_ch_client
+from app.core.deps import ChClientDependency
 from app.services.metrics_service import MetricsService
+from fastapi import APIRouter, Query
 
 router = APIRouter(prefix="/sales", tags=["sales"])
 
 
 @router.get("/daily")
 def sales_daily(
+    *,
     date_from: date | None = Query(default=None),
     date_to: date | None = Query(default=None),
     marketplace: str = Query(default=""),
     account_id: str = Query(default=""),
     limit: int = Query(default=1000, ge=1, le=10000),
-    client=Depends(get_ch_client),
+    client: ChClientDependency,
 ) -> dict[str, object]:
     resolved_to = date_to or datetime.now(UTC).date()
     resolved_from = date_from or (resolved_to - timedelta(days=30))

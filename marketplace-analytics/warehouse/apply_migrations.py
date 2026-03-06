@@ -6,8 +6,8 @@ from __future__ import annotations
 import logging
 import os
 import time
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 import clickhouse_connect
 
@@ -52,8 +52,7 @@ def split_sql_statements(sql: str) -> Iterable[str]:
 
 def ensure_sys_table(client: clickhouse_connect.driver.Client) -> None:
     client.command("CREATE DATABASE IF NOT EXISTS mp_analytics")
-    client.command(
-        """
+    client.command("""
         CREATE TABLE IF NOT EXISTS mp_analytics.sys_schema_migrations
         (
           version String,
@@ -61,8 +60,7 @@ def ensure_sys_table(client: clickhouse_connect.driver.Client) -> None:
         )
         ENGINE = MergeTree
         ORDER BY (version)
-        """
-    )
+        """)
 
 
 def load_applied_versions(client: clickhouse_connect.driver.Client) -> set[str]:

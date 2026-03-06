@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 import clickhouse_connect
-
 from app.core.config import Settings
 
 

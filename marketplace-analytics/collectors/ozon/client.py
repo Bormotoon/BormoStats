@@ -148,14 +148,31 @@ class OzonApiClient:
 
         return list(unique_by_posting.values()) + fallback_items
 
-    def postings_since_fbs(self, from_ts: datetime, to_ts: datetime, limit: int = 1000) -> list[dict[str, Any]]:
+    def postings_since_fbs(
+        self,
+        from_ts: datetime,
+        to_ts: datetime,
+        limit: int = 1000,
+    ) -> list[dict[str, Any]]:
         return self.postings_since(from_ts=from_ts, to_ts=to_ts, limit=limit, schemas=("fbs",))
 
-    def postings_since_fbo(self, from_ts: datetime, to_ts: datetime, limit: int = 1000) -> list[dict[str, Any]]:
+    def postings_since_fbo(
+        self,
+        from_ts: datetime,
+        to_ts: datetime,
+        limit: int = 1000,
+    ) -> list[dict[str, Any]]:
         return self.postings_since(from_ts=from_ts, to_ts=to_ts, limit=limit, schemas=("fbo",))
 
-    def postings_since_all(self, from_ts: datetime, to_ts: datetime, limit: int = 1000) -> list[dict[str, Any]]:
-        return self.postings_since(from_ts=from_ts, to_ts=to_ts, limit=limit, schemas=("fbs", "fbo"))
+    def postings_since_all(
+        self,
+        from_ts: datetime,
+        to_ts: datetime,
+        limit: int = 1000,
+    ) -> list[dict[str, Any]]:
+        return self.postings_since(
+            from_ts=from_ts, to_ts=to_ts, limit=limit, schemas=("fbs", "fbo")
+        )
 
     def stocks(self, limit: int = 1000) -> list[dict[str, Any]]:
         body = {"limit": max(1, min(limit, 1000)), "offset": 0}
@@ -163,11 +180,11 @@ class OzonApiClient:
         if isinstance(payload, dict):
             result = payload.get("result")
             if isinstance(result, dict) and isinstance(result.get("items"), list):
-                return result["items"]
+                return [item for item in result["items"] if isinstance(item, dict)]
             if isinstance(result, list):
-                return result
+                return [item for item in result if isinstance(item, dict)]
         if isinstance(payload, list):
-            return payload
+            return [item for item in payload if isinstance(item, dict)]
         return []
 
     def finance_operations(
@@ -228,7 +245,7 @@ class OzonApiClient:
         if isinstance(payload, dict):
             result = payload.get("result")
             if isinstance(result, list):
-                return result
+                return [item for item in result if isinstance(item, dict)]
         if isinstance(payload, list):
-            return payload
+            return [item for item in payload if isinstance(item, dict)]
         return []

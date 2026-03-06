@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import clickhouse_connect
-
 from app.utils.metrics import observe_watermark
 
 DEFAULT_WATERMARK_LAG_HOURS = 48

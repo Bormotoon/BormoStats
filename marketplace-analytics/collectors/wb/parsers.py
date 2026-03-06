@@ -33,13 +33,17 @@ def _to_datetime(value: Any, default: datetime | None = None) -> datetime:
     return default or datetime.now(UTC)
 
 
-def parse_sales(records: list[dict[str, Any]], run_id: str, account_id: str) -> list[dict[str, Any]]:
+def parse_sales(
+    records: list[dict[str, Any]], run_id: str, account_id: str
+) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for item in records:
         last_change = _to_datetime(item.get("lastChangeDate") or item.get("lastChangeDt"))
         event_ts = _to_datetime(item.get("date"), default=last_change)
         quantity = _safe_int(item.get("quantity") or item.get("saleQty") or 1, 1)
-        is_return = 1 if quantity < 0 or "возврат" in str(item.get("supplierOperName", "")).lower() else 0
+        is_return = (
+            1 if quantity < 0 or "возврат" in str(item.get("supplierOperName", "")).lower() else 0
+        )
         rows.append(
             {
                 "run_id": run_id,
@@ -51,7 +55,9 @@ def parse_sales(records: list[dict[str, Any]], run_id: str, account_id: str) -> 
                 "chrt_id": _safe_int(item.get("chrtId")),
                 "barcode": item.get("barcode"),
                 "quantity": abs(quantity),
-                "price_rub": _safe_float(item.get("forPay") or item.get("totalPrice") or item.get("priceWithDisc")),
+                "price_rub": _safe_float(
+                    item.get("forPay") or item.get("totalPrice") or item.get("priceWithDisc")
+                ),
                 "payout_rub": _safe_float(item.get("ppvzForPay") or item.get("incomeID") or 0.0),
                 "is_return": is_return,
                 "payload": json.dumps(item, ensure_ascii=True),
@@ -60,7 +66,9 @@ def parse_sales(records: list[dict[str, Any]], run_id: str, account_id: str) -> 
     return rows
 
 
-def parse_orders(records: list[dict[str, Any]], run_id: str, account_id: str) -> list[dict[str, Any]]:
+def parse_orders(
+    records: list[dict[str, Any]], run_id: str, account_id: str
+) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for item in records:
         last_change = _to_datetime(item.get("lastChangeDate") or item.get("lastChangeDt"))
@@ -75,7 +83,9 @@ def parse_orders(records: list[dict[str, Any]], run_id: str, account_id: str) ->
                 "nm_id": _safe_int(item.get("nmId")),
                 "chrt_id": _safe_int(item.get("chrtId")),
                 "quantity": max(1, _safe_int(item.get("quantity"), 1)),
-                "price_rub": _safe_float(item.get("totalPrice") or item.get("priceWithDisc") or item.get("price")),
+                "price_rub": _safe_float(
+                    item.get("totalPrice") or item.get("priceWithDisc") or item.get("price")
+                ),
                 "payload": json.dumps(item, ensure_ascii=True),
             }
         )
@@ -100,14 +110,21 @@ def parse_stocks(
                 "chrt_id": _safe_int(item.get("chrtId")),
                 "sku": item.get("sku"),
                 "warehouse_id": _safe_int(item.get("warehouseId")) or None,
-                "amount": _safe_int(item.get("quantity") or item.get("quantityFull") or item.get("inWayToClient") or 0),
+                "amount": _safe_int(
+                    item.get("quantity")
+                    or item.get("quantityFull")
+                    or item.get("inWayToClient")
+                    or 0
+                ),
                 "payload": json.dumps(item, ensure_ascii=True),
             }
         )
     return rows
 
 
-def parse_funnel(records: list[dict[str, Any]], run_id: str, account_id: str) -> list[dict[str, Any]]:
+def parse_funnel(
+    records: list[dict[str, Any]], run_id: str, account_id: str
+) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for item in records:
         day_raw = item.get("date") or item.get("day")
@@ -119,15 +136,23 @@ def parse_funnel(records: list[dict[str, Any]], run_id: str, account_id: str) ->
                 "day": day_val,
                 "nm_id": _safe_int(item.get("nmId") or item.get("nm_id")),
                 "open_card_count": _safe_int(item.get("openCardCount") or item.get("views")),
-                "add_to_cart_count": _safe_int(item.get("addToCartCount") or item.get("addsToCart")),
+                "add_to_cart_count": _safe_int(
+                    item.get("addToCartCount") or item.get("addsToCart")
+                ),
                 "orders_count": _safe_int(item.get("ordersCount") or item.get("orders")),
-                "orders_sum_rub": _safe_float(item.get("ordersSumRub") or item.get("ordersSum") or item.get("ordersRevenue")),
+                "orders_sum_rub": _safe_float(
+                    item.get("ordersSumRub") or item.get("ordersSum") or item.get("ordersRevenue")
+                ),
                 "buyouts_count": _safe_int(item.get("buyoutsCount") or item.get("buyouts")),
                 "buyouts_sum_rub": _safe_float(item.get("buyoutsSumRub") or item.get("buyoutsSum")),
                 "cancel_count": _safe_int(item.get("cancelCount") or item.get("cancels")),
                 "cancel_sum_rub": _safe_float(item.get("cancelSumRub") or item.get("cancelSum")),
-                "add_to_cart_conv": _safe_float(item.get("addToCartConv") or item.get("addToCartCR")),
-                "cart_to_order_conv": _safe_float(item.get("cartToOrderConv") or item.get("cartToOrderCR")),
+                "add_to_cart_conv": _safe_float(
+                    item.get("addToCartConv") or item.get("addToCartCR")
+                ),
+                "cart_to_order_conv": _safe_float(
+                    item.get("cartToOrderConv") or item.get("cartToOrderCR")
+                ),
                 "buyout_percent": _safe_float(item.get("buyoutPercent") or item.get("buyoutCR")),
                 "add_to_wishlist": _safe_int(item.get("addToWishlist") or item.get("wishlist")),
                 "currency": str(item.get("currency") or "RUB"),

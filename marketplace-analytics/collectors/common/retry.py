@@ -39,7 +39,7 @@ def wb_retry_delay_seconds(response: httpx.Response) -> float | None:
             reset_dt = reset_dt.replace(tzinfo=UTC)
         delta = (reset_dt - datetime.now(UTC)).total_seconds()
         if delta >= 0:
-            return delta
+            return float(delta)
     except (TypeError, ValueError):
         return None
     return None
@@ -50,7 +50,7 @@ def exponential_jitter_delay_seconds(attempt: int, base: float = 1.0, cap: float
     safe_attempt = max(1, attempt)
     exponential = min(cap, base * (2 ** (safe_attempt - 1)))
     jitter = random.uniform(0.0, max(0.1, exponential * 0.25))
-    return min(cap, exponential + jitter)
+    return float(min(cap, exponential + jitter))
 
 
 def sleep_seconds(delay_seconds: float) -> None:

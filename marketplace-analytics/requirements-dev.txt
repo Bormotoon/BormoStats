@@ -4,3 +4,5 @@ pytest-asyncio
 ruff
 black
 mypy
+types-python-dateutil
+types-PyYAML

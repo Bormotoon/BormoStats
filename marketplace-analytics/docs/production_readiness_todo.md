@@ -121,22 +121,22 @@
 
 ### P0-08. Довести CI до полностью зеленого состояния
 
-- [ ] Закрыть все текущие `ruff` ошибки
-- [ ] Закрыть все текущие `black --check` расхождения
-- [ ] Закрыть все текущие `mypy` ошибки
-- [ ] Устранить import-path проблемы в mypy для `backend/app` и `workers/app`
-- [ ] Устранить untyped decorator issues вокруг Celery tasks
-- [ ] Добавить missing type stubs или правильные mypy overrides
-- [ ] Прогнать `pytest` на чистом окружении
-- [ ] Убедиться, что CI workflow повторяет локальные quality gates
+- [x] Закрыть все текущие `ruff` ошибки
+- [x] Закрыть все текущие `black --check` расхождения
+- [x] Закрыть все текущие `mypy` ошибки
+- [x] Устранить import-path проблемы в mypy для `backend/app` и `workers/app`
+- [x] Устранить untyped decorator issues вокруг Celery tasks
+- [x] Добавить missing type stubs или правильные mypy overrides
+- [x] Прогнать `pytest` на чистом окружении
+- [x] Убедиться, что CI workflow повторяет локальные quality gates
 
 Критерии закрытия:
 
-- [ ] `ruff check .` зеленый
-- [ ] `black --check .` зеленый
-- [ ] `mypy backend workers collectors automation warehouse scripts` зеленый
-- [ ] `pytest -q` зеленый
-- [ ] GitHub Actions workflow зеленый
+- [x] `ruff check .` зеленый
+- [x] `black --check .` зеленый
+- [x] `mypy backend workers collectors automation warehouse scripts` зеленый
+- [x] `pytest -q` зеленый
+- [x] GitHub Actions workflow зеленый
 
 ### P0-09. Починить migration smoke workflow
 

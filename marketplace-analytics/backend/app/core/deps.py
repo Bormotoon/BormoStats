@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Annotated
 
 import clickhouse_connect
 import structlog
-from fastapi import Depends, Header, HTTPException, Request, status
-
 from app.core.config import Settings, get_settings
 from app.models.admin import AdminRequestContext
+from fastapi import Depends, Header, HTTPException, Request, status
 
 LOGGER = structlog.get_logger(__name__)
 
@@ -85,3 +85,11 @@ def require_admin_api_key(
             remote_addr=request.client.host if request.client is not None else "unknown",
         )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid api key")
+
+
+ChClientDependency = Annotated[clickhouse_connect.driver.Client, Depends(get_ch_client)]
+SettingsDependency = Annotated[Settings, Depends(get_app_settings)]
+AdminRequestContextDependency = Annotated[
+    AdminRequestContext,
+    Depends(get_admin_request_context),
+]
