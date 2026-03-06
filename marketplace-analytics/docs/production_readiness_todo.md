@@ -202,16 +202,16 @@
 
 ### P1-03. Ограничить рост Redis/Celery metadata
 
-- [ ] Решить, нужны ли task results вообще
-- [ ] Если не нужны, включить `task_ignore_result = true`
-- [ ] Если нужны, добавить expiry/retention policy
-- [ ] Проверить поведение admin workflows после изменения
-- [ ] Обновить docs по Redis retention
+- [x] Решить, нужны ли task results вообще
+- [x] Если не нужны, включить `task_ignore_result = true`
+- [x] Если нужны, добавить expiry/retention policy
+- [x] Проверить поведение admin workflows после изменения
+- [x] Обновить docs по Redis retention
 
 Критерии закрытия:
 
-- [ ] Redis не накапливает бесконечно task metadata
-- [ ] admin/API flow не ломается после изменения result policy
+- [x] Redis не накапливает бесконечно task metadata
+- [x] admin/API flow не ломается после изменения result policy
 
 ### P1-04. Harden Docker runtime
 

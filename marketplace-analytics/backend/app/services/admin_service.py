@@ -35,6 +35,7 @@ class AdminService:
     def __init__(self, client: clickhouse_connect.driver.Client, settings: Settings) -> None:
         self.client = client
         self.celery = Celery("backend-admin", broker=settings.redis_url)
+        self.celery.conf.task_ignore_result = True
 
     def watermarks(self) -> list[dict[str, Any]]:
         return query_dicts(self.client, _load_sql("admin_watermarks.sql"))
@@ -80,7 +81,12 @@ class AdminService:
         audit: AdminRequestContext,
         parameters: dict[str, Any] | None = None,
     ) -> ActionQueueResponse:
-        async_result = self.celery.send_task(task_name, args=args, kwargs=kwargs)
+        async_result = self.celery.send_task(
+            task_name,
+            args=args,
+            kwargs=kwargs,
+            ignore_result=True,
+        )
         payload = ActionQueueResponse(
             action=action,
             task_name=task_name,

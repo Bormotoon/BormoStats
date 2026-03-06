@@ -38,8 +38,8 @@ celery_app = Celery(
 
 celery_app.conf.update(
     broker_url=REDIS_URL,
-    result_backend=REDIS_URL,
     task_default_queue="etl",
+    task_ignore_result=True,
     task_routes={
         "tasks.wb_collect.*": {"queue": "wb"},
         "tasks.ozon_collect.*": {"queue": "ozon"},

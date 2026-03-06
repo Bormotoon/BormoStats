@@ -102,7 +102,7 @@ def test_transform_backfill_endpoint_queues_whitelisted_action(
 
 
 def test_admin_service_logs_queued_backfill(monkeypatch: pytest.MonkeyPatch) -> None:
-    sent_tasks: list[tuple[str, list[int], dict[str, object]]] = []
+    sent_tasks: list[tuple[str, list[int], dict[str, object], bool]] = []
     audit_entries: list[tuple[str, dict[str, object]]] = []
 
     class FakeAsyncResult:
@@ -114,8 +114,9 @@ def test_admin_service_logs_queued_backfill(monkeypatch: pytest.MonkeyPatch) -> 
             task_name: str,
             args: list[int] | None = None,
             kwargs: dict[str, object] | None = None,
+            ignore_result: bool = False,
         ) -> FakeAsyncResult:
-            sent_tasks.append((task_name, args or [], kwargs or {}))
+            sent_tasks.append((task_name, args or [], kwargs or {}, ignore_result))
             return FakeAsyncResult()
 
     class FakeLogger:
@@ -138,7 +139,7 @@ def test_admin_service_logs_queued_backfill(monkeypatch: pytest.MonkeyPatch) -> 
     )
 
     assert response.task_name == "tasks.wb_collect.wb_sales_backfill_days"
-    assert sent_tasks == [("tasks.wb_collect.wb_sales_backfill_days", [14], {})]
+    assert sent_tasks == [("tasks.wb_collect.wb_sales_backfill_days", [14], {}, True)]
     assert audit_entries[0][0] == "admin_action_queued"
     assert audit_entries[0][1]["action"] == "backfill"
     assert audit_entries[0][1]["details"]["parameters"] == {

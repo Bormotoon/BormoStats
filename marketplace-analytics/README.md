@@ -124,6 +124,12 @@ Admin (`X-API-Key` required):
 2. Ensure `tasks.maintenance.run_automation_rules` runs (beat schedule).
 3. Keep rules in `automation/rules/*.yml` aligned with your thresholds.
 
+## Redis retention
+
+Celery uses Redis as a broker only.
+Task results are not persisted in Redis; operational history is tracked in `sys_task_runs`
+and exposed via `GET /api/v1/admin/task-runs`.
+
 ## Troubleshooting quick links
 
 - API rate limits / upstream errors: see `docs/troubleshooting.md` (`429/5xx` section)
