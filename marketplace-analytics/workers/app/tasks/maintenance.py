@@ -24,6 +24,7 @@ def _ch_client() -> clickhouse_connect.driver.Client:
         username=os.getenv("CH_USER", "default"),
         password=os.getenv("CH_PASSWORD", ""),
         database=os.getenv("CH_DB", "mp_analytics"),
+        autogenerate_session_id=False,
     )
 
 

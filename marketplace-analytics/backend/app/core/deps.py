@@ -32,6 +32,7 @@ def _get_cached_ch_client(
         username=user,
         password=password,
         database=database,
+        autogenerate_session_id=False,
     )
 
 

@@ -343,11 +343,11 @@
 
 ### P2-05. Performance and load validation
 
-- [ ] Определить target throughput по ingestion
-- [ ] Определить target latency по API
-- [ ] Провести нагрузочный тест backend
-- [ ] Провести нагрузочный тест transforms/marts
-- [ ] Зафиксировать безопасные concurrency limits
+- [x] Определить target throughput по ingestion
+- [x] Определить target latency по API
+- [x] Провести нагрузочный тест backend
+- [x] Провести нагрузочный тест transforms/marts
+- [x] Зафиксировать безопасные concurrency limits
 
 ### P2-06. Release management
 

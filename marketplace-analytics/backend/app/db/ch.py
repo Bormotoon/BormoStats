@@ -15,6 +15,7 @@ def build_client(settings: Settings) -> clickhouse_connect.driver.Client:
         username=settings.ch_user,
         password=settings.ch_password,
         database=settings.ch_db,
+        autogenerate_session_id=False,
     )
 
 
