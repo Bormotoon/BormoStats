@@ -49,6 +49,95 @@ jobs:
       - name: Build worker image
         run: docker build -f marketplace-analytics/workers/Dockerfile marketplace-analytics
 
+  supply-chain:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      security-events: write
+    defaults:
+      run:
+        working-directory: marketplace-analytics
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependency audit tool
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-audit
+
+      - name: Python dependency vulnerability scan
+        run: pip-audit -r requirements.txt -r requirements-dev.txt
+
+      - name: Build backend image
+        run: docker build -t marketplace-analytics-backend:ci -f backend/Dockerfile .
+
+      - name: Build worker image
+        run: docker build -t marketplace-analytics-worker:ci -f workers/Dockerfile .
+
+      - name: Generate source SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: ./marketplace-analytics
+          format: spdx-json
+          output-file: ./marketplace-analytics/source-sbom.spdx.json
+          artifact-name: marketplace-analytics-source-sbom
+
+      - name: Generate backend image SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: marketplace-analytics-backend:ci
+          format: spdx-json
+          output-file: ./marketplace-analytics/backend-image-sbom.spdx.json
+          artifact-name: marketplace-analytics-backend-image-sbom
+
+      - name: Generate worker image SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: marketplace-analytics-worker:ci
+          format: spdx-json
+          output-file: ./marketplace-analytics/worker-image-sbom.spdx.json
+          artifact-name: marketplace-analytics-worker-image-sbom
+
+      - name: Scan backend image
+        id: scan-backend
+        uses: anchore/scan-action@v7
+        with:
+          image: marketplace-analytics-backend:ci
+          fail-build: true
+          severity-cutoff: high
+          only-fixed: true
+          cache-db: true
+
+      - name: Upload backend SARIF
+        if: always() && steps.scan-backend.outputs.sarif != ''
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: ${{ steps.scan-backend.outputs.sarif }}
+          category: marketplace-analytics-backend-image
+
+      - name: Scan worker image
+        id: scan-worker
+        uses: anchore/scan-action@v7
+        with:
+          image: marketplace-analytics-worker:ci
+          fail-build: true
+          severity-cutoff: high
+          only-fixed: true
+          cache-db: true
+
+      - name: Upload worker SARIF
+        if: always() && steps.scan-worker.outputs.sarif != ''
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: ${{ steps.scan-worker.outputs.sarif }}
+          category: marketplace-analytics-worker-image
+
   migration-smoke:
     runs-on: ubuntu-latest
     defaults:

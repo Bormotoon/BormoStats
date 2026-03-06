@@ -336,10 +336,10 @@
 
 ### P2-04. Supply-chain security
 
-- [ ] Добавить dependency vulnerability scan
-- [ ] Добавить container image scan
-- [ ] Сформировать SBOM
-- [ ] Описать policy обновления зависимостей и образов
+- [x] Добавить dependency vulnerability scan
+- [x] Добавить container image scan
+- [x] Сформировать SBOM
+- [x] Описать policy обновления зависимостей и образов
 
 ### P2-05. Performance and load validation
 

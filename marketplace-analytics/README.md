@@ -131,6 +131,7 @@ Admin (`X-API-Key` required):
 - `requirements.txt` and `requirements-dev.txt` are fully pinned snapshots of tested environments.
 - Update Python pins only from a clean virtualenv and rerun `ruff check .`, `black --check .`, `mypy backend workers collectors automation warehouse scripts`, and `pytest -q`.
 - Dockerfiles and `infra/docker/docker-compose.yml` pin images by digest. When refreshing them, pull the candidate image first, update the digest, then rerun bootstrap and migration smoke checks before merging.
+- CI also runs `pip-audit`, container image vulnerability scans, and SBOM generation; see `docs/supply_chain_security.md`.
 
 ## Runtime guardrails
 
