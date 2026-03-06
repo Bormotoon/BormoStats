@@ -8,6 +8,15 @@ import os
 
 import httpx
 
+ALLOWED_BACKFILLS: dict[tuple[str, str], int] = {
+    ("wb", "sales"): 90,
+    ("wb", "orders"): 90,
+    ("wb", "funnel"): 90,
+    ("ozon", "postings"): 90,
+    ("ozon", "finance"): 365,
+    ("marts", "build"): 365,
+}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Trigger backfill job via backend admin API")
@@ -31,6 +40,13 @@ def main() -> int:
     args = parse_args()
     if not args.api_key:
         raise SystemExit("ADMIN_API_KEY is required")
+    max_days = ALLOWED_BACKFILLS.get((args.marketplace, args.dataset))
+    if max_days is None:
+        raise SystemExit(f"unsupported backfill target: {args.marketplace}:{args.dataset}")
+    if args.days < 1 or args.days > max_days:
+        raise SystemExit(
+            f"--days must be between 1 and {max_days} for {args.marketplace}:{args.dataset}"
+        )
 
     url = f"{args.base_url.rstrip('/')}/api/v1/admin/backfill"
     payload = {

@@ -31,19 +31,19 @@
 
 ### P0-02. Ограничить admin control plane
 
-- [ ] Удалить или закрыть произвольный `/api/v1/admin/run-task`
-- [ ] Вынести разрешенные admin-действия в явный whitelist
-- [ ] Создать отдельные typed request models для каждого admin action
-- [ ] Ограничить допустимые параметры `days`, `marketplace`, `dataset`
-- [ ] Добавить audit logging для admin operations
-- [ ] Обновить UI под новую модель admin actions
-- [ ] Обновить CLI scripts, если они завязаны на `run-task`
+- [x] Удалить или закрыть произвольный `/api/v1/admin/run-task`
+- [x] Вынести разрешенные admin-действия в явный whitelist
+- [x] Создать отдельные typed request models для каждого admin action
+- [x] Ограничить допустимые параметры `days`, `marketplace`, `dataset`
+- [x] Добавить audit logging для admin operations
+- [x] Обновить UI под новую модель admin actions
+- [x] Обновить CLI scripts, если они завязаны на `run-task`
 
 Критерии закрытия:
 
-- [ ] нельзя отправить произвольный Celery task через API
-- [ ] все admin операции валидируются Pydantic-моделями
-- [ ] все admin вызовы логируются в понятном формате
+- [x] нельзя отправить произвольный Celery task через API
+- [x] все admin операции валидируются Pydantic-моделями
+- [x] все admin вызовы логируются в понятном формате
 
 ### P0-03. Убрать хранение admin key в localStorage
 

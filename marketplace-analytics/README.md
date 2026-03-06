@@ -87,8 +87,13 @@ Default ports from `.env.example`:
 Admin (`X-API-Key` required):
 
 - `GET /api/v1/admin/watermarks`
-- `POST /api/v1/admin/run-task`
 - `POST /api/v1/admin/backfill`
+- `POST /api/v1/admin/transforms/recent`
+- `POST /api/v1/admin/transforms/backfill`
+- `POST /api/v1/admin/marts/recent`
+- `POST /api/v1/admin/marts/backfill`
+- `POST /api/v1/admin/maintenance/run-automation`
+- `POST /api/v1/admin/maintenance/prune-raw`
 - `GET /api/v1/admin/task-runs`
 
 ## Useful commands

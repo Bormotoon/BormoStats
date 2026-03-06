@@ -50,7 +50,7 @@ const PAGE_DEFS = [
   {
     id: "adminActions",
     title: "Admin Actions",
-    subtitle: "Ручной запуск задач и backfill через Admin API",
+    subtitle: "Whitelist admin operations: backfill, rebuild и maintenance jobs",
     filters: [],
   },
   {
@@ -67,10 +67,101 @@ const STORE_KEYS = {
   theme: "bormostats_ui_theme",
 };
 
+const ADMIN_ACTIONS = [
+  {
+    id: "backfill_wb_sales",
+    label: "WB sales backfill",
+    description: "Requeue WB sales raw ingestion for a bounded window.",
+    endpoint: "/api/v1/admin/backfill",
+    body: (days) => ({ marketplace: "wb", dataset: "sales", days }),
+    days: { min: 1, max: 90, value: 14 },
+  },
+  {
+    id: "backfill_wb_orders",
+    label: "WB orders backfill",
+    description: "Requeue WB orders for up to 90 days.",
+    endpoint: "/api/v1/admin/backfill",
+    body: (days) => ({ marketplace: "wb", dataset: "orders", days }),
+    days: { min: 1, max: 90, value: 14 },
+  },
+  {
+    id: "backfill_wb_funnel",
+    label: "WB funnel backfill",
+    description: "Rebuild WB funnel raw data for the selected window.",
+    endpoint: "/api/v1/admin/backfill",
+    body: (days) => ({ marketplace: "wb", dataset: "funnel", days }),
+    days: { min: 1, max: 90, value: 14 },
+  },
+  {
+    id: "backfill_ozon_postings",
+    label: "Ozon postings backfill",
+    description: "Requeue Ozon postings ingestion for up to 90 days.",
+    endpoint: "/api/v1/admin/backfill",
+    body: (days) => ({ marketplace: "ozon", dataset: "postings", days }),
+    days: { min: 1, max: 90, value: 14 },
+  },
+  {
+    id: "backfill_ozon_finance",
+    label: "Ozon finance backfill",
+    description: "Requeue Ozon finance ingestion for up to 365 days.",
+    endpoint: "/api/v1/admin/backfill",
+    body: (days) => ({ marketplace: "ozon", dataset: "finance", days }),
+    days: { min: 1, max: 365, value: 30 },
+  },
+  {
+    id: "transform_recent",
+    label: "Transform recent",
+    description: "Rebuild the standard recent transform window.",
+    endpoint: "/api/v1/admin/transforms/recent",
+    body: () => ({}),
+  },
+  {
+    id: "transform_backfill",
+    label: "Transform backfill",
+    description: "Rebuild staging tables for an explicit day window.",
+    endpoint: "/api/v1/admin/transforms/backfill",
+    body: (days) => ({ days }),
+    days: { min: 1, max: 365, value: 14 },
+  },
+  {
+    id: "marts_recent",
+    label: "Marts recent",
+    description: "Rebuild recent marts without free-form task names.",
+    endpoint: "/api/v1/admin/marts/recent",
+    body: () => ({}),
+  },
+  {
+    id: "marts_backfill",
+    label: "Marts backfill",
+    description: "Rebuild marts for an explicit day window.",
+    endpoint: "/api/v1/admin/marts/backfill",
+    body: (days) => ({ days }),
+    days: { min: 1, max: 365, value: 14 },
+  },
+  {
+    id: "maintenance_run_automation",
+    label: "Run automation rules",
+    description: "Trigger alert automation outside the beat schedule.",
+    endpoint: "/api/v1/admin/maintenance/run-automation",
+    body: () => ({}),
+  },
+  {
+    id: "maintenance_prune_raw",
+    label: "Prune old raw",
+    description: "Delete raw records older than the configured retention window.",
+    endpoint: "/api/v1/admin/maintenance/prune-raw",
+    body: (days) => ({ days }),
+    days: { min: 30, max: 3650, value: 120 },
+  },
+];
+
+const ADMIN_ACTIONS_BY_ID = Object.fromEntries(ADMIN_ACTIONS.map((action) => [action.id, action]));
+
 const state = {
   page: "dashboard",
   apiBase: "",
   adminKey: "",
+  adminActionId: ADMIN_ACTIONS[0].id,
   filters: {
     dateFrom: isoDay(-30),
     dateTo: isoDay(0),
@@ -118,6 +209,10 @@ function normalizeBaseUrl(value) {
     return "";
   }
   return trimmed.replace(/\/+$/, "");
+}
+
+function activeAdminAction() {
+  return ADMIN_ACTIONS_BY_ID[state.adminActionId] || ADMIN_ACTIONS[0];
 }
 
 function toApiUrl(path, query = null) {
@@ -666,52 +761,45 @@ async function renderTaskRuns() {
 }
 
 async function renderAdminActions() {
-  return `
-    <section class="actions-grid">
-      <section class="panel">
-        <h3>Run Task</h3>
-        <label class="field">
-          <span>Task Name</span>
-          <input id="run-task-name" type="text" value="tasks.transforms.transform_all_recent" />
-        </label>
-        <label class="field">
-          <span>Args (JSON array)</span>
-          <textarea id="run-task-args" class="mono">[]</textarea>
-        </label>
-        <label class="field">
-          <span>Kwargs (JSON object)</span>
-          <textarea id="run-task-kwargs" class="mono">{}</textarea>
-        </label>
-        <button id="run-task-submit" class="button button-primary" type="button">Queue Task</button>
-      </section>
-
-      <section class="panel">
-        <h3>Backfill</h3>
-        <label class="field">
-          <span>Marketplace</span>
-          <select id="backfill-marketplace">
-            <option value="wb">wb</option>
-            <option value="ozon">ozon</option>
-            <option value="marts">marts</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>Dataset</span>
-          <select id="backfill-dataset">
-            <option value="sales">sales</option>
-            <option value="orders">orders</option>
-            <option value="funnel">funnel</option>
-            <option value="postings">postings</option>
-            <option value="finance">finance</option>
-            <option value="build">build</option>
-          </select>
-        </label>
+  const action = activeAdminAction();
+  const dayControls = action.days
+    ? `
         <label class="field">
           <span>Days</span>
-          <input id="backfill-days" type="number" min="1" max="365" value="14" />
+          <input
+            id="admin-action-days"
+            type="number"
+            min="${action.days.min}"
+            max="${action.days.max}"
+            value="${action.days.value}"
+          />
         </label>
-        <button id="backfill-submit" class="button button-primary" type="button">Run Backfill</button>
-      </section>
+      `
+    : `
+        <div class="field">
+          <span>Parameters</span>
+          <p class="helper-text">This action does not accept user-supplied parameters.</p>
+        </div>
+      `;
+
+  return `
+    <section class="panel">
+      <h3>Allowed Admin Actions</h3>
+      <label class="field">
+        <span>Action</span>
+        <select id="admin-action-select">
+          ${ADMIN_ACTIONS.map(
+            (item) => `
+              <option value="${item.id}" ${item.id === action.id ? "selected" : ""}>
+                ${item.label}
+              </option>
+            `,
+          ).join("")}
+        </select>
+      </label>
+      <p>${escapeHtml(action.description)}</p>
+      ${dayControls}
+      <button id="admin-action-submit" class="button button-primary" type="button">Queue Allowed Action</button>
     </section>
 
     <section class="panel">
@@ -751,8 +839,8 @@ async function renderSystem() {
 }
 
 function attachAdminActionHandlers() {
-  const runTaskButton = document.getElementById("run-task-submit");
-  const backfillButton = document.getElementById("backfill-submit");
+  const actionSelect = document.getElementById("admin-action-select");
+  const actionButton = document.getElementById("admin-action-submit");
   const output = document.getElementById("admin-response");
 
   const writeOutput = (payload) => {
@@ -762,47 +850,26 @@ function attachAdminActionHandlers() {
     output.textContent = JSON.stringify(payload, null, 2);
   };
 
-  runTaskButton?.addEventListener("click", async () => {
-    try {
-      const taskName = document.getElementById("run-task-name")?.value || "";
-      const argsText = document.getElementById("run-task-args")?.value || "[]";
-      const kwargsText = document.getElementById("run-task-kwargs")?.value || "{}";
-      const args = JSON.parse(argsText);
-      const kwargs = JSON.parse(kwargsText);
-
-      const response = await request("/api/v1/admin/run-task", {
-        admin: true,
-        method: "POST",
-        body: {
-          task_name: taskName,
-          args,
-          kwargs,
-        },
-      });
-      setFeedback("Task queued successfully", "success");
-      writeOutput(response);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setFeedback(`Run task failed: ${message}`, "error");
-      writeOutput({ error: message });
-    }
+  actionSelect?.addEventListener("change", () => {
+    state.adminActionId = actionSelect.value;
+    loadPage();
   });
 
-  backfillButton?.addEventListener("click", async () => {
+  actionButton?.addEventListener("click", async () => {
     try {
-      const marketplace = document.getElementById("backfill-marketplace")?.value || "wb";
-      const dataset = document.getElementById("backfill-dataset")?.value || "sales";
-      const days = Number(document.getElementById("backfill-days")?.value || 14);
-      const response = await request("/api/v1/admin/backfill", {
+      const action = activeAdminAction();
+      const daysValue = document.getElementById("admin-action-days")?.value;
+      const days = action.days ? Number(daysValue || action.days.value) : null;
+      const response = await request(action.endpoint, {
         admin: true,
         method: "POST",
-        body: { marketplace, dataset, days },
+        body: action.body(days),
       });
-      setFeedback("Backfill queued successfully", "success");
+      setFeedback(`${action.label} queued successfully`, "success");
       writeOutput(response);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setFeedback(`Backfill failed: ${message}`, "error");
+      setFeedback(`Admin action failed: ${message}`, "error");
       writeOutput({ error: message });
     }
   });
