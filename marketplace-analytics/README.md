@@ -162,6 +162,7 @@ and exposed via `GET /api/v1/admin/task-runs`.
 ## Operations docs
 
 - `docs/environments.md` for `dev/stage/prod` env model and promotion flow
+- `docs/credential_rotation.md` for secret rotation and least-privilege review
 - `docs/disaster_recovery.md` for backups, restore flow, and RPO/RTO
 - `docs/performance.md` for load targets, measured perf smoke results, and safe concurrency limits
 - `docs/release_management.md` and `docs/release_notes_template.md` for versioning, rollout, and rollback discipline

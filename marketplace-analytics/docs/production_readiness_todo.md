@@ -358,10 +358,10 @@
 
 ### P2-07. Security review и rotation
 
-- [ ] Описать ротацию marketplace tokens
-- [ ] Описать ротацию admin/API keys
-- [ ] Описать ротацию ClickHouse/Redis credentials
-- [ ] Провести least-privilege review
+- [x] Описать ротацию marketplace tokens
+- [x] Описать ротацию admin/API keys
+- [x] Описать ротацию ClickHouse/Redis credentials
+- [x] Провести least-privilege review
 
 ### P2-08. Дисциплина миграций
 
