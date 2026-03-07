@@ -1,5 +1,3 @@
-USE mp_analytics;
-
 -- SYS
 CREATE TABLE IF NOT EXISTS sys_schema_migrations
 (

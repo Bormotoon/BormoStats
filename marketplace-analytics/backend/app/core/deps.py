@@ -8,6 +8,7 @@ from typing import Annotated
 import clickhouse_connect
 import structlog
 from app.core.config import Settings, get_settings
+from app.db.ch import build_raw_client
 from app.models.admin import AdminRequestContext
 from fastapi import Depends, Header, HTTPException, Request, status
 
@@ -25,14 +26,15 @@ def _get_cached_ch_client(
     user: str,
     password: str,
     database: str,
+    pool_maxsize: int,
 ) -> clickhouse_connect.driver.Client:
-    return clickhouse_connect.get_client(
+    return build_raw_client(
         host=host,
         port=port,
         username=user,
         password=password,
         database=database,
-        autogenerate_session_id=False,
+        pool_maxsize=pool_maxsize,
     )
 
 
@@ -45,6 +47,7 @@ def get_ch_client(
         user=settings.ch_user,
         password=settings.ch_password,
         database=settings.ch_db,
+        pool_maxsize=settings.ch_pool_maxsize,
     )
 
 

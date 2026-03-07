@@ -1,5 +1,3 @@
-USE mp_analytics;
-
 CREATE TABLE IF NOT EXISTS stg_finance_ops
 (
   operation_ts DateTime,

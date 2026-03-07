@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     ch_user: str = Field(default="default", alias="CH_USER")
     ch_password: str = Field(default="", alias="CH_PASSWORD")
     ch_db: str = Field(default="mp_analytics", alias="CH_DB")
+    ch_pool_maxsize: int = Field(default=16, alias="CH_POOL_MAXSIZE")
 
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
     admin_api_key: str = Field(default="", alias="ADMIN_API_KEY")

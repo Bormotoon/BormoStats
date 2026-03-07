@@ -1,48 +1,44 @@
-# Аудит состояния проекта Marketplace Analytics
+# Marketplace Analytics Audit Report
 
-## 1. Сравнение с планом (ThePlan.md) и TODO (todo_self_hosted_marketplace_analytics_wb_ozon_max_pack.md)
+Date: March 7, 2026
 
-1. **Архитектура и структура**:
-   - Структура монорепозитория полностью соответствует изначальному плану (`backend/`, `workers/`, `collectors/`, `warehouse/`, `automation/`, `dashboards/`, `infra/` и т.д.).
-   - Применяется заявленный технологический стек (Python 3.12+, FastAPI, ClickHouse, Redis, Celery, Metabase).
-2. **Прогресс по TODO**:
-   - Согласно `todo_self_hosted_marketplace_analytics_wb_ozon_max_pack.md` проект завершён на 100%. Все этапы от А до G (скелет, CH, WB, Ozon, API/Marts, BI, Quality) отмечены как `[x]`. 
-   - Acceptance Criteria формально удовлетворяются (все чекбоксы закрыты). Unit-тесты существуют и успешно проходят (`pytest` выдаёт `10 passed`).
-   - `docker-compose.yml` сформирован корректно и без ошибок синтаксиса.
-3. **Общий вывод по реализации**:
-   - Кодовая база написана чисто, используется `from __future__ import annotations`, корректная типизация (Pydantic, FastAPI), хорошее логирование. Инфраструктура полностью вынесена в Docker.
+## Current status
 
----
+- Architecture remains aligned with the original plan: `backend`, `workers`, `collectors`, `warehouse`, `automation`, `infra`, and dashboards are present and wired together.
+- The repository currently passes local quality gates:
+  - `ruff check .`
+  - `black --check .`
+  - `mypy backend workers collectors automation warehouse scripts`
+  - `pytest -q`
+  - `pip-audit -r requirements.txt`
+  - `docker compose --env-file .env -f infra/docker/docker-compose.yml config -q`
+  - `./.venv/bin/python scripts/perf_smoke.py`
 
-## 2. Найденные проблемы и ошибки (Fixes)
+## Findings fixed during the latest audit
 
-1. **Конфликт имён модулей в `mypy`**:
-   - При запуске `mypy .` падает ошибка:
-     `workers/app/__init__.py: error: Duplicate module named "app" (also at "./backend/app/__init__.py")`.
-   - **Решение**: В файле `pyproject.toml` в секцию `[tool.mypy]` необходимо добавить флаг `explicit_package_bases = true` (или явно зафиксировать пути сканирования), чтобы mypy корректно обрабатывал независимые пакеты `app` в разных директориях.
+1. ClickHouse database name was not fully configurable.
+   - Migration tracking and SQL migrations were hard-wired to `mp_analytics`, while runtime config exposed `CH_DB` as an operator setting.
+   - Fixed by removing hard-coded `USE mp_analytics` from migrations, parameterizing migration bookkeeping by `CH_DB`, and removing the stale hard-coded database creation from initdb.
 
----
+2. Integration and performance harnesses did not exercise non-default databases.
+   - The Docker-backed test/perf environments always provisioned `mp_analytics`, so the configuration bug above could regress unnoticed.
+   - Fixed by switching those harnesses to per-run custom database names and reusing the same client construction path as the backend.
 
-## 3. Оптимизации и улучшения производительности (Optimizations)
+3. Backend ClickHouse HTTP pool needed explicit sizing for concurrent API load.
+   - Local performance smoke exposed connection-pool churn at `10` concurrent requests.
+   - Fixed by adding `CH_POOL_MAXSIZE` (default `16`) and using an explicit ClickHouse HTTP pool manager in backend clients.
 
-В ходе анализа исходного кода были выявлены "узкие места", которые при больших объемах данных могут привести к замедлению работы, утечкам дескрипторов и перегрузке сервисов:
+4. Audit documentation was stale.
+   - The old report referenced already-fixed issues and obsolete test counts.
+   - Fixed by rewriting this report and refreshing `docs/performance.md` with current measurements.
 
-1. **HTTP-соединения (Разрушение Connection Pool'а)**
-   - **Где**: `collectors/common/http_client.py` (метод `_request`). 
-   - **Суть проблемы**: Блок `with httpx.Client(...) as client:` находится *внутри цикла* и формируется заново для каждого запроса (и даже для _каждой_ попытки (retry)). При этом теряется главная польза httpx (connection pooling: переиспользование TCP/TLS соединений по схеме keep-alive).
-   - **Как исправить**: Создавать инстанс `httpx.Client()` один раз на время жизни `JsonHttpClient` (например, в `__init__` или через контекстный менеджер на уровне вызова воркера), а внутри `_request` просто вызывать `self._client.request(...)`. Это ускорит скачивание данных через API в 2-4 раза на больших партициях за счёт отсутствия TLS Handshake/DNS резолвинга в каждом вызове.
+## Latest measured performance
 
-2. **Соединения ClickHouse**
-   - **Где**: `backend/app/core/deps.py` (функция `get_ch_client`) и `workers/app/utils/runtime.py` (функция `get_ch_client`).
-   - **Суть проблемы**: Каждый REST-запрос (`Depends(get_ch_client)`) и каждый запуск celery таски открывает *новое* ClickHouse соединение через `clickhouse_connect.get_client(...)`. Хоть библиотека и имеет внутренний пулинг, постоянная переинициализация объекта клиента нивелирует этот профит.
-   - **Как исправить**: Использовать `functools.lru_cache` или хранить инстанс ClickHouse клиента на уровне модуля/состояния FastAPI `app.state`, чтобы все запросы одного воркера/REST-процесса переиспользовали сессию.
+- Ingestion smoke throughput: `6.22` raw rows/s
+- API latency target: `p95 239.55 ms` at `10` concurrent requests / `50` total requests
+- Transform backfill runtime: `0.229 s`
+- Marts backfill runtime: `0.142 s`
 
-3. **Соединения Redis**
-   - **Где**: `workers/app/utils/runtime.py` (функция `get_redis_client`).
-   - **Суть проблемы**: Вызов `Redis.from_url(...)` создает новый объект ConnectionPool. Если он вызывается каждую задачу — теряется профит пулинга и растёт количество открытых сокетов в Redis. 
-   - **Как исправить**: Вынести инстанцирование `redis_client` из тела функции в глобальную переменную (или обернуть в `@lru_cache`), чтобы переиспользовать объект Redis у всего воркера.
+## Residual operational note
 
-4. **Движок автоматизации (`automation/engine.py`)**
-   - **Где**: Функция `_safe_eval_condition`.
-   - **Суть проблемы**: Исполнение yaml-правил через `eval()`. Несмотря на обнуление `__builtins__`, штатный питоновский `eval` исторически уязвим (утечки через type hierarchies, mro и т.д.).
-   - **Рекомендация**: Если правила пишут только админы системы (вы сами), это приемлемо. Если к правилам могут получить доступ 3-и лица, стоит переписать вычисления на безопасный парсер (например пакет `simpleeval` или `asteval`).
+- Full bootstrap still requires real secrets in `.env`. Placeholder values are intentionally rejected by startup/bootstrap validation, so "production ready" now depends on supplying valid WB/Ozon/admin credentials and strong ClickHouse passwords.

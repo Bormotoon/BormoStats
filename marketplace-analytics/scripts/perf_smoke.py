@@ -44,6 +44,7 @@ for key, value in {
 
 from app.core.config import get_settings
 from app.core.deps import _get_cached_ch_client, get_app_settings, get_ch_client
+from app.db.ch import build_raw_client
 from app.main import app
 from app.tasks import marts, transforms
 from app.utils.runtime import get_ch_client as get_worker_ch_client, get_redis_client
@@ -102,13 +103,12 @@ class IntegrationEnv:
     admin_api_key: str
 
     def ch_client(self) -> clickhouse_connect.driver.Client:
-        return clickhouse_connect.get_client(
+        return build_raw_client(
             host=self.ch_host,
             port=self.ch_port,
             username=self.ch_user,
             password=self.ch_password,
             database=self.ch_db,
-            autogenerate_session_id=False,
         )
 
     def redis_client(self) -> Redis:
@@ -327,13 +327,15 @@ def _provision_clickhouse_app_user(
         autogenerate_session_id=False,
     )
     try:
-        admin_client.command("CREATE DATABASE IF NOT EXISTS `mp_analytics`")
+        quoted_db = f"`{env.ch_db}`"
+        quoted_user = f"`{env.ch_user}`"
+        admin_client.command(f"CREATE DATABASE IF NOT EXISTS {quoted_db}")
         admin_client.command(
-            "CREATE USER IF NOT EXISTS `analytics_app` "
+            f"CREATE USER IF NOT EXISTS {quoted_user} "
             "IDENTIFIED WITH plaintext_password BY %(password)s",
             parameters={"password": env.ch_password},
         )
-        admin_client.command("GRANT ALL ON `mp_analytics`.* TO `analytics_app`")
+        admin_client.command(f"GRANT ALL ON {quoted_db}.* TO {quoted_user}")
     finally:
         admin_client.close()
 
@@ -415,7 +417,7 @@ def _perf_runtime() -> Iterator[IntegrationEnv]:
         ch_port=0,
         ch_user="analytics_app",
         ch_password="perf-clickhouse-password",
-        ch_db="mp_analytics",
+        ch_db=f"mp_analytics_perf_{suffix}",
         redis_url="",
         admin_api_key="perf-admin-key",
     )
@@ -432,6 +434,8 @@ def _perf_runtime() -> Iterator[IntegrationEnv]:
             f"CLICKHOUSE_USER={admin_user}",
             "-e",
             f"CLICKHOUSE_PASSWORD={admin_password}",
+            "-e",
+            f"CLICKHOUSE_DB={base_env.ch_db}",
             "-e",
             "CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1",
             "-p",

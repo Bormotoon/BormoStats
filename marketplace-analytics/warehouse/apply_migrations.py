@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 from collections.abc import Iterable
 from pathlib import Path
@@ -12,6 +13,7 @@ from pathlib import Path
 import clickhouse_connect
 
 LOGGER = logging.getLogger("warehouse.migrations")
+IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def configure_logging() -> None:
@@ -50,38 +52,61 @@ def split_sql_statements(sql: str) -> Iterable[str]:
     return statements
 
 
-def ensure_sys_table(client: clickhouse_connect.driver.Client) -> None:
-    client.command("CREATE DATABASE IF NOT EXISTS mp_analytics")
+def _require_identifier(label: str, value: str) -> str:
+    if not IDENTIFIER_PATTERN.fullmatch(value):
+        raise ValueError(f"Invalid {label} identifier: {value}")
+    return value
+
+
+def _database_name() -> str:
+    return _require_identifier("CH_DB", os.getenv("CH_DB", "mp_analytics"))
+
+
+def _quoted_identifier(value: str) -> str:
+    return f"`{value}`"
+
+
+def _qualified_table(database: str, table: str) -> str:
+    return f"{_quoted_identifier(database)}.{_quoted_identifier(table)}"
+
+
+def ensure_sys_table(client: clickhouse_connect.driver.Client, database: str) -> None:
+    client.command(f"CREATE DATABASE IF NOT EXISTS {_quoted_identifier(database)}")
     client.command("""
-        CREATE TABLE IF NOT EXISTS mp_analytics.sys_schema_migrations
+        CREATE TABLE IF NOT EXISTS {qualified_table}
         (
           version String,
           applied_at DateTime DEFAULT now()
         )
         ENGINE = MergeTree
         ORDER BY (version)
-        """)
+        """.format(qualified_table=_qualified_table(database, "sys_schema_migrations")))
 
 
-def load_applied_versions(client: clickhouse_connect.driver.Client) -> set[str]:
-    result = client.query("SELECT version FROM mp_analytics.sys_schema_migrations")
+def load_applied_versions(client: clickhouse_connect.driver.Client, database: str) -> set[str]:
+    result = client.query(
+        "SELECT version FROM {qualified_table}".format(
+            qualified_table=_qualified_table(database, "sys_schema_migrations")
+        )
+    )
     return {str(row[0]) for row in result.result_rows}
 
 
 def apply_migrations() -> None:
     configure_logging()
+    database = _database_name()
 
     client = clickhouse_connect.get_client(
         host=os.getenv("CH_HOST", "localhost"),
         port=int(os.getenv("CH_PORT", "8123")),
         username=os.getenv("CH_USER", "default"),
         password=os.getenv("CH_PASSWORD", ""),
-        database=os.getenv("CH_DB", "mp_analytics"),
+        database=database,
     )
 
     try:
-        ensure_sys_table(client)
-        applied_versions = load_applied_versions(client)
+        ensure_sys_table(client, database)
+        applied_versions = load_applied_versions(client, database)
 
         migrations_dir = Path(__file__).resolve().parent / "migrations"
         migration_paths = sorted(p for p in migrations_dir.glob("*.sql") if p.is_file())
@@ -101,7 +126,9 @@ def apply_migrations() -> None:
                 for statement in split_sql_statements(sql):
                     client.command(statement)
                 client.command(
-                    "INSERT INTO mp_analytics.sys_schema_migrations (version) VALUES (%(version)s)",
+                    "INSERT INTO {qualified_table} (version) VALUES (%(version)s)".format(
+                        qualified_table=_qualified_table(database, "sys_schema_migrations")
+                    ),
                     parameters={"version": version},
                 )
                 duration = round(time.perf_counter() - started_at, 3)

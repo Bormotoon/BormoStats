@@ -189,12 +189,18 @@ def _ingest_sample_marketplace_data(monkeypatch: pytest.MonkeyPatch) -> date:
 def test_clickhouse_migrations_are_idempotent(integration_runtime) -> None:
     client = integration_runtime.ch_client()
     try:
-        tables = {str(row[0]) for row in client.query("""
+        tables = {
+            str(row[0])
+            for row in client.query(
+                """
                 SELECT name
                 FROM system.tables
-                WHERE database = 'mp_analytics'
+                WHERE database = %(database)s
                   AND name IN ('sys_watermarks', 'stg_sales', 'mrt_sales_daily')
-                """).result_rows}
+                """,
+                parameters={"database": integration_runtime.ch_db},
+            ).result_rows
+        }
         before = client.query("SELECT count() FROM sys_schema_migrations").result_rows[0][0]
         apply_count = len(list((Path("warehouse") / "migrations").glob("*.sql")))
 

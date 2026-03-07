@@ -26,6 +26,8 @@ for path in (BACKEND_DIR, WORKERS_DIR, ROOT_DIR):
     if text not in sys.path:
         sys.path.insert(0, text)
 
+from app.db.ch import build_raw_client  # noqa: E402
+
 from warehouse import apply_migrations  # noqa: E402
 
 CLICKHOUSE_IMAGE = (
@@ -70,7 +72,7 @@ class IntegrationEnv:
     admin_api_key: str
 
     def ch_client(self) -> clickhouse_connect.driver.Client:
-        return clickhouse_connect.get_client(
+        return build_raw_client(
             host=self.ch_host,
             port=self.ch_port,
             username=self.ch_user,
@@ -141,13 +143,15 @@ def _provision_clickhouse_app_user(
         database="default",
     )
     try:
-        admin_client.command("CREATE DATABASE IF NOT EXISTS `mp_analytics`")
+        quoted_db = f"`{env.ch_db}`"
+        quoted_user = f"`{env.ch_user}`"
+        admin_client.command(f"CREATE DATABASE IF NOT EXISTS {quoted_db}")
         admin_client.command(
-            "CREATE USER IF NOT EXISTS `analytics_app` "
+            f"CREATE USER IF NOT EXISTS {quoted_user} "
             "IDENTIFIED WITH plaintext_password BY %(password)s",
             parameters={"password": env.ch_password},
         )
-        admin_client.command("GRANT ALL ON `mp_analytics`.* TO `analytics_app`")
+        admin_client.command(f"GRANT ALL ON {quoted_db}.* TO {quoted_user}")
     finally:
         admin_client.close()
 
@@ -196,7 +200,7 @@ def integration_env() -> IntegrationEnv:
         ch_port=0,
         ch_user="analytics_app",
         ch_password="integration-clickhouse-password",
-        ch_db="mp_analytics",
+        ch_db=f"mp_analytics_it_{suffix}",
         redis_url="",
         admin_api_key="integration-admin-key",
     )
@@ -213,6 +217,8 @@ def integration_env() -> IntegrationEnv:
             f"CLICKHOUSE_USER={admin_user}",
             "-e",
             f"CLICKHOUSE_PASSWORD={admin_password}",
+            "-e",
+            f"CLICKHOUSE_DB={env.ch_db}",
             "-e",
             "CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1",
             "-p",

@@ -1,5 +1,3 @@
-USE mp_analytics;
-
 CREATE TABLE IF NOT EXISTS mrt_sales_daily
 (
   day Date,

@@ -47,14 +47,21 @@ def _load_worker_module(module_name: str, path: Path) -> Any:
 def test_backend_cached_client_disables_session_autogeneration(monkeypatch) -> None:
     calls: list[dict[str, object]] = []
 
-    def fake_get_client(**kwargs: object) -> object:
+    def fake_build_raw_client(**kwargs: object) -> object:
         calls.append(dict(kwargs))
         return object()
 
     backend_deps._get_cached_ch_client.cache_clear()
-    monkeypatch.setattr(backend_deps.clickhouse_connect, "get_client", fake_get_client)
+    monkeypatch.setattr(backend_deps, "build_raw_client", fake_build_raw_client)
 
-    backend_deps._get_cached_ch_client("localhost", 8123, "analytics_app", "secret", "mp_analytics")
+    backend_deps._get_cached_ch_client(
+        "localhost",
+        8123,
+        "analytics_app",
+        "secret",
+        "mp_analytics",
+        16,
+    )
 
     assert calls == [
         {
@@ -63,18 +70,24 @@ def test_backend_cached_client_disables_session_autogeneration(monkeypatch) -> N
             "username": "analytics_app",
             "password": "secret",
             "database": "mp_analytics",
-            "autogenerate_session_id": False,
+            "pool_maxsize": 16,
         }
     ]
 
 
 def test_build_client_disables_session_autogeneration(monkeypatch) -> None:
-    calls: list[dict[str, object]] = []
+    client_calls: list[dict[str, object]] = []
+    pool_calls: list[dict[str, object]] = []
 
-    def fake_get_client(**kwargs: object) -> object:
-        calls.append(dict(kwargs))
+    def fake_pool_manager(**kwargs: object) -> object:
+        pool_calls.append(dict(kwargs))
         return object()
 
+    def fake_get_client(**kwargs: object) -> object:
+        client_calls.append(dict(kwargs))
+        return object()
+
+    monkeypatch.setattr(backend_ch, "get_pool_manager", fake_pool_manager)
     monkeypatch.setattr(backend_ch.clickhouse_connect, "get_client", fake_get_client)
     settings = type(
         "SettingsStub",
@@ -85,12 +98,15 @@ def test_build_client_disables_session_autogeneration(monkeypatch) -> None:
             "ch_user": "analytics_app",
             "ch_password": "secret",
             "ch_db": "mp_analytics",
+            "ch_pool_maxsize": 24,
         },
     )()
 
     backend_ch.build_client(settings)
 
-    assert calls[0]["autogenerate_session_id"] is False
+    assert pool_calls == [{"maxsize": 24}]
+    assert client_calls[0]["autogenerate_session_id"] is False
+    assert client_calls[0]["pool_mgr"] is not None
 
 
 def test_worker_cached_client_disables_session_autogeneration(monkeypatch) -> None:
