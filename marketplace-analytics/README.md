@@ -2,6 +2,33 @@
 
 Self-hosted analytics stack for Wildberries and Ozon seller accounts.
 
+For repository-level contribution rules, security reporting, and GitHub workflow conventions, see the files in the repository root:
+
+- `../README.md`
+- `../CONTRIBUTING.md`
+- `../SECURITY.md`
+- `../CODE_OF_CONDUCT.md`
+
+## Documentation Map
+
+- `docs/README.md` for the documentation index
+- `docs/architecture.md` for service boundaries and data flow
+- `docs/environments.md` for `dev` / `stage` / `prod`
+- `docs/runbooks.md` for operator procedures
+- `docs/troubleshooting.md` for incident lookup
+- `docs/archive/README.md` for historical planning documents
+
+## Repository Layout
+
+- `backend` FastAPI application and web UI
+- `workers` Celery app, schedules, tasks, and runtime utilities
+- `collectors` marketplace API clients, retries, parsers, and redaction helpers
+- `warehouse` ClickHouse migrations and schema tooling
+- `automation` YAML-driven rules engine and actions
+- `infra` Docker Compose, nginx, monitoring, and runtime assets
+- `scripts` operator tooling and smoke utilities
+- `tests` unit and integration coverage
+
 ## Scope
 
 This project is designed for data from your own seller accounts only.
@@ -142,6 +169,7 @@ Admin (`X-API-Key` required):
 - These application containers use `read_only: true`, `no-new-privileges`, and `tmpfs` for `/tmp`.
 - Healthchecks probe backend `/ready` and worker/beat `/metrics`.
 - CPU and memory limits are configurable through the `*_MEMORY_LIMIT`, `*_MEMORY_RESERVATION` and `*_CPU_LIMIT` variables in `.env`.
+- Backend ClickHouse HTTP pool size is configurable through `CH_POOL_MAXSIZE` (default `16`).
 - `tasks.maintenance.run_data_quality_checks` runs hourly and logs structured failures into `sys_task_runs.meta_json`.
 
 ## Telegram alerts

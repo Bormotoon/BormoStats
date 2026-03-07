@@ -1,0 +1,16 @@
+.DS_Store
+*.log
+*.pyc
+*.pyo
+*.swp
+*.swo
+*.spdx.json
+.coverage
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+__pycache__/
+.idea/
+.vscode/
+**/.env
+**/.venv/
