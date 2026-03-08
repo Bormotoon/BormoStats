@@ -40,7 +40,7 @@ def wb_retry_delay_seconds(response: httpx.Response) -> float | None:
         delta = (reset_dt - datetime.now(UTC)).total_seconds()
         if delta >= 0:
             return float(delta)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
     return None
 

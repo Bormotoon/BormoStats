@@ -12,14 +12,14 @@ from collectors.common.time import as_ch_datetime, parse_dt
 def _safe_int(value: Any, default: int = 0) -> int:
     try:
         return int(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
 
 
