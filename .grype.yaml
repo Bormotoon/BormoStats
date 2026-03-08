@@ -1,0 +1,46 @@
+# Temporary Grype suppressions for CPython runtime issues with no stable 3.14.x fix.
+# Owner: BormoStats maintainers
+# Review by: 2026-10-15
+# Re-evaluate after Python 3.15.0 final availability and compatibility validation.
+ignore:
+  - vulnerability: CVE-2025-12781
+    reason: >-
+      Temporary waiver for CPython 3.14.3 runtime in backend/worker images.
+      Grype reports the first stable fix in Python 3.15.0 only.
+    package:
+      name: python
+      version: 3.14.3
+      type: binary
+      location: /usr/local/bin/python3.14
+
+  - vulnerability: CVE-2025-15366
+    reason: >-
+      Temporary waiver for CPython 3.14.3 runtime in backend/worker images.
+      Grype reports the first fix in Python 3.15.0a6, which is not a
+      production-ready stable release.
+    package:
+      name: python
+      version: 3.14.3
+      type: binary
+      location: /usr/local/bin/python3.14
+
+  - vulnerability: CVE-2025-15367
+    reason: >-
+      Temporary waiver for CPython 3.14.3 runtime in backend/worker images.
+      Grype reports the first fix in Python 3.15.0a6, which is not a
+      production-ready stable release.
+    package:
+      name: python
+      version: 3.14.3
+      type: binary
+      location: /usr/local/bin/python3.14
+
+  - vulnerability: CVE-2026-2297
+    reason: >-
+      Temporary waiver for CPython 3.14.3 runtime in backend/worker images.
+      Grype reports the first stable fix in Python 3.15.0 only.
+    package:
+      name: python
+      version: 3.14.3
+      type: binary
+      location: /usr/local/bin/python3.14
