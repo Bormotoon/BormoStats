@@ -42,7 +42,7 @@ pytokens==0.4.1
 pytz==2026.1.post1
 PyYAML==6.0.3
 redis==7.2.1
-ruff==0.15.5
+ruff==0.15.7
 six==1.17.0
 starlette==0.52.1
 structlog==25.5.0
