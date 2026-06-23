@@ -99,3 +99,39 @@ def parse_wb_product_cards(
             )
 
     return product_rows, price_rows
+
+
+def parse_wb_search_results(
+    records: list[dict[str, Any]],
+    run_id: str,
+    query: str,
+    search_page: int,
+) -> list[dict[str, Any]]:
+    """Parse WB search API response into search result rows.
+
+    Returns search_rows for raw_competitor_search.
+    """
+    now = datetime.now(UTC)
+    rows: list[dict[str, Any]] = []
+
+    for position, item in enumerate(records, start=1):
+        product_id = _safe_int(item.get("id"))
+        if not product_id:
+            continue
+        price_raw = item.get("salePriceU") or item.get("priceU") or item.get("totalPrice") or 0.0
+        price = _safe_float(price_raw)
+        rows.append(
+            {
+                "run_id": run_id,
+                "marketplace": "wb",
+                "query": query,
+                "search_page": search_page,
+                "position": position,
+                "product_id": product_id,
+                "price_rub": price / 100.0 if price > 100 else price,
+                "snapshot_ts": now,
+                "ingested_at": now,
+            }
+        )
+
+    return rows

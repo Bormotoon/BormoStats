@@ -89,3 +89,16 @@ CREATE TABLE IF NOT EXISTS mrt_competitor_category_daily
 ENGINE = ReplacingMergeTree
 PARTITION BY toYYYYMM(day)
 ORDER BY (day, marketplace, category_id);
+
+CREATE TABLE IF NOT EXISTS mrt_competitor_keyword_daily
+(
+  day Date,
+  marketplace LowCardinality(String),
+  query String,
+  position UInt32,
+  product_id UInt64,
+  price_rub Float64
+)
+ENGINE = ReplacingMergeTree
+PARTITION BY toYYYYMM(day)
+ORDER BY (day, marketplace, query, position);

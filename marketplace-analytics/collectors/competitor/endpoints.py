@@ -21,3 +21,6 @@ WB_DEST = "-1029256,-1022697,-1278704,-1254908"
 
 # Max nm_ids per card detail request
 WB_CARD_BATCH_SIZE = 100
+
+# Max search results pages to scrape per keyword
+WB_SEARCH_MAX_PAGES = 5

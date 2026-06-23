@@ -10,6 +10,9 @@ from collectors.competitor.endpoints import (
     WB_CARD_DETAIL_PATH,
     WB_DEST,
     WB_PUBLIC_BASE_URL,
+    WB_SEARCH_BASE_URL,
+    WB_SEARCH_MAX_PAGES,
+    WB_SEARCH_PATH,
 )
 
 
@@ -24,9 +27,17 @@ class WbPublicApiClient:
             circuit_failure_threshold=10,
             circuit_reset_seconds=120,
         )
+        self._search_client = JsonHttpClient(
+            base_url=WB_SEARCH_BASE_URL,
+            marketplace="wb_search",
+            max_attempts=3,
+            circuit_failure_threshold=10,
+            circuit_reset_seconds=120,
+        )
 
     def close(self) -> None:
         self._card_client.close()
+        self._search_client.close()
 
     def product_cards(self, nm_ids: list[int]) -> list[dict[str, Any]]:
         """Fetch product card details for up to 100 nm_ids at a time.
@@ -54,6 +65,30 @@ class WbPublicApiClient:
                     products.extend(batch_products)
         return products
 
-    def product_cards_by_id(self, nm_ids: list[int]) -> list[dict[str, Any]]:
-        """Alias for product_cards()."""
-        return self.product_cards(nm_ids)
+    def search(self, query: str, max_pages: int = WB_SEARCH_MAX_PAGES) -> list[dict[str, Any]]:
+        """Search WB catalog and return raw product results from all pages."""
+        if not query:
+            return []
+
+        results: list[dict[str, Any]] = []
+        for page in range(1, max_pages + 1):
+            params = {
+                "ab_testing": "false",
+                "appType": "1",
+                "curr": "rub",
+                "dest": WB_DEST,
+                "page": str(page),
+                "query": query,
+                "resultset": "catalog",
+            }
+            try:
+                data = self._search_client.get(WB_SEARCH_PATH, params=params)
+            except Exception:
+                break
+            if not isinstance(data, dict):
+                break
+            products = data.get("data", {}).get("products", [])
+            if not isinstance(products, list) or not products:
+                break
+            results.extend(products)
+        return results
