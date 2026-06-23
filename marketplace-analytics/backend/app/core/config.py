@@ -25,7 +25,17 @@ class Settings(BaseSettings):
     ch_pool_maxsize: int = Field(default=16, alias="CH_POOL_MAXSIZE")
 
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
+    redis_password: str = Field(default="", alias="REDIS_PASSWORD")
     admin_api_key: str = Field(default="", alias="ADMIN_API_KEY")
+
+    ai_api_url: str = Field(default="", alias="AI_API_URL")
+    ai_api_key: str = Field(default="", alias="AI_API_KEY")
+    ai_model: str = Field(default="gpt-4o-mini", alias="AI_MODEL")
+
+    rate_limit_per_minute: str = Field(default="100/minute", alias="RATE_LIMIT_PER_MINUTE")
+    admin_rate_limit_per_minute: str = Field(
+        default="20/minute", alias="ADMIN_RATE_LIMIT_PER_MINUTE"
+    )
 
 
 @lru_cache(maxsize=1)
@@ -38,8 +48,6 @@ def get_settings() -> Settings:
                 "ADMIN_API_KEY": settings.admin_api_key,
                 "CH_USER": settings.ch_user,
                 "CH_PASSWORD": settings.ch_password,
-                "CH_RO_USER": "",
-                "CH_RO_PASSWORD": "",
             }
         ),
     )
