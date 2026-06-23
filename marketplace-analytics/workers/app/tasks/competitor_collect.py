@@ -12,6 +12,8 @@ from app.utils.collection import insert_rows
 from app.utils.runtime import get_ch_client, log_task_run, new_run_context
 
 from collectors.competitor.client import WbPublicApiClient
+from collectors.competitor.ozon_client import OzonPublicApiClient
+from collectors.competitor.ozon_parser import parse_ozon_product_cards
 from collectors.competitor.parsers import parse_wb_product_cards, parse_wb_search_results
 
 RAW_COMPETITOR_PRODUCTS_COLUMNS = [
@@ -82,6 +84,33 @@ def _load_tracked_nm_ids(ch_client: Any) -> list[int]:
                 except TypeError, ValueError:
                     pass
 
+    return sorted(seen)
+
+
+def _load_tracked_ozon_ids(ch_client: Any) -> list[int]:
+    """Load tracked Ozon product IDs from dim_product and env override."""
+    seen: set[int] = set()
+    try:
+        rows = ch_client.query(
+            "SELECT DISTINCT product_id FROM dim_product FINAL WHERE marketplace = 'ozon'"
+        )
+        for row in rows.result_rows:
+            val = row[0]
+            if val is not None and val > 0:
+                seen.add(int(val))
+    except Exception:
+        pass
+    override = os.getenv("COMPETITOR_TRACKED_OZON_IDS", "")
+    if override:
+        for part in override.split(","):
+            part = part.strip()
+            if part:
+                try:
+                    pid = int(part)
+                    if pid > 0:
+                        seen.add(pid)
+                except TypeError, ValueError:
+                    pass
     return sorted(seen)
 
 
@@ -181,6 +210,51 @@ _MARTS_DIR = Path(__file__).resolve().parents[1] / "sql" / "marts"
 
 def _load(name: str) -> str:
     return load_sql(_MARTS_DIR, name)
+
+
+@shared_task(name="tasks.competitor_collect.ozon_product_cards")
+def ozon_product_cards() -> dict[str, object]:
+    """Collect product card data from Ozon public API for tracked product ids."""
+    run_id, started_at = new_run_context()
+    ch_client = get_ch_client()
+    ozon_ids = _load_tracked_ozon_ids(ch_client)
+
+    if not ozon_ids:
+        return {"status": "skipped", "reason": "no_tracked_products"}
+
+    client = OzonPublicApiClient()
+    try:
+        raw_cards = client.product_cards_batch(ozon_ids)
+        product_rows, price_rows = parse_ozon_product_cards(raw_cards, run_id)
+
+        total = 0
+        if product_rows:
+            total += insert_rows(
+                ch_client,
+                "raw_competitor_products",
+                RAW_COMPETITOR_PRODUCTS_COLUMNS,
+                product_rows,
+            )
+        if price_rows:
+            total += insert_rows(
+                ch_client,
+                "raw_competitor_prices",
+                RAW_COMPETITOR_PRICES_COLUMNS,
+                price_rows,
+            )
+
+        log_task_run(
+            ch_client,
+            "tasks.competitor_collect.ozon_product_cards",
+            run_id,
+            started_at,
+            "success",
+            total,
+            f"tracked={len(ozon_ids)} products={len(product_rows)} prices={len(price_rows)}",
+        )
+        return {"status": "success", "rows": total}
+    finally:
+        client.close()
 
 
 @shared_task(name="tasks.competitor_collect.build_marts")

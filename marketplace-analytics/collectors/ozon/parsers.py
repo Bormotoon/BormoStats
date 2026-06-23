@@ -23,14 +23,14 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
-def _to_datetime(value: Any) -> datetime | None:
+def _to_datetime(value: Any, default: datetime | None = None) -> datetime | None:
     if isinstance(value, datetime):
         if value.tzinfo is None:
             return value.replace(tzinfo=UTC)
         return value.astimezone(UTC)
     if isinstance(value, str):
         return parse_dt(value)
-    return None
+    return default
 
 
 def _nested_value(payload: dict[str, Any], path: str) -> Any:
@@ -230,7 +230,7 @@ def parse_finance_ops(
             {
                 "run_id": run_id,
                 "account_id": account_id,
-                "operation_id": operation_id or f"{run_id}:{len(rows)+1}",
+                "operation_id": operation_id or f"{run_id}:{len(rows) + 1}",
                 "operation_ts": as_ch_datetime(operation_ts),
                 "type": str(
                     item.get("type")

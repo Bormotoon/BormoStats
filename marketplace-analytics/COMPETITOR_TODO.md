@@ -186,7 +186,25 @@ Multi-user, ролевая модель (админ, менеджер, анал�
    (SEO-описание), POST /api/v1/ai/reply-review (ответ на отзыв). Требует
    настройки AI_API_URL, AI_API_KEY, AI_MODEL.
 
+9. ✅ **Коллаборация** — multi-user, ролевая модель.
+   Сделано: dim_user (user_id, name, email, api_key, роль admin/analyst),
+   CRUD API /api/v1/users (admin-only), генерация API-ключей.
+   TODO: middleware для ролевого доступа (analyst = read-only),
+   командные пространства.
+
+10. ✅ **Поддержка Ozon public API** — внешняя аналитика Ozon.
+    Сделано: OzonPublicApiClient (composer-api), ozon_parser,
+    Celery-задача tasks.competitor_collect.ozon_product_cards каждый час,
+    COMPETITOR_TRACKED_OZON_IDS. Данные в тех же raw_competitor_* таблицах.
+    TODO: Yandex Market public API, Avito.
+
 ---
+
+## Баги, исправленные по ходу работы
+
+- `except TypeError, ValueError:` → `except (TypeError, ValueError):` в 9 местах
+  (collectors/wb/parsers.py, collectors/ozon/parsers.py, collectors/competitor/parsers.py,
+  collectors/common/retry.py, workers/app/tasks/competitor_collect.py)
 
 ## Ссылки для изучения
 
