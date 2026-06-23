@@ -93,3 +93,13 @@ class RunAutomationRulesRequest(BaseModel):
 
 class PruneOldRawRequest(BaseModel):
     days: int = Field(default=120, ge=30, le=3650)
+
+
+class ProductCostCreate(BaseModel):
+    marketplace: str = Field(min_length=2, max_length=10, pattern=r"^(wb|ozon)$")
+    product_id: int = Field(ge=1)
+    cost_price_rub: float = Field(ge=0.0)
+
+
+class ProductCostUpdate(BaseModel):
+    cost_price_rub: float = Field(ge=0.0)

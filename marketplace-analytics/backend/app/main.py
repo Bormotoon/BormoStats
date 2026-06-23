@@ -6,14 +6,16 @@ from pathlib import Path
 from typing import NoReturn
 
 import structlog
-from app.api.v1 import admin, ads, funnel, kpis, sales, stocks
+from app.api.v1 import admin, ads, costs, funnel, kpis, sales, stocks
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.core.ops_metrics import refresh_operational_metrics
+from app.core.ratelimit import setup_rate_limiter
 from app.db.ch import build_client
 from app.models.api import ApiError, ApiErrorResponse
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from redis import Redis
@@ -24,7 +26,16 @@ settings = get_settings()
 configure_logging(settings.log_level)
 LOGGER = structlog.get_logger(__name__)
 
-app = FastAPI(title="Marketplace Analytics API", version="0.1.0")
+app = FastAPI(title="Marketplace Analytics API", version="0.1.0", docs_url=None, redoc_url=None)
+setup_rate_limiter(app, settings)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(sales.router, prefix="/api/v1")
 app.include_router(stocks.router, prefix="/api/v1")
@@ -32,6 +43,7 @@ app.include_router(funnel.router, prefix="/api/v1")
 app.include_router(ads.router, prefix="/api/v1")
 app.include_router(kpis.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
+app.include_router(costs.router, prefix="/api/v1")
 app.mount(
     "/ui", StaticFiles(directory=Path(__file__).resolve().parent / "ui", html=True), name="ui"
 )

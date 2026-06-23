@@ -2,91 +2,32 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+from app.sql.loader import load_sql
 from app.utils.celery_helpers import shared_task
 from app.utils.locking import LockNotAcquiredError
 from app.utils.rebuilds import LOGGER as REBUILD_LOGGER
 from app.utils.rebuilds import rebuild_task_scope
 from app.utils.runtime import get_ch_client, get_redis_client, log_task_run, new_run_context
 
-MRT_SALES_DAILY_SQL = """
-INSERT INTO mrt_sales_daily
-SELECT
-  s.day,
-  s.marketplace,
-  s.account_id,
-  s.product_id,
-  sum(s.qty) AS qty,
-  sumIf(s.price_gross * s.qty, s.is_return = 0) AS revenue,
-  sum(s.payout) AS payout,
-  sumIf(s.qty, s.is_return = 1) AS returns_qty,
-  now() AS updated_at
-FROM stg_sales s
-WHERE s.day >= today() - {days}
-GROUP BY s.day, s.marketplace, s.account_id, s.product_id
-"""
+_MARTS_DIR = Path(__file__).resolve().parents[1] / "sql" / "marts"
 
-MRT_STOCK_DAILY_SQL = """
-INSERT INTO mrt_stock_daily
-SELECT
-  day,
-  marketplace,
-  account_id,
-  product_id,
-  warehouse_id,
-  argMax(amount, snapshot_ts) AS stock_end,
-  now() AS updated_at
-FROM stg_stocks
-WHERE day >= today() - {days}
-GROUP BY day, marketplace, account_id, product_id, warehouse_id
-"""
 
-MRT_FUNNEL_DAILY_SQL = """
-INSERT INTO mrt_funnel_daily
-SELECT
-  f.day,
-  f.marketplace,
-  f.account_id,
-  f.product_id,
-  sum(f.views) AS views,
-  sum(f.adds_to_cart) AS adds_to_cart,
-  sum(f.orders) AS orders,
-  if(sum(f.views) = 0, 0, sum(f.orders) / sum(f.views)) AS cr_order,
-  if(sum(f.views) = 0, 0, sum(f.adds_to_cart) / sum(f.views)) AS cr_cart,
-  now() AS updated_at
-FROM stg_funnel_daily f
-WHERE f.day >= today() - {days}
-GROUP BY f.day, f.marketplace, f.account_id, f.product_id
-"""
+def _load(name: str) -> str:
+    return load_sql(_MARTS_DIR, name)
 
-MRT_ADS_DAILY_SQL = """
-INSERT INTO mrt_ads_daily
-SELECT
-  a.day,
-  a.marketplace,
-  a.account_id,
-  a.campaign_id,
-  sum(a.impressions) AS impressions,
-  sum(a.clicks) AS clicks,
-  sum(a.cost) AS cost,
-  sum(a.orders) AS orders,
-  sum(a.revenue) AS revenue,
-  if(sum(a.revenue) = 0, 0, sum(a.cost) / sum(a.revenue)) AS acos,
-  if(sum(a.cost) = 0, 0, (sum(a.revenue) - sum(a.cost)) / sum(a.cost)) AS romi,
-  now() AS updated_at
-FROM stg_ads_daily a
-WHERE a.day >= today() - {days}
-GROUP BY a.day, a.marketplace, a.account_id, a.campaign_id
-"""
 
 MART_REBUILD_TABLES = (
     ("mrt_sales_daily", "day"),
     ("mrt_stock_daily", "day"),
     ("mrt_funnel_daily", "day"),
+    ("mrt_profit_daily", "day"),
 )
 
 
 def _run_marts(days: int, task_name: str) -> dict[str, str | int]:
-    run_id, started_at = new_run_context(task_name)
+    run_id, started_at = new_run_context()
     client = get_ch_client()
     redis_client = get_redis_client()
 
@@ -99,14 +40,19 @@ def _run_marts(days: int, task_name: str) -> dict[str, str | int]:
             client.command("SET mutations_sync = 1")
             for table_name, day_column in MART_REBUILD_TABLES:
                 client.command(
-                    f"ALTER TABLE {table_name} DELETE WHERE {day_column} >= today() - {days}"
+                    f"ALTER TABLE {table_name} DELETE WHERE {day_column} >= today() - %(days)s",
+                    parameters={"days": days},
                 )
-            client.command(f"ALTER TABLE mrt_ads_daily DELETE WHERE day >= today() - {ads_days}")
+            client.command(
+                "ALTER TABLE mrt_ads_daily DELETE WHERE day >= today() - %(days)s",
+                parameters={"days": ads_days},
+            )
 
-            client.command(MRT_SALES_DAILY_SQL.format(days=days))
-            client.command(MRT_STOCK_DAILY_SQL.format(days=days))
-            client.command(MRT_FUNNEL_DAILY_SQL.format(days=days))
-            client.command(MRT_ADS_DAILY_SQL.format(days=ads_days))
+            client.command(_load("mrt_sales_daily.sql"), parameters={"days": days})
+            client.command(_load("mrt_stock_daily.sql"), parameters={"days": days})
+            client.command(_load("mrt_funnel_daily.sql"), parameters={"days": days})
+            client.command(_load("mrt_ads_daily.sql"), parameters={"days": ads_days})
+            client.command(_load("mrt_profit_daily.sql"), parameters={"days": days})
         log_task_run(
             client,
             task_name,
