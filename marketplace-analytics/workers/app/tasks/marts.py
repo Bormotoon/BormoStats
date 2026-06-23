@@ -23,6 +23,7 @@ MART_REBUILD_TABLES = (
     ("mrt_stock_daily", "day"),
     ("mrt_funnel_daily", "day"),
     ("mrt_profit_daily", "day"),
+    ("mrt_supply_planning_daily", "day"),
 )
 
 
@@ -53,6 +54,7 @@ def _run_marts(days: int, task_name: str) -> dict[str, str | int]:
             client.command(_load("mrt_funnel_daily.sql"), parameters={"days": days})
             client.command(_load("mrt_ads_daily.sql"), parameters={"days": ads_days})
             client.command(_load("mrt_profit_daily.sql"), parameters={"days": days})
+            client.command(_load("mrt_supply_planning_daily.sql"))
         log_task_run(
             client,
             task_name,

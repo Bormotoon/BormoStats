@@ -167,7 +167,9 @@ Multi-user, ролевая модель (админ, менеджер, анал�
    (прибыль = payout - cost_price), REST API для управления себестоимостью
    (GET/PUT/DELETE /api/v1/costs/), встроено в build_marts_recent.
 
-5. **Планирование поставок** — прогноз стопа, расчёт партии.
+5. ✅ **Планирование поставок** — прогноз стопа, расчёт партии.
+   Сделано: mrt_supply_planning_daily (avg_sales_7d/14d/30d, latest_stock,
+   days_until_stockout, reorder_qty, is_critical), встроено в build_marts_recent.
 
 6. **Браузерный плагин** — быстрый выхлоп, сильный wow-фактор.
 
