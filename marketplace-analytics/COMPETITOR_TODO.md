@@ -171,7 +171,10 @@ Multi-user, ролевая модель (админ, менеджер, анал�
    Сделано: mrt_supply_planning_daily (avg_sales_7d/14d/30d, latest_stock,
    days_until_stockout, reorder_qty, is_critical), встроено в build_marts_recent.
 
-6. **Браузерный плагин** — быстрый выхлоп, сильный wow-фактор.
+6. ✅ **Браузерный плагин** — быстрый выхлоп, сильный wow-фактор.
+   Сделано: Chrome extension (manifest v3, content script для WB/Ozon,
+   popup с настройками API URL/Key), backend endpoint
+   GET /api/v1/plugin/product/{marketplace}/{product_id}.
 
 7. **Биддер / автореклама** — интеграция с рекламными API.
 

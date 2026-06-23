@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "BormoStats",
+  "version": "1.0.0",
+  "description": "Competitor analytics overlay for Wildberries and Ozon",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://*.wildberries.ru/*",
+    "https://*.ozon.ru/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "BormoStats"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.wildberries.ru/catalog/*",
+        "https://*.ozon.ru/product/*"
+      ],
+      "js": ["content.js"]
+    }
+  ]
+}

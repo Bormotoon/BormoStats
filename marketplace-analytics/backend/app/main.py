@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import NoReturn
 
 import structlog
-from app.api.v1 import admin, ads, costs, funnel, kpis, sales, stocks
+from app.api.v1 import admin, ads, costs, funnel, kpis, plugin, sales, stocks
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.core.ops_metrics import refresh_operational_metrics
@@ -44,6 +44,7 @@ app.include_router(ads.router, prefix="/api/v1")
 app.include_router(kpis.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(costs.router, prefix="/api/v1")
+app.include_router(plugin.router, prefix="/api/v1")
 app.mount(
     "/ui", StaticFiles(directory=Path(__file__).resolve().parent / "ui", html=True), name="ui"
 )
