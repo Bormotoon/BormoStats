@@ -176,7 +176,10 @@ Multi-user, ролевая модель (админ, менеджер, анал�
    popup с настройками API URL/Key), backend endpoint
    GET /api/v1/plugin/product/{marketplace}/{product_id}.
 
-7. **Биддер / автореклама** — интеграция с рекламными API.
+7. ✅ **Биддер / автореклама** — интеграция с рекламными API.
+   Сделано: mrt_ad_performance_daily (DRR, ROAS, ACoS, CPC, CPM, конверсия),
+   встроено в build_marts_recent. TODO: интеграция с API рекламных кабинетов
+   WB/Ozon для автоматического изменения ставок.
 
 8. **AI-фичи** — автоответы, генерация контента.
 
