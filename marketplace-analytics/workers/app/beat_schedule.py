@@ -1,5 +1,7 @@
 """Periodic Celery Beat schedule."""
 
+from __future__ import annotations
+
 from celery.schedules import crontab
 
 beat_schedule = {
@@ -70,5 +72,9 @@ beat_schedule = {
     "maintenance_data_quality": {
         "task": "tasks.maintenance.run_data_quality_checks",
         "schedule": crontab(minute="58", hour="*"),
+    },
+    "competitor_wb_product_cards": {
+        "task": "tasks.competitor_collect.wb_product_cards",
+        "schedule": crontab(minute="15", hour="*/1"),
     },
 }

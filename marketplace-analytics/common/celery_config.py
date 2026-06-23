@@ -7,6 +7,7 @@ DEFAULT_TASK_QUEUE = "etl"
 TASK_ROUTES: dict[str, dict[str, str]] = {
     "tasks.wb_collect.*": {"queue": "wb"},
     "tasks.ozon_collect.*": {"queue": "ozon"},
+    "tasks.competitor_collect.*": {"queue": "competitor"},
     "tasks.transforms.*": {"queue": "etl"},
     "tasks.marts.*": {"queue": "etl"},
     "tasks.maintenance.run_automation_rules": {"queue": "automation"},

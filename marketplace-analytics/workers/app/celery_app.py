@@ -18,6 +18,11 @@ from common.celery_config import DEFAULT_TASK_QUEUE, TASK_ROUTES
 from common.env_validation import collect_worker_startup_issues, raise_for_issues
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "")
+if REDIS_PASSWORD:
+    _, rest = REDIS_URL.split("://", 1)
+    host_part = rest.split("@")[-1] if "@" in rest else rest
+    REDIS_URL = f"redis://:{REDIS_PASSWORD}@{host_part}"
 METRICS_ROLE = detect_metrics_role()
 
 configure_metrics_runtime(METRICS_ROLE)
@@ -31,6 +36,7 @@ celery_app = Celery(
     include=[
         "app.tasks.wb_collect",
         "app.tasks.ozon_collect",
+        "app.tasks.competitor_collect",
         "app.tasks.transforms",
         "app.tasks.marts",
         "app.tasks.maintenance",
