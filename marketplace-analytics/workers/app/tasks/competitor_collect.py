@@ -1,10 +1,12 @@
-"""Competitor product data collection tasks."""
+"""Competitor product data collection and mart build tasks."""
 
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Any
 
+from app.sql.loader import load_sql
 from app.utils.celery_helpers import shared_task
 from app.utils.collection import insert_rows
 from app.utils.runtime import get_ch_client, log_task_run, new_run_context
@@ -114,3 +116,50 @@ def wb_product_cards() -> dict[str, object]:
         return {"status": "success", "rows": total}
     finally:
         client.close()
+
+
+_MARTS_DIR = Path(__file__).resolve().parents[1] / "sql" / "marts"
+
+
+def _load(name: str) -> str:
+    return load_sql(_MARTS_DIR, name)
+
+
+@shared_task(name="tasks.competitor_collect.build_marts")
+def build_marts() -> dict[str, object]:
+    """Build competitor analytics marts (category daily, product daily)."""
+    run_id, started_at = new_run_context()
+    ch_client = get_ch_client()
+
+    try:
+        ch_client.command(
+            "ALTER TABLE mrt_competitor_daily DELETE WHERE day = yesterday()",
+        )
+        ch_client.command(
+            "ALTER TABLE mrt_competitor_category_daily DELETE WHERE day = yesterday()",
+        )
+
+        ch_client.command(_load("mrt_competitor_daily.sql"), parameters={"days": 2})
+        ch_client.command(_load("mrt_competitor_category_daily.sql"))
+
+        log_task_run(
+            ch_client,
+            "tasks.competitor_collect.build_marts",
+            run_id,
+            started_at,
+            "success",
+            0,
+            "marts built",
+        )
+        return {"status": "success"}
+    except Exception as exc:
+        log_task_run(
+            ch_client,
+            "tasks.competitor_collect.build_marts",
+            run_id,
+            started_at,
+            "failed",
+            0,
+            str(exc),
+        )
+        raise

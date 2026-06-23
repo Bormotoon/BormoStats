@@ -77,4 +77,8 @@ beat_schedule = {
         "task": "tasks.competitor_collect.wb_product_cards",
         "schedule": crontab(minute="15", hour="*/1"),
     },
+    "competitor_build_marts": {
+        "task": "tasks.competitor_collect.build_marts",
+        "schedule": crontab(minute="45", hour="*/1"),
+    },
 }
