@@ -1,4 +1,4 @@
-.PHONY: help up down logs ps migrate bootstrap lint format format-check typecheck test check check-tokens perf-smoke docker-config frontend
+.PHONY: help up down logs ps migrate bootstrap lint format format-check typecheck test check check-tokens perf-smoke docker-config frontend install run run-backend run-worker run-beat install-systemd
 
 STACK_NAME ?= bormostats
 COMPOSE_CMD = docker compose --project-name $(STACK_NAME) --env-file .env -f infra/docker/docker-compose.yml
@@ -9,20 +9,26 @@ MYPY_BIN := $(if $(wildcard $(VENV_BIN)/mypy),$(VENV_BIN)/mypy,mypy)
 PYTEST_BIN := $(if $(wildcard $(VENV_BIN)/pytest),$(VENV_BIN)/pytest,pytest)
 
 help:
-	@echo "BormoStats — Marketplace Analytics"
+	@echo "BormoStats — Marketplace Analytics v1.0.0"
 	@echo ""
-	@echo "Quick start:"
-	@echo "  make up           Build and start all services"
-	@echo ""
-	@echo "Management:"
-	@echo "  make down         Stop all services"
-	@echo "  make logs         Tail logs"
+	@echo "=== Docker (recommended) ==="
+	@echo "  make up           Build and start all Docker services"
+	@echo "  make down         Stop all Docker services"
+	@echo "  make logs         Tail Docker logs"
 	@echo "  make ps           Container status"
+	@echo ""
+	@echo "=== OS (bare metal) ==="
+	@echo "  make install      Install Python deps, build frontend, apply migrations"
+	@echo "  make run          Start all services in foreground"
+	@echo "  make run-backend  Start backend only"
+	@echo "  make run-worker   Start Celery worker only"
+	@echo "  make run-beat     Start Celery beat only"
+	@echo "  make install-systemd  Install systemd service files"
+	@echo ""
+	@echo "=== Development ==="
+	@echo "  make frontend     Build React frontend"
 	@echo "  make migrate      Apply ClickHouse migrations"
 	@echo "  make bootstrap    Full stack init (after .env is ready)"
-	@echo ""
-	@echo "Development:"
-	@echo "  make frontend     Build React frontend"
 	@echo "  make lint         Ruff check"
 	@echo "  make format       Ruff format"
 	@echo "  make format-check Ruff format check"
@@ -30,11 +36,9 @@ help:
 	@echo "  make test         Pytest"
 	@echo "  make check        Run all checks (lint + format + typecheck + test)"
 	@echo ""
-	@echo "Operations:"
+	@echo "=== Operations ==="
 	@echo "  make check-tokens  Validate WB/Ozon API tokens"
 	@echo "  make perf-smoke    Load smoke test"
-	@echo ""
-	@echo "Variables: STACK_NAME=$(STACK_NAME)"
 
 up:
 	bash scripts/run_local.sh
@@ -90,3 +94,32 @@ frontend:
 	cp -r frontend/dist backend/app/ui/dist
 	cp frontend/favicon.svg backend/app/ui/dist/ 2>/dev/null || true
 	@echo "Frontend built -> backend/app/ui/dist/"
+
+# === OS (bare metal) targets ===
+
+install:
+	bash scripts/install.sh
+
+run:
+	bash scripts/run_os.sh
+
+run-backend:
+	@echo "Starting backend..."
+	PYTHONPATH="backend:." $(PYTHON_BIN) -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+run-worker:
+	@echo "Starting Celery worker..."
+	PYTHONPATH="workers:." CELERY_METRICS_ROLE=worker CELERY_METRICS_PORT=9101 $(PYTHON_BIN) -m celery -A app.celery_app:celery_app worker --loglevel=INFO --concurrency=4
+
+run-beat:
+	@echo "Starting Celery beat..."
+	PYTHONPATH="workers:." CELERY_METRICS_ROLE=beat CELERY_METRICS_PORT=9102 $(PYTHON_BIN) -m celery -A app.celery_app:celery_app beat --loglevel=INFO --schedule=/tmp/celerybeat-schedule
+
+install-systemd:
+	@echo "Installing systemd service files..."
+	@echo "  sudo cp infra/systemd/bormostats-*.service /etc/systemd/system/"
+	@echo "  sudo systemctl daemon-reload"
+	@echo "  sudo systemctl enable --now bormostats-backend bormostats-worker bormostats-beat"
+	@echo ""
+	@echo "Note: These services expect the app at /opt/bormostats/"
+	@echo "Edit infra/systemd/*.service to change paths if needed."

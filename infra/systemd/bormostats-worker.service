@@ -1,0 +1,27 @@
+[Unit]
+Description=BormoStats Celery Worker
+After=network.target clickhouse-server.service redis-server.service
+Wants=clickhouse-server.service redis-server.service
+
+[Service]
+Type=simple
+User=bormostats
+Group=bormostats
+WorkingDirectory=/opt/bormostats/workers
+EnvironmentFile=/opt/bormostats/.env
+Environment=PYTHONPATH=/opt/bormostats/workers:/opt/bormostats
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+Environment=CELERY_METRICS_ROLE=worker
+Environment=CELERY_METRICS_PORT=9101
+Environment=WORKER_PROMETHEUS_MULTIPROC_DIR=/tmp/bormostats-prometheus/worker
+Environment=HOME=/tmp
+Environment=XDG_CACHE_HOME=/tmp/.cache
+ExecStart=/opt/bormostats/.venv/bin/celery -A app.celery_app:celery_app worker --loglevel=INFO --concurrency=4
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=30
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

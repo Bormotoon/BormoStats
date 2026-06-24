@@ -153,12 +153,12 @@
 
 ### Требования
 
-- **Docker** и **Docker Compose v2**
-- **Python 3.14** (для локальных скриптов и разработки)
-- **make** (для команд быстрого запуска)
 - Активные аккаунты продавцов Wildberries и/или Ozon с API токенами
+- **make** (для команд быстрого запуска)
 
-### Установка одной командой
+### Вариант A: Docker (рекомендуется)
+
+Требуется **Docker** и **Docker Compose v2**.
 
 ```bash
 git clone https://github.com/Bormotoon/BormoStats.git
@@ -175,22 +175,13 @@ cp .env.example .env
 | `OZON_API_KEY` | Ozon → Настройки → API |
 | `ADMIN_API_KEY` | Сгенерировать: `openssl rand -hex 32` |
 
-Затем запустите всё:
-
 ```bash
 make up
 ```
 
-Эта команда:
-- Сгенерирует самоподписанные TLS сертификаты для nginx
-- Соберёт все Docker образы (multi-stage)
-- Запустит ClickHouse, Redis, Бэкенд, Воркер, Beat, Nginx, Metabase
-- Применит миграции базы данных
-- Выполнит проверки работоспособности
+Запускает ClickHouse, Redis, Бэкенд, Воркер, Beat, Nginx (TLS), Metabase — всё в контейнерах.
 
-> 💡 Первая сборка занимает 3–5 минут. Последующие сборки используют кэширование слоёв Docker.
-
-### Проверка установки
+> 💡 Первая сборка занимает 3–5 минут. Последующие сборки используют кэширование Docker.
 
 ```bash
 # Проверка здоровья
@@ -201,6 +192,32 @@ open https://localhost:18443/ui/
 
 # Metabase BI
 open http://localhost:13000
+```
+
+### Вариант B: OS (напрямую)
+
+Требуется **Python 3.14+**, **Node.js 22+**, **ClickHouse** и **Redis**, установленные на хосте.
+
+```bash
+git clone https://github.com/Bormotoon/BormoStats.git
+cd BormoStats
+cp .env.example .env
+```
+
+Отредактируйте `.env`, затем:
+
+```bash
+make install
+make run
+```
+
+`make install` создаёт venv, устанавливает зависимости, собирает фронтенд и применяет миграции.
+`make run` запускает Backend (uvicorn), Celery Worker и Celery Beat в одном терминале.
+
+Для production используйте systemd:
+
+```bash
+sudo make install-systemd
 ```
 
 ---

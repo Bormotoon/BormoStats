@@ -153,12 +153,12 @@ Data flows through three processing layers:
 
 ### Prerequisites
 
-- **Docker** & **Docker Compose v2**
-- **Python 3.14** (for local scripts and development)
-- **make** (for convenience commands)
 - Active Wildberries and/or Ozon seller accounts with API tokens
+- **make** (for convenience commands)
 
-### One-Command Setup
+### Option A: Docker (recommended)
+
+Requires **Docker** & **Docker Compose v2**.
 
 ```bash
 git clone https://github.com/Bormotoon/BormoStats.git
@@ -175,22 +175,13 @@ Edit `.env` and set **at minimum** these values:
 | `OZON_API_KEY` | Ozon → Настройки → API |
 | `ADMIN_API_KEY` | Generate: `openssl rand -hex 32` |
 
-Then start everything:
-
 ```bash
 make up
 ```
 
-This single command will:
-- Generate self-signed TLS certificates for nginx
-- Build all Docker images (multi-stage)
-- Start ClickHouse, Redis, Backend, Worker, Beat, Nginx, Metabase
-- Apply database migrations
-- Run health checks
+This starts ClickHouse, Redis, Backend, Worker, Beat, Nginx (TLS), Metabase — all containerized.
 
-> 💡 The first build takes 3–5 minutes. Subsequent builds use Docker layer caching.
-
-### Verify Installation
+> 💡 First build takes 3–5 minutes. Subsequent builds use Docker layer caching.
 
 ```bash
 # Health check
@@ -201,6 +192,32 @@ open https://localhost:18443/ui/
 
 # Metabase BI
 open http://localhost:13000
+```
+
+### Option B: OS (bare metal)
+
+Requires **Python 3.14+**, **Node.js 22+**, **ClickHouse**, and **Redis** installed on the host.
+
+```bash
+git clone https://github.com/Bormotoon/BormoStats.git
+cd BormoStats
+cp .env.example .env
+```
+
+Edit `.env` as above, then:
+
+```bash
+make install
+make run
+```
+
+`make install` creates a venv, installs deps, builds the frontend, and applies migrations.
+`make run` starts Backend (uvicorn), Celery Worker, and Celery Beat in a single terminal.
+
+For production, use the provided systemd units:
+
+```bash
+sudo make install-systemd
 ```
 
 ---

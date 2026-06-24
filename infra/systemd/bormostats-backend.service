@@ -1,0 +1,24 @@
+[Unit]
+Description=BormoStats Backend (FastAPI + Uvicorn)
+After=network.target clickhouse-server.service redis-server.service
+Wants=clickhouse-server.service redis-server.service
+
+[Service]
+Type=simple
+User=bormostats
+Group=bormostats
+WorkingDirectory=/opt/bormostats/backend
+EnvironmentFile=/opt/bormostats/.env
+Environment=PYTHONPATH=/opt/bormostats/backend:/opt/bormostats
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+Environment=HOME=/tmp
+Environment=XDG_CACHE_HOME=/tmp/.cache
+ExecStart=/opt/bormostats/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=30
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target

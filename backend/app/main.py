@@ -26,7 +26,7 @@ settings = get_settings()
 configure_logging(settings.log_level)
 LOGGER = structlog.get_logger(__name__)
 
-app = FastAPI(title="Marketplace Analytics API", version="0.1.0", docs_url=None, redoc_url=None)
+app = FastAPI(title="Marketplace Analytics API", version="1.0.0", docs_url=None, redoc_url=None)
 setup_rate_limiter(app, settings)
 
 app.add_middleware(
