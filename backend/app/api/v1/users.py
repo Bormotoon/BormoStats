@@ -1,9 +1,12 @@
-"""Collaboration — user management endpoints."""
-
 from __future__ import annotations
 
 from app.api.errors import API_ERROR_RESPONSES
-from app.core.deps import ChClientDependency, require_admin_api_key
+from app.core.deps import (
+    ChClientDependency,
+    CurrentUserDependency,
+    require_admin_key_or_org_role,
+)
+from app.models.organization import OrgMemberRole
 from app.models.user import User, UserCreate, UserUpdate
 from app.services.user_service import UserService
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -15,12 +18,18 @@ def _svc(ch: ChClientDependency) -> UserService:
     return UserService(ch)
 
 
+@router.get("/me")
+def get_current_user_info(
+    current_user: CurrentUserDependency,
+) -> User:
+    return current_user
+
+
 @router.get("")
 def list_users(
     ch: ChClientDependency,
-    _admin: None = Depends(require_admin_api_key),
+    _auth: None = Depends(require_admin_key_or_org_role(OrgMemberRole.admin)),
 ) -> list[User]:
-    """List all users (admin only)."""
     return _svc(ch).list_users()
 
 
@@ -28,9 +37,8 @@ def list_users(
 def get_user(
     user_id: str,
     ch: ChClientDependency,
-    _admin: None = Depends(require_admin_api_key),
+    _auth: None = Depends(require_admin_key_or_org_role(OrgMemberRole.admin)),
 ) -> User:
-    """Get user by ID (admin only)."""
     user = _svc(ch).get_user(user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")
@@ -41,9 +49,8 @@ def get_user(
 def create_user(
     body: UserCreate,
     ch: ChClientDependency,
-    _admin: None = Depends(require_admin_api_key),
+    _auth: None = Depends(require_admin_key_or_org_role(OrgMemberRole.admin)),
 ) -> User:
-    """Create a new user with generated API key (admin only)."""
     return _svc(ch).create_user(body)
 
 
@@ -52,9 +59,8 @@ def update_user(
     user_id: str,
     body: UserUpdate,
     ch: ChClientDependency,
-    _admin: None = Depends(require_admin_api_key),
+    _auth: None = Depends(require_admin_key_or_org_role(OrgMemberRole.admin)),
 ) -> User:
-    """Update user details (admin only)."""
     user = _svc(ch).update_user(user_id, body)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")
@@ -65,9 +71,8 @@ def update_user(
 def rotate_key(
     user_id: str,
     ch: ChClientDependency,
-    _admin: None = Depends(require_admin_api_key),
+    _auth: None = Depends(require_admin_key_or_org_role(OrgMemberRole.admin)),
 ) -> dict[str, str]:
-    """Rotate user's API key (admin only)."""
     key = _svc(ch).rotate_api_key(user_id)
     if key is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")
@@ -78,9 +83,8 @@ def rotate_key(
 def delete_user(
     user_id: str,
     ch: ChClientDependency,
-    _admin: None = Depends(require_admin_api_key),
+    _auth: None = Depends(require_admin_key_or_org_role(OrgMemberRole.admin)),
 ) -> dict[str, bool]:
-    """Deactivate user (admin only)."""
     ok = _svc(ch).delete_user(user_id)
     if not ok:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")

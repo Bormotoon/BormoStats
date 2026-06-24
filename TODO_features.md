@@ -12,7 +12,7 @@
 - [x] **1.1. База данных: Внедрение Multi-tenant архитектуры**
   - Добавить сущности `Organization`, `ShopAccount` (API-ключи WB/Ozon), `UserRole`.
   - Обновить ClickHouse таблицы (добавить `account_id` во все слои: `raw`, `stg`, `mrt`).
-- [ ] **1.2. FastAPI: Ролевая модель (RBAC)**
+- [x] **1.2. FastAPI: Ролевая модель (RBAC)**
   - Реализовать dependency `get_current_user_with_role`.
   - Ограничить доступ к API-ключам для роли `Manager`, оставить только для `Owner`/`Admin`.
 - [ ] **1.3. React: UI переключателя аккаунтов**
