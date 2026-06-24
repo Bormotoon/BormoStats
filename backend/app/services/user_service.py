@@ -9,11 +9,11 @@ from typing import Any
 from app.models.user import User, UserCreate, UserRole, UserUpdate
 from clickhouse_connect.driver import Client
 
-_COLS = "user_id, name, email, api_key, role, is_active, created_at, updated_at"
+_COLS = "user_id, name, email, api_key, role, organization_id, is_active, created_at, updated_at"
 _INSERT = (
     "INSERT INTO dim_user ({cols})"
     " VALUES ({uid:String}, {name:String}, {email:String}, {key:String},"
-    " {role:Int8}, {active:UInt8}, {created:DateTime}, {now:DateTime})"
+    " {role:Int8}, {org_id:String}, {active:UInt8}, {created:DateTime}, {now:DateTime})"
 )
 
 
@@ -55,6 +55,7 @@ class UserService:
                 "email": data.email,
                 "key": api_key,
                 "role": data.role.value,
+                "org_id": data.organization_id,
                 "active": 1,
                 "created": now,
                 "now": now,
@@ -66,6 +67,7 @@ class UserService:
             email=data.email,
             api_key=api_key,
             role=data.role,
+            organization_id=data.organization_id,
             is_active=True,
             created_at=now,
             updated_at=now,
@@ -80,6 +82,7 @@ class UserService:
         email = data.email if data.email is not None else existing.email
         role = data.role if data.role is not None else existing.role
         active = data.is_active if data.is_active is not None else existing.is_active
+        org_id = data.organization_id if data.organization_id is not None else existing.organization_id
         self._ch.command(
             _INSERT.format(cols=_COLS),
             parameters={
@@ -88,6 +91,7 @@ class UserService:
                 "email": email,
                 "key": existing.api_key,
                 "role": role.value,
+                "org_id": org_id,
                 "active": 1 if active else 0,
                 "created": existing.created_at or now,
                 "now": now,
@@ -99,6 +103,7 @@ class UserService:
             email=email,
             api_key=existing.api_key,
             role=role,
+            organization_id=org_id,
             is_active=active,
             created_at=existing.created_at or now,
             updated_at=now,
@@ -118,6 +123,7 @@ class UserService:
                 "email": existing.email,
                 "key": new_key,
                 "role": existing.role.value,
+                "org_id": existing.organization_id,
                 "active": 1 if existing.is_active else 0,
                 "created": existing.created_at or now,
                 "now": now,
@@ -138,6 +144,7 @@ class UserService:
                 "email": existing.email,
                 "key": existing.api_key,
                 "role": existing.role.value,
+                "org_id": existing.organization_id,
                 "active": 0,
                 "created": existing.created_at or now,
                 "now": now,
@@ -153,6 +160,7 @@ def _row_to_user(r: dict[str, Any]) -> User:
         email=r["email"],
         api_key=r["api_key"],
         role=UserRole(r["role"]),
+        organization_id=r.get("organization_id", "default"),
         is_active=bool(r["is_active"]),
         created_at=r.get("created_at"),
         updated_at=r.get("updated_at"),
