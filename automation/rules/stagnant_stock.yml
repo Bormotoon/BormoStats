@@ -1,0 +1,18 @@
+name: stagnant_stock
+query: |
+  SELECT
+    a.marketplace,
+    a.account_id,
+    a.product_id,
+    a.revenue_60d,
+    s.stock_end,
+    a.abc_class
+  FROM mrt_abc_xyz_analysis a
+  JOIN mrt_stock_daily s ON a.marketplace = s.marketplace AND a.account_id = s.account_id AND a.product_id = s.product_id AND s.day = today() - 1
+  WHERE a.abc_class = 'C'
+condition: row.get("stock_end", 0) > params.get("threshold", 100)
+params:
+  threshold: 100
+actions:
+  - type: telegram
+    template: "📦 Зависший товар: {marketplace}/{account_id}/{product_id} — ABC={abc_class}, остаток={stock_end}, выручка 60д={revenue_60d:.0f}₽. Рекомендуется снижение цены или акция."

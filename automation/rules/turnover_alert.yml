@@ -1,0 +1,18 @@
+name: turnover_alert
+query: |
+  SELECT
+    marketplace,
+    account_id,
+    product_id,
+    avg(stock_end) AS avg_stock,
+    avg(qty) AS avg_daily_sales,
+    if(avg(qty) > 0, avg(stock_end) / avg(qty), 999) AS turnover_days
+  FROM mrt_sales_daily
+  WHERE day >= today() - 14
+  GROUP BY marketplace, account_id, product_id
+condition: row.get("turnover_days", 999) < params.get("threshold", 10)
+params:
+  threshold: 10
+actions:
+  - type: telegram
+    template: "⚠️ Быстрая оборачиваемость: {marketplace}/{account_id}/{product_id} — {turnover_days:.0f} дней. Остаток: {avg_stock:.0f}, среднедневные продажи: {avg_daily_sales:.0f}. Рекомендуется поставка > {avg_daily_sales:.0f} шт."

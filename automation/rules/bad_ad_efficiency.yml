@@ -1,0 +1,17 @@
+name: bad_ad_efficiency
+query: |
+  SELECT
+    marketplace,
+    account_id,
+    campaign_id,
+    sum(cost) AS cost_14d,
+    sum(revenue) AS revenue_14d,
+    sum(orders) AS orders_14d
+  FROM mrt_ads_daily
+  WHERE day >= today() - 14
+  GROUP BY marketplace, account_id, campaign_id
+condition: row.get("cost_14d", 0) > 0 and row.get("orders_14d", 0) == 0
+params: {}
+actions:
+  - type: telegram
+    template: "📢 Неэффективная РК: {marketplace}/{account_id}/{campaign_id} — расходы={cost_14d:.0f}₽ за 14 дней, 0 заказов. Рекомендуется отключить."

@@ -97,4 +97,12 @@ beat_schedule = {
         "task": "tasks.repricer.repricer_evaluate_rules",
         "schedule": crontab(minute="*/10"),
     },
+    "insights_generate_tasks": {
+        "task": "tasks.insights.generate_actionable_tasks",
+        "schedule": crontab(minute="0", hour="6"),
+    },
+    "insights_daily_digest": {
+        "task": "tasks.insights.send_daily_digest",
+        "schedule": crontab(minute="30", hour="7"),
+    },
 }

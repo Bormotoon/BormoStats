@@ -1,0 +1,14 @@
+name: daily_digest
+query: |
+  SELECT
+    trigger_type,
+    countIf(status = 'open') AS open_count,
+    countIf(status = 'open' AND priority = 'high') AS high_count
+  FROM dim_actionable_task
+  WHERE created_at >= today()
+  GROUP BY trigger_type
+condition: row.get("open_count", 0) > 0
+params: {}
+actions:
+  - type: telegram
+    template: "📋 *Задачи за сегодня* — {trigger_type}: всего={open_count}, высокий приоритет={high_count}"
