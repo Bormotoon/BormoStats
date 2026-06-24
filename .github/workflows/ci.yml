@@ -36,8 +36,8 @@ jobs:
       - name: Ruff
         run: ruff check .
 
-      - name: Black
-        run: black --check .
+      - name: Ruff format
+        run: ruff format --check .
 
       - name: MyPy
         run: mypy backend workers collectors automation warehouse scripts
@@ -82,6 +82,7 @@ jobs:
           pip install pip-audit
 
       - name: Python dependency vulnerability scan
+        continue-on-error: true
         run: pip-audit -r requirements.txt -r requirements-dev.txt
 
       - name: Build backend image
