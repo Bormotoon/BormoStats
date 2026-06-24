@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.api.errors import API_ERROR_RESPONSES
-from app.core.config import settings
+from app.core.config import get_settings
 from app.core.deps import ChClientDependency, CurrentUserDependency, require_admin_key_or_org_role
 from app.models.integrations import (
     StockUpdateItem,
@@ -19,11 +19,12 @@ router = APIRouter(prefix="/integrations", tags=["integrations"], responses=API_
 
 
 def _svc(ch: ChClientDependency) -> IntegrationsService:
+    s = get_settings()
     return IntegrationsService(
         ch,
-        wb_token=settings.wb_statistics_token,
-        ozon_client_id=settings.ozon_client_id,
-        ozon_api_key=settings.ozon_api_key,
+        wb_token=s.wb_statistics_token,
+        ozon_client_id=s.ozon_client_id,
+        ozon_api_key=s.ozon_api_key,
     )
 
 

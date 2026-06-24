@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.api.errors import API_ERROR_RESPONSES
-from app.core.config import settings
+from app.core.config import get_settings
 from app.core.deps import ChClientDependency, CurrentUserDependency, require_admin_key_or_org_role
 from app.models.organization import OrgMemberRole
 from app.models.pim import (
@@ -159,7 +159,8 @@ def generate_description(
     ch: ChClientDependency,
     _auth: None = Depends(require_admin_key_or_org_role(OrgMemberRole.manager)),
 ) -> dict[str, str]:
-    ai = AiService(settings.ai_api_url, settings.ai_api_key, settings.ai_model)
+    s = get_settings()
+    ai = AiService(s.ai_api_url, s.ai_api_key, s.ai_model)
     desc = ai.generate_description(
         name=body.title or "",
         brand=body.brand_id or "",
