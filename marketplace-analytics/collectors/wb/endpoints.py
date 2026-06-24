@@ -1,5 +1,7 @@
 """WB endpoints metadata."""
 
+from __future__ import annotations
+
 STATISTICS_BASE_URL = "https://statistics-api.wildberries.ru"
 ANALYTICS_BASE_URL = "https://seller-analytics-api.wildberries.ru"
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -78,6 +79,27 @@ class AdminService:
             user_agent=audit.user_agent,
             details=details,
         )
+        try:
+            self.client.command(
+                """
+                INSERT INTO sys_audit_log
+                (event, action, path, method, remote_addr, forwarded_for, user_agent, details_json)
+                VALUES (%(event)s, %(action)s, %(path)s, %(method)s,
+                        %(remote_addr)s, %(forwarded_for)s, %(user_agent)s, %(details_json)s)
+                """,
+                parameters={
+                    "event": event,
+                    "action": action,
+                    "path": audit.path,
+                    "method": audit.method,
+                    "remote_addr": audit.remote_addr,
+                    "forwarded_for": audit.forwarded_for,
+                    "user_agent": audit.user_agent,
+                    "details_json": json.dumps(details, ensure_ascii=True),
+                },
+            )
+        except Exception:
+            LOGGER.warning("audit_write_failed", event=event, action=action)
 
     def _queue_task(
         self,

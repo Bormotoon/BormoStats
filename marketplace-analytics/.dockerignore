@@ -8,3 +8,14 @@ __pycache__
 *.pyc
 .env
 *.log
+.idea/
+.vscode/
+*.egg-info/
+.coverage
+htmlcov/
+dist/
+build/
+Thumbs.db
+tests/
+docs/
+dashboards/

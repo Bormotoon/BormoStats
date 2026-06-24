@@ -82,7 +82,8 @@ CREATE TABLE IF NOT EXISTS dim_product
   updated_at DateTime DEFAULT now()
 )
 ENGINE = ReplacingMergeTree(updated_at)
-ORDER BY (marketplace, account_id, product_id);
+ORDER BY (marketplace, account_id, product_id, chrt_id)
+SETTINGS allow_nullable_key = 1;
 
 -- RAW WB
 CREATE TABLE IF NOT EXISTS raw_wb_sales
@@ -104,7 +105,7 @@ CREATE TABLE IF NOT EXISTS raw_wb_sales
 )
 ENGINE = ReplacingMergeTree(ingested_at)
 PARTITION BY toYYYYMM(event_ts)
-ORDER BY (account_id, srid);
+ORDER BY (account_id, srid, nm_id, chrt_id);
 
 CREATE TABLE IF NOT EXISTS raw_wb_orders
 (
@@ -122,7 +123,7 @@ CREATE TABLE IF NOT EXISTS raw_wb_orders
 )
 ENGINE = ReplacingMergeTree(ingested_at)
 PARTITION BY toYYYYMM(event_ts)
-ORDER BY (account_id, srid);
+ORDER BY (account_id, srid, nm_id, chrt_id);
 
 CREATE TABLE IF NOT EXISTS raw_wb_stocks
 (

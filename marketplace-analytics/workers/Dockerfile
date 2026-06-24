@@ -8,7 +8,7 @@ RUN groupadd --system --gid 10001 app \
 
 WORKDIR /app
 
-COPY requirements.txt requirements-dev.txt pyproject.toml ./
+COPY requirements.txt pyproject.toml ./
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 

@@ -2,33 +2,37 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-COMPOSE_FILE="$ROOT_DIR/infra/docker/docker-compose.yml"
-ENV_FILE="$ROOT_DIR/.env"
-NGINX_CERT_DIR="$ROOT_DIR/infra/nginx/certs"
+cd "$ROOT_DIR"
 
-if [ ! -f "$ENV_FILE" ]; then
-  cp "$ROOT_DIR/.env.example" "$ENV_FILE"
+# 1. Create .env from example if missing
+if [ ! -f .env ]; then
+  cp .env.example .env
+  echo "Created .env from .env.example"
+  echo ">> Edit .env and set your WB_API_KEY / OZON_API_KEY, then run this script again."
+  echo ">> Minimal required: WB_STATISTICS_API_KEY, OZON_CLIENT_ID, OZON_API_KEY"
+  exit 1
 fi
 
-set -a
-source "$ENV_FILE"
-set +a
+set -a; source .env; set +a
 
-mkdir -p "$NGINX_CERT_DIR"
-if [ ! -s "$NGINX_CERT_DIR/tls.crt" ] || [ ! -s "$NGINX_CERT_DIR/tls.key" ]; then
-  if ! command -v openssl >/dev/null 2>&1; then
-    echo "openssl is required to generate TLS certs for the reverse proxy."
-    exit 1
-  fi
-  openssl req \
-    -x509 \
-    -nodes \
-    -newkey rsa:2048 \
-    -days "${TLS_CERT_DAYS:-30}" \
-    -keyout "$NGINX_CERT_DIR/tls.key" \
-    -out "$NGINX_CERT_DIR/tls.crt" \
-    -subj "/CN=${TLS_SERVER_NAME:-localhost}" >/dev/null 2>&1
+# 2. Generate TLS certs for nginx (required for proxy)
+mkdir -p infra/nginx/certs
+if [ ! -s infra/nginx/certs/tls.crt ]; then
+  openssl req -x509 -nodes -newkey rsa:2048 \
+    -days "${TLS_CERT_DAYS:-365}" \
+    -keyout infra/nginx/certs/tls.key \
+    -out infra/nginx/certs/tls.crt \
+    -subj "/CN=${TLS_SERVER_NAME:-localhost}" 2>/dev/null
+  echo "Self-signed TLS cert generated"
 fi
 
-cd "$ROOT_DIR/infra/docker"
-docker compose --env-file ../../.env -f docker-compose.yml up -d --build
+# 3. Build and start everything
+echo "Starting BormoStats..."
+cd infra/docker
+docker compose --env-file ../../.env up -d --build
+
+echo ""
+echo "================================================"
+echo "  BormoStats is starting up"
+echo "  UI:  http://localhost:${BACKEND_HOST_PORT:-18080}/ui/"
+echo "================================================"

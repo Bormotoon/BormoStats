@@ -554,30 +554,29 @@ async def _run_api_latency_smoke(env: IntegrationEnv, target_day: str) -> dict[s
 
 
 def main() -> int:
-    with _perf_runtime() as env:
-        with _runtime_env_scope(env):
-            monkeypatch = pytest.MonkeyPatch()
-            try:
-                ingest_started_at = time.perf_counter()
-                target_day = _ingest_sample_marketplace_data(monkeypatch)
-                ingest_duration = time.perf_counter() - ingest_started_at
-            finally:
-                monkeypatch.undo()
+    with _perf_runtime() as env, _runtime_env_scope(env):
+        monkeypatch = pytest.MonkeyPatch()
+        try:
+            ingest_started_at = time.perf_counter()
+            target_day = _ingest_sample_marketplace_data(monkeypatch)
+            ingest_duration = time.perf_counter() - ingest_started_at
+        finally:
+            monkeypatch.undo()
 
-            raw_rows = _raw_row_count(env)
+        raw_rows = _raw_row_count(env)
 
-            transform_started_at = time.perf_counter()
-            transform_result = transforms.transform_backfill_days(14)
-            transform_duration = time.perf_counter() - transform_started_at
+        transform_started_at = time.perf_counter()
+        transform_result = transforms.transform_backfill_days(14)
+        transform_duration = time.perf_counter() - transform_started_at
 
-            marts_started_at = time.perf_counter()
-            marts_result = marts.build_marts_backfill_days(14)
-            marts_duration = time.perf_counter() - marts_started_at
+        marts_started_at = time.perf_counter()
+        marts_result = marts.build_marts_backfill_days(14)
+        marts_duration = time.perf_counter() - marts_started_at
 
-            api_metrics = asyncio.run(_run_api_latency_smoke(env, target_day.isoformat()))
+        api_metrics = asyncio.run(_run_api_latency_smoke(env, target_day.isoformat()))
 
     report = {
-        "measured_at": "2026-03-06",
+        "measured_at": datetime.now(UTC).date().isoformat(),
         "ingestion": {
             "duration_s": round(ingest_duration, 3),
             "raw_rows": raw_rows,

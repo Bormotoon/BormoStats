@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Apply ClickHouse SQL migrations in lexical order."""
+"""Apply and rollback ClickHouse SQL migrations."""
 
 from __future__ import annotations
 
+import argparse
 import logging
 import os
 import re
@@ -24,7 +25,6 @@ def configure_logging() -> None:
 
 
 def split_sql_statements(sql: str) -> Iterable[str]:
-    """Split SQL script into executable statements without breaking quoted strings."""
     statements: list[str] = []
     buffer: list[str] = []
     in_single = False
@@ -72,7 +72,8 @@ def _qualified_table(database: str, table: str) -> str:
 
 def ensure_sys_table(client: clickhouse_connect.driver.Client, database: str) -> None:
     client.command(f"CREATE DATABASE IF NOT EXISTS {_quoted_identifier(database)}")
-    client.command("""
+    client.command(
+        """
         CREATE TABLE IF NOT EXISTS {qualified_table}
         (
           version String,
@@ -80,7 +81,8 @@ def ensure_sys_table(client: clickhouse_connect.driver.Client, database: str) ->
         )
         ENGINE = MergeTree
         ORDER BY (version)
-        """.format(qualified_table=_qualified_table(database, "sys_schema_migrations")))
+        """.format(qualified_table=_qualified_table(database, "sys_schema_migrations"))
+    )
 
 
 def load_applied_versions(client: clickhouse_connect.driver.Client, database: str) -> set[str]:
@@ -92,7 +94,15 @@ def load_applied_versions(client: clickhouse_connect.driver.Client, database: st
     return {str(row[0]) for row in result.result_rows}
 
 
-def apply_migrations() -> None:
+def _migrations_dir() -> Path:
+    return Path(__file__).resolve().parent / "migrations"
+
+
+def _rollbacks_dir() -> Path:
+    return _migrations_dir() / "rollbacks"
+
+
+def apply_migrations(target_version: str | None = None) -> None:
     configure_logging()
     database = _database_name()
 
@@ -108,7 +118,7 @@ def apply_migrations() -> None:
         ensure_sys_table(client, database)
         applied_versions = load_applied_versions(client, database)
 
-        migrations_dir = Path(__file__).resolve().parent / "migrations"
+        migrations_dir = _migrations_dir()
         migration_paths = sorted(p for p in migrations_dir.glob("*.sql") if p.is_file())
 
         LOGGER.info("migrations_found=%s", len(migration_paths))
@@ -118,6 +128,10 @@ def apply_migrations() -> None:
             if version in applied_versions:
                 LOGGER.info("skip version=%s reason=already_applied", version)
                 continue
+
+            if target_version is not None and version > target_version:
+                LOGGER.info("stop version=%s reason=target_reached(%s)", version, target_version)
+                break
 
             started_at = time.perf_counter()
             sql = migration_path.read_text(encoding="utf-8")
@@ -141,5 +155,86 @@ def apply_migrations() -> None:
         client.close()
 
 
+def rollback_migrations(target_version: str | None = None) -> None:
+    configure_logging()
+    database = _database_name()
+
+    client = clickhouse_connect.get_client(
+        host=os.getenv("CH_HOST", "localhost"),
+        port=int(os.getenv("CH_PORT", "8123")),
+        username=os.getenv("CH_USER", "default"),
+        password=os.getenv("CH_PASSWORD", ""),
+        database=database,
+    )
+
+    try:
+        ensure_sys_table(client, database)
+        applied_versions = load_applied_versions(client, database)
+
+        rollbacks_dir = _rollbacks_dir()
+        migration_paths = sorted(
+            (p for p in rollbacks_dir.glob("*.sql") if p.is_file()),
+            reverse=True,
+        )
+
+        LOGGER.info("rollbacks_found=%s", len(migration_paths))
+
+        for rollback_path in migration_paths:
+            version = rollback_path.stem
+            if version not in applied_versions:
+                LOGGER.info("skip version=%s reason=not_applied", version)
+                continue
+
+            if target_version is not None and version <= target_version:
+                LOGGER.info("stop version=%s reason=target_reached(%s)", version, target_version)
+                break
+
+            started_at = time.perf_counter()
+            sql = rollback_path.read_text(encoding="utf-8")
+
+            try:
+                for statement in split_sql_statements(sql):
+                    client.command(statement)
+                client.command(
+                    "ALTER TABLE {qualified_table} DELETE WHERE version = %(version)s".format(
+                        qualified_table=_qualified_table(database, "sys_schema_migrations")
+                    ),
+                    parameters={"version": version},
+                )
+                duration = round(time.perf_counter() - started_at, 3)
+                LOGGER.info("rolled_back version=%s duration_s=%s", version, duration)
+            except Exception:
+                duration = round(time.perf_counter() - started_at, 3)
+                LOGGER.exception("failed rollback version=%s duration_s=%s", version, duration)
+                raise
+    finally:
+        client.close()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Manage ClickHouse schema migrations")
+    parser.add_argument(
+        "--rollback",
+        nargs="?",
+        const=None,
+        default=None,
+        metavar="TARGET_VERSION",
+        help="Rollback migrations to target version (or all if omitted)",
+    )
+    parser.add_argument(
+        "--target",
+        type=str,
+        default=None,
+        metavar="VERSION",
+        help="Only apply/rollback up to this version",
+    )
+    args = parser.parse_args()
+
+    if args.rollback is not None:
+        rollback_migrations(target_version=args.rollback or args.target)
+    else:
+        apply_migrations(target_version=args.target)
+
+
 if __name__ == "__main__":
-    apply_migrations()
+    main()

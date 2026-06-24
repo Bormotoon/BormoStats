@@ -1,5 +1,7 @@
 """Ozon endpoints metadata."""
 
+from __future__ import annotations
+
 BASE_URL = "https://api-seller.ozon.ru"
 
 POSTINGS_FBS_LIST_PATH = "/v3/posting/fbs/list"

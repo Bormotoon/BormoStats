@@ -69,12 +69,14 @@ def evaluate_data_quality(
 
 
 def _check_stale_marts(client: clickhouse_connect.driver.Client) -> DataQualityIssue | None:
-    marts_have_run = bool(client.query("""
+    marts_have_run = bool(
+        client.query("""
             SELECT count()
             FROM sys_task_runs
             WHERE task_name LIKE 'tasks.marts.%'
               AND status = 'success'
-            """).result_rows[0][0])
+            """).result_rows[0][0]
+    )
     if not marts_have_run:
         return None
 
@@ -87,7 +89,9 @@ def _check_stale_marts(client: clickhouse_connect.driver.Client) -> DataQualityI
         "mrt_funnel_daily",
         "mrt_ads_daily",
     ):
-        result = client.query(f"SELECT max(updated_at) AS last_updated FROM {table_name}")
+        result = client.query(
+            f"SELECT max(updated_at) AS last_updated FROM {table_name}", parameters={}
+        )
         value = _to_utc(result.result_rows[0][0] if result.result_rows else None)
         if value is None or value < cutoff:
             samples.append(
@@ -179,8 +183,9 @@ def _check_duplicate_grains(client: clickhouse_connect.driver.Client) -> DataQua
             GROUP BY {group_by}
             HAVING duplicate_count > 1
             ORDER BY duplicate_count DESC
-            LIMIT {MAX_SAMPLE_ROWS}
+            LIMIT %(limit)s
             """,
+            parameters={"limit": MAX_SAMPLE_ROWS},
         )
         failures += len(rows)
         for row in rows:

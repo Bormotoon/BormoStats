@@ -19,12 +19,12 @@ SELECT
     ) AS margin_pct,
     sum(if(s.is_return = 0, s.qty, 0)) AS quantity,
     sum(if(s.is_return = 1, s.qty, 0)) AS return_qty
-FROM stg_sales FINAL AS s
-LEFT JOIN dim_product_cost FINAL AS c
+FROM stg_sales AS s FINAL
+LEFT JOIN dim_product_cost AS c FINAL
     ON s.marketplace = c.marketplace
-    AND s.product_id = c.product_id
-LEFT JOIN raw_competitor_products FINAL AS p
+    AND s.product_id = toString(c.product_id)
+LEFT JOIN raw_competitor_products AS p FINAL
     ON s.marketplace = p.marketplace
-    AND s.product_id = p.product_id
+    AND s.product_id = toString(p.product_id)
 WHERE s.day >= today() - %(days)s
 GROUP BY s.day, s.marketplace, s.account_id, s.product_id, s.nm_id, s.ozon_product_id

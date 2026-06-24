@@ -135,9 +135,11 @@ def test_http_client_does_not_retry_non_retryable_4xx(
     )
     client, sleeps, request_urls = _build_http_client(monkeypatch, [response], max_attempts=3)
 
-    with caplog.at_level(logging.WARNING, logger="collectors.http"):
-        with pytest.raises(httpx.HTTPStatusError):
-            client.get("/orders")
+    with (
+        caplog.at_level(logging.WARNING, logger="collectors.http"),
+        pytest.raises(httpx.HTTPStatusError),
+    ):
+        client.get("/orders")
 
     try:
         assert request_urls == ["https://example.test/orders"]
@@ -154,9 +156,11 @@ def test_http_client_does_not_retry_when_circuit_is_open(
     client, sleeps, request_urls = _build_http_client(monkeypatch, [], max_attempts=3)
     client._open_until = datetime.now(UTC) + timedelta(seconds=30)
 
-    with caplog.at_level(logging.WARNING, logger="collectors.http"):
-        with pytest.raises(CircuitOpenError):
-            client.get("/orders")
+    with (
+        caplog.at_level(logging.WARNING, logger="collectors.http"),
+        pytest.raises(CircuitOpenError),
+    ):
+        client.get("/orders")
 
     try:
         assert request_urls == []

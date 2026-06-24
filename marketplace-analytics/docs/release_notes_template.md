@@ -9,11 +9,11 @@
 
 ## Summary
 
-- 
+-
 
 ## User-facing changes
 
-- 
+-
 
 ## Schema / data impact
 
@@ -30,8 +30,8 @@
 ## Verification
 
 - `ruff check .`
-- `black --check .`
-- `mypy backend workers collectors automation warehouse scripts`
+- `ruff format --check .`
+- `mypy backend workers collectors automation warehouse scripts common`
 - `pytest -q`
 - migration smoke:
 - backup / restore status:
@@ -45,4 +45,4 @@
 
 ## Known issues / follow-ups
 
-- 
+-

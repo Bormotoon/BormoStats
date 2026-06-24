@@ -14,7 +14,7 @@ SELECT
     argMax(sale_percent, snapshot_ts) AS sale_percent,
     argMax(in_stock, snapshot_ts) AS in_stock
 FROM raw_competitor_prices AS pr
-INNER JOIN raw_competitor_products FINAL AS p
+INNER JOIN raw_competitor_products AS p FINAL
     ON pr.marketplace = p.marketplace
     AND pr.product_id = p.product_id
 WHERE snapshot_ts >= today() - %(days)s

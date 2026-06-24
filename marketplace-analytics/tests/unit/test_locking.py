@@ -53,18 +53,20 @@ class FakeRedis:
 def test_lock_scope_auto_renews_and_emits_telemetry(caplog) -> None:
     redis_client = FakeRedis()
 
-    with caplog.at_level(logging.INFO, logger="workers.locks"):
-        with worker_locking.lock_scope(
+    with (
+        caplog.at_level(logging.INFO, logger="workers.locks"),
+        worker_locking.lock_scope(
             redis_client=redis_client,
             source="wb_sales",
             account_id="acc-1",
             ttl_seconds=1,
             auto_renew=True,
             renew_interval_seconds=0.05,
-        ) as lock:
-            time.sleep(0.16)
-            lock.ensure_held()
-            assert lock.renewals >= 1
+        ) as lock,
+    ):
+        time.sleep(0.16)
+        lock.ensure_held()
+        assert lock.renewals >= 1
 
     assert redis_client.values == {}
     assert redis_client.expire_calls

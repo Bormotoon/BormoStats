@@ -12,7 +12,7 @@ SELECT
     max(pr.price_rub) AS max_price,
     avg(pr.price_rub) AS avg_price,
     sum(pr.in_stock) AS total_stock
-FROM raw_competitor_products FINAL AS p
+FROM raw_competitor_products AS p FINAL
 INNER JOIN (
     SELECT
         marketplace,

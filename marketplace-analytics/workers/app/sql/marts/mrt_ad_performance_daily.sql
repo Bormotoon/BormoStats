@@ -10,33 +10,33 @@ SELECT
     sum(orders) AS orders,
     sum(revenue) AS revenue_rub,
     multiIf(
-        sum(revenue) > 0,
-        sum(cost) / sum(revenue) * 100,
+        revenue_rub > 0,
+        cost_rub / revenue_rub * 100,
         999
     ) AS drr_pct,
     multiIf(
-        sum(cost) > 0,
-        sum(revenue) / sum(cost),
+        cost_rub > 0,
+        revenue_rub / cost_rub,
         0
     ) AS roas,
     multiIf(
-        sum(revenue) > 0,
-        sum(cost) / sum(revenue) * 100,
+        revenue_rub > 0,
+        cost_rub / revenue_rub * 100,
         0
     ) AS acos_pct,
     multiIf(
-        sum(clicks) > 0,
-        sum(cost) / sum(clicks),
+        clicks > 0,
+        cost_rub / clicks,
         0
     ) AS cpc_rub,
     multiIf(
-        sum(impressions) > 0,
-        sum(cost) / sum(impressions) * 1000,
+        impressions > 0,
+        cost_rub / impressions * 1000,
         0
     ) AS cpm_rub,
     multiIf(
-        sum(clicks) > 0,
-        sum(orders) / sum(clicks) * 100,
+        clicks > 0,
+        orders / clicks * 100,
         0
     ) AS conversion_pct
 FROM stg_ads_daily FINAL

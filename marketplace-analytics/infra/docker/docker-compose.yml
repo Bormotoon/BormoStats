@@ -83,12 +83,12 @@ services:
     restart: unless-stopped
     volumes:
       - redis_data:/data
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-}"]
     mem_limit: ${REDIS_MEMORY_LIMIT:-512m}
     mem_reservation: ${REDIS_MEMORY_RESERVATION:-128m}
     cpus: ${REDIS_CPU_LIMIT:-0.5}
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-}", "ping"]
       interval: 10s
       timeout: 3s
       retries: 12
@@ -187,10 +187,8 @@ services:
     healthcheck:
       test:
         [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9102/metrics', timeout=5).read()",
+          "CMD-SHELL",
+          "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:9102/health\", timeout=5).read()'",
         ]
       interval: 15s
       timeout: 5s

@@ -125,19 +125,7 @@ def test_worker_cached_client_disables_session_autogeneration(monkeypatch) -> No
     assert calls[0]["autogenerate_session_id"] is False
 
 
-def test_maintenance_client_disables_session_autogeneration(monkeypatch) -> None:
-    maintenance_tasks = _load_worker_module(
-        "worker_maintenance_client_test",
-        WORKER_MAINTENANCE_PATH,
-    )
-    calls: list[dict[str, object]] = []
-
-    def fake_get_client(**kwargs: object) -> object:
-        calls.append(dict(kwargs))
-        return object()
-
-    monkeypatch.setattr(maintenance_tasks.clickhouse_connect, "get_client", fake_get_client)
-
-    maintenance_tasks._ch_client()
-
-    assert calls[0]["autogenerate_session_id"] is False
+def test_maintenance_reuses_worker_runtime_client() -> None:
+    mod = _load_worker_module("worker_maintenance_test", WORKER_MAINTENANCE_PATH)
+    assert not hasattr(mod, "_ch_client"), "maintenance should not define its own _ch_client"
+    assert mod.get_ch_client is not None, "maintenance should use get_ch_client from runtime"

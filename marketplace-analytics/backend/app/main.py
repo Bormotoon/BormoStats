@@ -47,9 +47,11 @@ app.include_router(costs.router, prefix="/api/v1")
 app.include_router(plugin.router, prefix="/api/v1")
 app.include_router(ai.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
-app.mount(
-    "/ui", StaticFiles(directory=Path(__file__).resolve().parent / "ui", html=True), name="ui"
-)
+ui_dir = Path(__file__).resolve().parent / "ui"
+ui_static = ui_dir / "dist"
+if not ui_static.is_dir():
+    ui_static = ui_dir
+app.mount("/ui", StaticFiles(directory=ui_static, html=True), name="ui")
 
 
 def _error_payload(

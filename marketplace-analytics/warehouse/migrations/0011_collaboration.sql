@@ -12,4 +12,5 @@ CREATE TABLE IF NOT EXISTS dim_user
 ENGINE = ReplacingMergeTree(updated_at)
 ORDER BY (user_id);
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_dim_user_api_key ON dim_user (api_key) TYPE bloom_filter GRANULARITY 1;
+SET create_index_ignore_unique = 1;
+CREATE INDEX IF NOT EXISTS idx_dim_user_api_key ON dim_user (api_key) TYPE bloom_filter GRANULARITY 1;

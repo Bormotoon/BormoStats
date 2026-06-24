@@ -47,7 +47,7 @@ class BlockingClient:
         self.command_calls: list[str] = []
         self._blocked = False
 
-    def command(self, sql: str) -> None:
+    def command(self, sql: str, **kwargs: object) -> None:
         self.command_calls.append(sql)
         if not self._blocked:
             self._blocked = True
@@ -63,7 +63,7 @@ class RecordingClient:
     def __init__(self) -> None:
         self.command_calls: list[str] = []
 
-    def command(self, sql: str) -> None:
+    def command(self, sql: str, **kwargs: object) -> None:
         self.command_calls.append(sql)
 
     def close(self) -> None:

@@ -1,0 +1,68 @@
+import { useEffect } from "react";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { motion, AnimatePresence } from "motion/react";
+import Layout from "./components/Layout.jsx";
+import FiltersBar from "./components/FiltersBar.jsx";
+import Dashboard from "./pages/Dashboard.jsx";
+import Sales from "./pages/Sales.jsx";
+import Stocks from "./pages/Stocks.jsx";
+import Funnel from "./pages/Funnel.jsx";
+import Ads from "./pages/Ads.jsx";
+import KPIs from "./pages/KPIs.jsx";
+import Watermarks from "./pages/Watermarks.jsx";
+import TaskRuns from "./pages/TaskRuns.jsx";
+import AdminActions from "./pages/AdminActions.jsx";
+import System from "./pages/System.jsx";
+import { loadSettings, getTheme } from "./utils/api.js";
+
+const PAGES = {
+  dashboard: Dashboard,
+  sales: Sales,
+  stocks: Stocks,
+  funnel: Funnel,
+  ads: Ads,
+  kpis: KPIs,
+  watermarks: Watermarks,
+  taskRuns: TaskRuns,
+  adminActions: AdminActions,
+  system: System,
+};
+
+export default function App() {
+  const location = useLocation();
+  const currentPath = location.pathname.replace(/^\//, "") || "dashboard";
+  const PageComponent = PAGES[currentPath];
+
+  useEffect(() => {
+    loadSettings();
+    document.documentElement.dataset.theme = getTheme();
+  }, []);
+
+  const handleReload = () => {
+    window.location.reload();
+  };
+
+  return (
+    <Layout onReload={handleReload}>
+      <FiltersBar pageId={currentPath} />
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={currentPath}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -12 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+        >
+          {PageComponent ? (
+            <PageComponent />
+          ) : (
+            <div className="text-center py-16 text-[var(--color-text-muted)]">
+              <p className="text-lg font-bold">Page not found</p>
+              <p className="text-sm mt-2">Navigate using the sidebar</p>
+            </div>
+          )}
+        </motion.div>
+      </AnimatePresence>
+    </Layout>
+  );
+}

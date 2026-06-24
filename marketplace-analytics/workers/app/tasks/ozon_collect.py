@@ -7,8 +7,9 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from app.utils.celery_helpers import shared_task
+from app.utils.collection import collect_snapshot, insert_rows
 from app.utils.locking import LockNotAcquiredError, lock_scope
-from app.utils.metrics import observe_empty_payload, observe_rows
+from app.utils.metrics import observe_empty_payload
 from app.utils.runtime import get_ch_client, get_redis_client, log_task_run, new_run_context
 from app.utils.watermarks import get_watermark, set_watermark
 
@@ -100,18 +101,31 @@ def _postings_schemas() -> tuple[str, ...]:
     return tuple(dict.fromkeys(valid))
 
 
-def _insert_rows(client: Any, table: str, columns: list[str], rows: list[dict[str, Any]]) -> int:
-    if not rows:
-        return 0
-    data = [[row.get(col) for col in columns] for row in rows]
-    client.insert(table=table, data=data, column_names=columns)
-    observe_rows(table=table, rows=len(rows))
-    return len(rows)
+def _log_capability_skip(
+    ch_client: Any,
+    task_name: str,
+    run_id: str,
+    started_at: datetime,
+    source: str,
+) -> None:
+    log_task_run(
+        ch_client,
+        task_name,
+        run_id,
+        started_at,
+        "skipped",
+        0,
+        f"ozon {source} capability unavailable",
+        meta={"capability": source, "reason": "unavailable_or_forbidden"},
+    )
+
+
+# -- Postings tasks --
 
 
 def _collect_postings(account_id: str, from_ts: datetime | None = None) -> dict[str, Any]:
     task_name = "tasks.ozon_collect.ozon_postings_incremental"
-    run_id, started_at = new_run_context(task_name)
+    run_id, started_at = new_run_context()
     ozon = _ozon_client()
     if ozon is None:
         return {"status": "skipped", "reason": "missing Ozon credentials"}
@@ -137,11 +151,13 @@ def _collect_postings(account_id: str, from_ts: datetime | None = None) -> dict[
                 observe_empty_payload("ozon_postings")
             posting_rows, item_rows = parse_postings(records, run_id=run_id, account_id=account_id)
 
-            inserted = 0
-            inserted += _insert_rows(
-                ch_client, "raw_ozon_postings", RAW_OZON_POSTINGS_COLUMNS, posting_rows
+            inserted = insert_rows(
+                ch_client,
+                "raw_ozon_postings",
+                RAW_OZON_POSTINGS_COLUMNS,
+                posting_rows,
             )
-            inserted += _insert_rows(
+            inserted += insert_rows(
                 ch_client,
                 "raw_ozon_posting_items",
                 RAW_OZON_POSTING_ITEMS_COLUMNS,
@@ -161,74 +177,7 @@ def _collect_postings(account_id: str, from_ts: datetime | None = None) -> dict[
             return {"status": "success", "rows": inserted, "watermark": now_ts.isoformat()}
         except Exception as exc:
             if is_capability_error(exc):
-                log_task_run(
-                    ch_client,
-                    task_name,
-                    run_id,
-                    started_at,
-                    "skipped",
-                    0,
-                    "ozon postings capability unavailable",
-                    meta={"capability": "postings", "reason": "unavailable_or_forbidden"},
-                )
-                return {"status": "skipped", "reason": "capability_unavailable"}
-            log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
-            raise
-
-
-def _collect_finance(account_id: str, from_ts: datetime | None = None) -> dict[str, Any]:
-    task_name = "tasks.ozon_collect.ozon_finance_incremental"
-    run_id, started_at = new_run_context(task_name)
-    ozon = _ozon_client()
-    if ozon is None:
-        return {"status": "skipped", "reason": "missing Ozon credentials"}
-
-    redis_client = get_redis_client()
-    with lock_scope(
-        redis_client=redis_client,
-        source="ozon_finance",
-        account_id=account_id,
-        ttl_seconds=1200,
-        auto_renew=True,
-    ):
-        ch_client = get_ch_client()
-        try:
-            watermark = from_ts or get_watermark(ch_client, "ozon_finance", account_id)
-            now_ts = datetime.now(UTC)
-            records = ozon.finance_operations(from_ts=watermark, to_ts=now_ts, limit=1000)
-            if not records:
-                observe_empty_payload("ozon_finance")
-            rows = parse_finance_ops(records, run_id=run_id, account_id=account_id)
-            inserted = _insert_rows(
-                ch_client, "raw_ozon_finance_ops", RAW_OZON_FINANCE_COLUMNS, rows
-            )
-
-            latest_ts = max(
-                (row["operation_ts"] for row in rows), default=now_ts.replace(tzinfo=None)
-            )
-            set_watermark(ch_client, "ozon_finance", account_id, latest_ts.replace(tzinfo=UTC))
-            log_task_run(
-                ch_client,
-                task_name,
-                run_id,
-                started_at,
-                "success",
-                inserted,
-                "ozon finance ops collected",
-            )
-            return {"status": "success", "rows": inserted, "watermark": str(latest_ts)}
-        except Exception as exc:
-            if is_capability_error(exc):
-                log_task_run(
-                    ch_client,
-                    task_name,
-                    run_id,
-                    started_at,
-                    "skipped",
-                    0,
-                    "ozon finance capability unavailable",
-                    meta={"capability": "finance", "reason": "unavailable_or_forbidden"},
-                )
+                _log_capability_skip(ch_client, task_name, run_id, started_at, "postings")
                 return {"status": "skipped", "reason": "capability_unavailable"}
             log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
             raise
@@ -257,6 +206,61 @@ def ozon_postings_backfill_days(
         return {"status": "skipped", "reason": "lock_not_acquired"}
 
 
+# -- Finance tasks --
+
+
+def _collect_finance(account_id: str, from_ts: datetime | None = None) -> dict[str, Any]:
+    task_name = "tasks.ozon_collect.ozon_finance_incremental"
+    run_id, started_at = new_run_context()
+    ozon = _ozon_client()
+    if ozon is None:
+        return {"status": "skipped", "reason": "missing Ozon credentials"}
+
+    redis_client = get_redis_client()
+    with lock_scope(
+        redis_client=redis_client,
+        source="ozon_finance",
+        account_id=account_id,
+        ttl_seconds=1200,
+        auto_renew=True,
+    ):
+        ch_client = get_ch_client()
+        try:
+            watermark = from_ts or get_watermark(ch_client, "ozon_finance", account_id)
+            now_ts = datetime.now(UTC)
+            records = ozon.finance_operations(from_ts=watermark, to_ts=now_ts, limit=1000)
+            if not records:
+                observe_empty_payload("ozon_finance")
+            rows = parse_finance_ops(records, run_id=run_id, account_id=account_id)
+            inserted = insert_rows(
+                ch_client,
+                "raw_ozon_finance_ops",
+                RAW_OZON_FINANCE_COLUMNS,
+                rows,
+            )
+
+            latest_ts = max(
+                (row["operation_ts"] for row in rows), default=now_ts.replace(tzinfo=None)
+            )
+            set_watermark(ch_client, "ozon_finance", account_id, latest_ts.replace(tzinfo=UTC))
+            log_task_run(
+                ch_client,
+                task_name,
+                run_id,
+                started_at,
+                "success",
+                inserted,
+                "ozon finance ops collected",
+            )
+            return {"status": "success", "rows": inserted, "watermark": str(latest_ts)}
+        except Exception as exc:
+            if is_capability_error(exc):
+                _log_capability_skip(ch_client, task_name, run_id, started_at, "finance")
+                return {"status": "skipped", "reason": "capability_unavailable"}
+            log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
+            raise
+
+
 @shared_task(name="tasks.ozon_collect.ozon_finance_incremental")
 def ozon_finance_incremental(account_id: str = OZON_ACCOUNT_ID) -> dict[str, Any]:
     try:
@@ -278,48 +282,30 @@ def ozon_finance_backfill_days(days: int = 30, account_id: str = OZON_ACCOUNT_ID
         return {"status": "skipped", "reason": "lock_not_acquired"}
 
 
+# -- Stocks tasks --
+
+
 @shared_task(name="tasks.ozon_collect.ozon_stocks_snapshot")
 def ozon_stocks_snapshot(account_id: str = OZON_ACCOUNT_ID) -> dict[str, Any]:
-    task_name = "tasks.ozon_collect.ozon_stocks_snapshot"
-    run_id, started_at = new_run_context(task_name)
     ozon = _ozon_client()
     if ozon is None:
         return {"status": "skipped", "reason": "missing Ozon credentials"}
 
-    snapshot_ts = datetime.now(UTC)
-    redis_client = get_redis_client()
-    try:
-        with lock_scope(
-            redis_client=redis_client,
-            source="ozon_stocks",
-            account_id=account_id,
-            ttl_seconds=900,
-            auto_renew=True,
-        ):
-            ch_client = get_ch_client()
-            try:
-                records = ozon.stocks()
-                if not records:
-                    observe_empty_payload("ozon_stocks")
-                rows = parse_stocks(
-                    records, run_id=run_id, account_id=account_id, snapshot_ts=snapshot_ts
-                )
-                inserted = _insert_rows(ch_client, "raw_ozon_stocks", RAW_OZON_STOCKS_COLUMNS, rows)
-                log_task_run(
-                    ch_client,
-                    task_name,
-                    run_id,
-                    started_at,
-                    "success",
-                    inserted,
-                    "ozon stocks snapshot",
-                )
-                return {"status": "success", "rows": inserted}
-            except Exception as exc:
-                log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
-                raise
-    except LockNotAcquiredError:
-        return {"status": "skipped", "reason": "lock_not_acquired"}
+    def fetch() -> list[dict[str, Any]]:
+        return ozon.stocks()
+
+    return collect_snapshot(
+        task_name="tasks.ozon_collect.ozon_stocks_snapshot",
+        source="ozon_stocks",
+        account_id=account_id,
+        fetch_fn=fetch,
+        parse_fn=parse_stocks,
+        columns=RAW_OZON_STOCKS_COLUMNS,
+        table="raw_ozon_stocks",
+    )
+
+
+# -- Ads tasks --
 
 
 @shared_task(name="tasks.ozon_collect.ozon_ads_daily")
@@ -327,7 +313,7 @@ def ozon_ads_daily(
     target_day: str | None = None, account_id: str = OZON_ACCOUNT_ID
 ) -> dict[str, Any]:
     task_name = "tasks.ozon_collect.ozon_ads_daily"
-    run_id, started_at = new_run_context(task_name)
+    run_id, started_at = new_run_context()
     perf_api_key = os.getenv("OZON_PERF_API_KEY", "").strip()
     ozon = _ozon_client()
     if ozon is None:
@@ -367,23 +353,20 @@ def ozon_ads_daily(
                 if not records:
                     observe_empty_payload("ozon_ads")
                 rows = parse_ads_daily(records, run_id=run_id, account_id=account_id)
-                inserted = _insert_rows(ch_client, "raw_ozon_ads_daily", RAW_OZON_ADS_COLUMNS, rows)
+                inserted = insert_rows(ch_client, "raw_ozon_ads_daily", RAW_OZON_ADS_COLUMNS, rows)
                 log_task_run(
-                    ch_client, task_name, run_id, started_at, "success", inserted, "ozon ads daily"
+                    ch_client,
+                    task_name,
+                    run_id,
+                    started_at,
+                    "success",
+                    inserted,
+                    "ozon ads daily",
                 )
                 return {"status": "success", "rows": inserted, "day": day_value.isoformat()}
             except Exception as exc:
                 if is_capability_error(exc):
-                    log_task_run(
-                        ch_client,
-                        task_name,
-                        run_id,
-                        started_at,
-                        "skipped",
-                        0,
-                        "ozon ads capability unavailable",
-                        meta={"capability": "ads", "reason": "unavailable_or_forbidden"},
-                    )
+                    _log_capability_skip(ch_client, task_name, run_id, started_at, "ads")
                     return {"status": "skipped", "reason": "capability_unavailable"}
                 log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
                 raise

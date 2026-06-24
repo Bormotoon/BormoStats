@@ -22,17 +22,24 @@ def get_ch_client() -> clickhouse_connect.driver.Client:
         username=os.getenv("CH_USER", "default"),
         password=os.getenv("CH_PASSWORD", ""),
         database=os.getenv("CH_DB", "mp_analytics"),
+        connect_timeout=15,
+        send_receive_timeout=120,
         autogenerate_session_id=False,
     )
 
 
 @lru_cache(maxsize=1)
 def get_redis_client() -> Redis:
-    return Redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"))
+    url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    password = os.getenv("REDIS_PASSWORD", "")
+    if password:
+        _, rest = url.split("://", 1)
+        host_part = rest.split("@")[-1] if "@" in rest else rest
+        url = f"redis://:{password}@{host_part}"
+    return Redis.from_url(url)
 
 
-def new_run_context(task_name: str) -> tuple[str, datetime]:
-    _ = task_name
+def new_run_context() -> tuple[str, datetime]:
     return str(uuid4()), datetime.now(UTC)
 
 

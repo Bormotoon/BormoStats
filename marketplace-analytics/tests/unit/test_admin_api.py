@@ -121,10 +121,15 @@ def test_admin_service_logs_queued_backfill(monkeypatch: pytest.MonkeyPatch) -> 
             return FakeAsyncResult()
 
     class FakeLogger:
-        def info(self, event: str, **kwargs: object) -> None:
-            audit_entries.append((event, dict(kwargs)))
+        def info(self, *args: object, **kwargs: object) -> None:
+            audit_entries.append((str(args[0]) if args else "", dict(kwargs)))
 
-    service = AdminService(client=None, settings=SimpleNamespace(redis_url="redis://localhost:6379/0"))  # type: ignore[arg-type]
+        def warning(self, *args: object, **kwargs: object) -> None:
+            audit_entries.append((str(args[0]) if args else "", dict(kwargs)))
+
+    service = AdminService(
+        client=None, settings=SimpleNamespace(redis_url="redis://localhost:6379/0")
+    )  # type: ignore[arg-type]
     service.celery = FakeCelery()  # type: ignore[assignment]
     monkeypatch.setattr(admin_service_module, "LOGGER", FakeLogger())
 

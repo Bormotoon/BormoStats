@@ -30,6 +30,6 @@
 
 ## Archive
 
-- Historical planning and audit prep documents live in [`./archive/`](./archive/README.md).
+- Historical planning and audit prep documents are retained in version history for context and provenance.
 - Archived files are retained for context and provenance, but they are not the source of truth for current runtime behavior.
 
