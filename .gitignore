@@ -31,6 +31,9 @@ dist/
 # Security
 *.spdx.json
 
+# Playwright test results
+test-results/
+
 # Internal AI tooling (opencode skills, not for public)
 .opencode/
 opencode.json
