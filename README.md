@@ -275,13 +275,21 @@ The built-in React SPA is available at `https://localhost:18443/ui/`. It feature
 | `GET` | `/api/v1/insights/tasks` | Actionable recommendation tasks |
 | `PATCH` | `/api/v1/insights/tasks/{id}` | Update task status |
 | `GET` | `/api/v1/pim/products` | PIM product catalog |
-| `GET` | `/api/v1/pim/brands` | Brand reference list |
-| `GET` | `/api/v1/pim/categories` | Category reference list |
+| `PATCH` | `/api/v1/pim/products/{mp}/{aid}/{pid}` | Update single product PIM data |
 | `POST` | `/api/v1/pim/products/generate-description` | AI description generation |
 | `POST` | `/api/v1/pim/products/bulk-update` | Bulk product enrichment |
+| `GET` | `/api/v1/pim/brands` | Brand reference list |
+| `POST` | `/api/v1/pim/brands` | Create brand |
+| `PATCH` | `/api/v1/pim/brands/{id}` | Update brand |
+| `DELETE` | `/api/v1/pim/brands/{id}` | Delete brand |
+| `GET` | `/api/v1/pim/categories` | Category reference list |
+| `POST` | `/api/v1/pim/categories` | Create category |
+| `PATCH` | `/api/v1/pim/categories/{id}` | Update category |
+| `DELETE` | `/api/v1/pim/categories/{id}` | Delete category |
 | `POST` | `/api/v1/integrations/stock/update` | Push stock to WB/Ozon APIs |
 | `GET` | `/api/v1/integrations/subscriptions` | Webhook subscriptions |
 | `POST` | `/api/v1/integrations/subscriptions` | Create webhook subscription |
+| `DELETE` | `/api/v1/integrations/subscriptions/{id}` | Delete webhook subscription |
 | `GET` | `/api/v1/integrations/logs` | Webhook delivery logs |
 
 **Query Parameters:**

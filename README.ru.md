@@ -282,13 +282,21 @@ sudo make install-systemd
 | `GET` | `/api/v1/insights/tasks` | Рекомендательные задачи |
 | `PATCH` | `/api/v1/insights/tasks/{id}` | Обновить статус задачи |
 | `GET` | `/api/v1/pim/products` | PIM каталог товаров |
-| `GET` | `/api/v1/pim/brands` | Справочник брендов |
-| `GET` | `/api/v1/pim/categories` | Справочник категорий |
+| `PATCH` | `/api/v1/pim/products/{mp}/{aid}/{pid}` | Обновить PIM данные товара |
 | `POST` | `/api/v1/pim/products/generate-description` | AI-генерация описания |
 | `POST` | `/api/v1/pim/products/bulk-update` | Массовое обогащение товаров |
+| `GET` | `/api/v1/pim/brands` | Справочник брендов |
+| `POST` | `/api/v1/pim/brands` | Создать бренд |
+| `PATCH` | `/api/v1/pim/brands/{id}` | Обновить бренд |
+| `DELETE` | `/api/v1/pim/brands/{id}` | Удалить бренд |
+| `GET` | `/api/v1/pim/categories` | Справочник категорий |
+| `POST` | `/api/v1/pim/categories` | Создать категорию |
+| `PATCH` | `/api/v1/pim/categories/{id}` | Обновить категорию |
+| `DELETE` | `/api/v1/pim/categories/{id}` | Удалить категорию |
 | `POST` | `/api/v1/integrations/stock/update` | Отправить остатки в WB/Ozon |
 | `GET` | `/api/v1/integrations/subscriptions` | Webhook подписки |
 | `POST` | `/api/v1/integrations/subscriptions` | Создать webhook подписку |
+| `DELETE` | `/api/v1/integrations/subscriptions/{id}` | Удалить webhook подписку |
 | `GET` | `/api/v1/integrations/logs` | Логи доставки webhook |
 
 **Параметры запроса:**
