@@ -89,4 +89,8 @@ beat_schedule = {
         "task": "tasks.competitor_collect.build_marts",
         "schedule": crontab(minute="45", hour="*/1"),
     },
+    "bidder_evaluate_rules": {
+        "task": "tasks.bidder.bidder_evaluate_rules",
+        "schedule": crontab(minute="*/5"),
+    },
 }

@@ -8,6 +8,7 @@ import Sales from "./pages/Sales.jsx";
 import Stocks from "./pages/Stocks.jsx";
 import Funnel from "./pages/Funnel.jsx";
 import Ads from "./pages/Ads.jsx";
+import Bidder from "./pages/Bidder.jsx";
 import KPIs from "./pages/KPIs.jsx";
 import Watermarks from "./pages/Watermarks.jsx";
 import TaskRuns from "./pages/TaskRuns.jsx";
@@ -22,6 +23,7 @@ const PAGES = {
   stocks: Stocks,
   funnel: Funnel,
   ads: Ads,
+  bidder: Bidder,
   kpis: KPIs,
   watermarks: Watermarks,
   taskRuns: TaskRuns,

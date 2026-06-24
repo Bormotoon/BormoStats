@@ -4,7 +4,7 @@ import { useI18n } from "../utils/i18n.jsx";
 import AccountSwitcher from "./AccountSwitcher.jsx";
 import {
   ChartLineUp, ShoppingCart, Warehouse, Funnel, Megaphone,
-  Target, Drop, ListChecks, ShieldCheck, Monitor,
+  Target, Drop, ListChecks, ShieldCheck, Monitor, CurrencyCircleDollar,
   Gear, List, MoonStars, Sun, ArrowClockwise, Translate,
 } from "@phosphor-icons/react";
 
@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { id: "stocks", icon: Warehouse },
   { id: "funnel", icon: Funnel },
   { id: "ads", icon: Megaphone },
+  { id: "bidder", icon: CurrencyCircleDollar },
   { id: "kpis", icon: Target },
   { id: "watermarks", icon: Drop },
   { id: "taskRuns", icon: ListChecks },
