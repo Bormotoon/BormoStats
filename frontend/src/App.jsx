@@ -13,6 +13,7 @@ import TaskRuns from "./pages/TaskRuns.jsx";
 import AdminActions from "./pages/AdminActions.jsx";
 import System from "./pages/System.jsx";
 import { loadSettings, getTheme } from "./utils/api.js";
+loadSettings();
 
 const PAGES = {
   dashboard: Dashboard,
@@ -37,7 +38,6 @@ export default function App() {
   const PageComponent = PAGES[currentPath];
 
   useEffect(() => {
-    loadSettings();
     document.documentElement.dataset.theme = getTheme();
     const onHashChange = () => setCurrentPath(getPageFromHash());
     window.addEventListener("hashchange", onHashChange);
