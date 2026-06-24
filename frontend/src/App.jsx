@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { I18nProvider, useI18n } from "./utils/i18n.jsx";
 import Layout from "./components/Layout.jsx";
 import FiltersBar from "./components/FiltersBar.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
@@ -33,9 +34,10 @@ function getPageFromHash() {
   return hash.split("/")[0].split("?")[0];
 }
 
-export default function App() {
+function AppInner() {
   const [currentPath, setCurrentPath] = useState(getPageFromHash);
   const PageComponent = PAGES[currentPath];
+  const { t } = useI18n();
 
   useEffect(() => {
     document.documentElement.dataset.theme = getTheme();
@@ -62,13 +64,21 @@ export default function App() {
           {PageComponent ? (
             <PageComponent />
           ) : (
-            <div className="text-center py-16 text-[var(--color-text-muted)]">
-              <p className="text-lg font-bold">Page not found</p>
-              <p className="text-sm mt-2">Navigate using the sidebar</p>
+            <div className="text-center py-16 text-[var(--color-on-surface-variant)]">
+              <p className="text-lg font-bold">{t("common.notFound")}</p>
+              <p className="text-sm mt-2">{t("common.navigateSidebar")}</p>
             </div>
           )}
         </motion.div>
       </AnimatePresence>
     </Layout>
+  );
+}
+
+export default function App() {
+  return (
+    <I18nProvider>
+      <AppInner />
+    </I18nProvider>
   );
 }

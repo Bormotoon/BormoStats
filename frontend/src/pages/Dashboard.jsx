@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useI18n } from "../utils/i18n.jsx";
 import { request } from "../utils/api.js";
 import { sum, groupSeries, moneyFmt, numberFmt } from "../utils/formats.js";
 import MetricCard from "../components/MetricCard.jsx";
@@ -9,6 +10,7 @@ import { AreaChartCard } from "../components/Chart.jsx";
 import { Spinner } from "../components/StatusChip.jsx";
 
 export default function Dashboard() {
+  const { t } = useI18n();
   const [searchParams] = useSearchParams();
   const [state, setState] = useState({ loading: true, sales: [], ads: [], stocks: [], kpis: [], health: null, ready: null, error: "" });
 
@@ -53,29 +55,29 @@ export default function Dashboard() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-4 md:grid-cols-6 gap-3">
-        <MetricCard label="Health" value={<StatusChip ok={health?.status === "ok"} okText="Healthy" failText="Unhealthy" />} subvalue="FastAPI" accent={health?.status === "ok" ? "success" : "error"} />
-        <MetricCard label="Ready" value={<StatusChip ok={ready?.status === "ready"} okText="Ready" failText="Not Ready" />} subvalue="ClickHouse+Redis" accent={ready?.status === "ready" ? "success" : "error"} />
-        <MetricCard label="Revenue" value={moneyFmt(sum(salesRows, "revenue"))} subvalue="за период" className="col-span-2" />
-        <MetricCard label="Sales Qty" value={numberFmt(sum(salesRows, "qty"))} subvalue="сумма qty" />
-        <MetricCard label="Ad Cost" value={moneyFmt(sum(adsRows, "cost"))} subvalue="сумма cost" />
+        <MetricCard label={t("common.health")} value={<StatusChip ok={health?.status === "ok"} okText={t("common.healthy")} failText={t("common.unhealthy")} />} subvalue="FastAPI" accent={health?.status === "ok" ? "success" : "error"} />
+        <MetricCard label={t("common.ready")} value={<StatusChip ok={ready?.status === "ready"} okText={t("common.readyStatus")} failText={t("common.notReady")} />} subvalue="ClickHouse+Redis" accent={ready?.status === "ready" ? "success" : "error"} />
+        <MetricCard label={t("dashboard.revenue")} value={moneyFmt(sum(salesRows, "revenue"))} subvalue={t("dashboard.period")} className="col-span-2" />
+        <MetricCard label={t("dashboard.salesQty")} value={numberFmt(sum(salesRows, "qty"))} subvalue={t("dashboard.sumQty")} />
+        <MetricCard label={t("dashboard.adCost")} value={moneyFmt(sum(adsRows, "cost"))} subvalue={t("dashboard.sumCost")} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
-        <MetricCard label="Stock Units" value={numberFmt(sum(state.stocks, "stock_end"))} subvalue={`${numberFmt(state.stocks.length)} позиций`} className="lg:col-span-1" />
+        <MetricCard label={t("dashboard.stockUnits")} value={numberFmt(sum(state.stocks, "stock_end"))} subvalue={`${numberFmt(state.stocks.length)} ${t("dashboard.items")}`} className="lg:col-span-1" />
         <div className="lg:col-span-3">
-          <AreaChartCard title="Revenue Trend" data={groupSeries(salesRows, "day", "revenue")} dataKey="value" name="Revenue" />
+          <AreaChartCard title={t("dashboard.revenueTrend")} data={groupSeries(salesRows, "day", "revenue")} dataKey="value" name={t("dashboard.revenue")} />
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
         <div className="lg:col-span-3">
-          <AreaChartCard title="Ad Spend Trend" data={groupSeries(adsRows, "day", "cost")} dataKey="value" name="Ad Cost" color="var(--color-warning)" />
+          <AreaChartCard title={t("dashboard.adSpendTrend")} data={groupSeries(adsRows, "day", "cost")} dataKey="value" name={t("dashboard.adCost")} color="var(--color-warning)" />
         </div>
-        <MetricCard label="Stock Items" value={numberFmt(new Set(state.stocks.map(r => r.product_id)).size)} subvalue="unique products" />
+        <MetricCard label={t("dashboard.stockItems")} value={numberFmt(new Set(state.stocks.map(r => r.product_id)).size)} subvalue={t("dashboard.uniqueProducts")} />
       </div>
 
       <section className="md3-card-elevated p-4">
-        <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">Top Products by Revenue</h3>
+        <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">{t("dashboard.topProducts")}</h3>
         <DataTable rows={topProducts} preferredColumns={["day", "marketplace", "account_id", "product_id", "qty", "revenue", "returns_qty", "payout"]} />
       </section>
     </div>

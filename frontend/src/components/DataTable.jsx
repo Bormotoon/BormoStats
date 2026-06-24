@@ -1,6 +1,8 @@
 import { useMemo } from "react";
+import { useI18n } from "../utils/i18n.jsx";
 
 export default function DataTable({ rows, preferredColumns }) {
+  const { t } = useI18n();
   const columns = useMemo(() => {
     if (!rows.length) return [];
     if (preferredColumns?.length) {
@@ -14,7 +16,7 @@ export default function DataTable({ rows, preferredColumns }) {
   if (!rows.length) {
     return (
       <div className="rounded-xl border border-dashed border-[var(--color-outline-variant)] text-[var(--color-on-surface-variant)] text-center py-12 px-4">
-        <p className="text-sm">No data</p>
+        <p className="text-sm">{t("common.noData")}</p>
       </div>
     );
   }
@@ -55,7 +57,7 @@ export default function DataTable({ rows, preferredColumns }) {
 
 function CellValue({ column, value }) {
   if (value === null || value === undefined || value === "") {
-    return <span className="text-[var(--color-on-surface-variant)]">-</span>;
+    return <span className="text-[var(--color-on-surface-variant)]">&mdash;</span>;
   }
 
   const key = column.toLowerCase();

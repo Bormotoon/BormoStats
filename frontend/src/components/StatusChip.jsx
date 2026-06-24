@@ -1,4 +1,9 @@
-export default function StatusChip({ ok, okText = "OK", failText = "FAIL" }) {
+import { useI18n } from "../utils/i18n.jsx";
+
+export default function StatusChip({ ok, okText, failText }) {
+  const { t } = useI18n();
+  const showOk = okText || t("common.readyStatus");
+  const showFail = failText || t("common.notReady");
   return (
     <span
       className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
@@ -10,7 +15,7 @@ export default function StatusChip({ ok, okText = "OK", failText = "FAIL" }) {
       <span
         className={`w-1.5 h-1.5 rounded-full ${ok ? "bg-[var(--color-success)]" : "bg-[var(--color-error)]"}`}
       />
-      {ok ? okText : failText}
+      {ok ? showOk : showFail}
     </span>
   );
 }
@@ -40,10 +45,11 @@ export function Spinner() {
   );
 }
 
-export function EmptyState({ message = "No data yet" }) {
+export function EmptyState({ message }) {
+  const { t } = useI18n();
   return (
     <div className="rounded-xl border border-dashed border-[var(--color-outline-variant)] text-[var(--color-on-surface-variant)] text-center py-12 px-4">
-      <p className="text-sm">{message}</p>
+      <p className="text-sm">{message || t("common.noData")}</p>
     </div>
   );
 }

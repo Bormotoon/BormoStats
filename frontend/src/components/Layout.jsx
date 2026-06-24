@@ -1,61 +1,24 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { useI18n } from "../utils/i18n.jsx";
 import {
-  ChartLineUp,
-  ShoppingCart,
-  Warehouse,
-  Funnel,
-  Megaphone,
-  Target,
-  Drop,
-  ListChecks,
-  ShieldCheck,
-  Monitor,
-  Gear,
-  List,
-  MoonStars,
-  Sun,
-  ArrowClockwise,
+  ChartLineUp, ShoppingCart, Warehouse, Funnel, Megaphone,
+  Target, Drop, ListChecks, ShieldCheck, Monitor,
+  Gear, List, MoonStars, Sun, ArrowClockwise, Translate,
 } from "@phosphor-icons/react";
 
 const NAV_ITEMS = [
-  { id: "dashboard", label: "Dashboard", icon: ChartLineUp },
-  { id: "sales", label: "Sales", icon: ShoppingCart },
-  { id: "stocks", label: "Stocks", icon: Warehouse },
-  { id: "funnel", label: "Funnel", icon: Funnel },
-  { id: "ads", label: "Ads", icon: Megaphone },
-  { id: "kpis", label: "KPIs", icon: Target },
-  { id: "watermarks", label: "Watermarks", icon: Drop },
-  { id: "taskRuns", label: "Task Runs", icon: ListChecks },
-  { id: "adminActions", label: "Admin", icon: ShieldCheck },
-  { id: "system", label: "System", icon: Monitor },
+  { id: "dashboard", icon: ChartLineUp },
+  { id: "sales", icon: ShoppingCart },
+  { id: "stocks", icon: Warehouse },
+  { id: "funnel", icon: Funnel },
+  { id: "ads", icon: Megaphone },
+  { id: "kpis", icon: Target },
+  { id: "watermarks", icon: Drop },
+  { id: "taskRuns", icon: ListChecks },
+  { id: "adminActions", icon: ShieldCheck },
+  { id: "system", icon: Monitor },
 ];
-
-const pageSubtitles = {
-  dashboard: "Sales, ads, stocks, and service status at a glance",
-  sales: "Daily sales from mrt_sales_daily",
-  stocks: "Current stock by the latest day in mrt_stock_daily",
-  funnel: "Card funnel: views, cart, orders, conversion rates",
-  ads: "Advertising metrics: cost, revenue, ACOS, ROMI",
-  kpis: "30d KPIs by marketplace / account",
-  watermarks: "System ingestion watermarks (admin)",
-  taskRuns: "Worker task run history (admin)",
-  adminActions: "Whitelisted admin operations: backfill, rebuild, maintenance",
-  system: "Health, readiness, and Prometheus metrics",
-};
-
-const PAGE_TITLES = {
-  dashboard: "Dashboard",
-  sales: "Sales",
-  stocks: "Stocks",
-  funnel: "Funnel",
-  ads: "Ads",
-  kpis: "KPIs",
-  watermarks: "Watermarks",
-  taskRuns: "Task Runs",
-  adminActions: "Admin Actions",
-  system: "System",
-};
 
 function getPageFromHash() {
   const hash = window.location.hash.replace(/^#\//, "") || "dashboard";
@@ -65,8 +28,8 @@ function getPageFromHash() {
 export default function Layout({ children, onReload }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [theme, setThemeState] = useState("light");
   const [currentPath, setCurrentPath] = useState(getPageFromHash);
+  const { t, lang, setLang } = useI18n();
 
   useEffect(() => {
     const onHashChange = () => setCurrentPath(getPageFromHash());
@@ -74,10 +37,27 @@ export default function Layout({ children, onReload }) {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
-  const toggleTheme = () => {
-    const next = theme === "dark" ? "light" : "dark";
-    setThemeState(next);
+  const [apiBase, setApiBase] = useState(() => {
+    try { return localStorage.getItem("bormostats_ui_api_base") || ""; } catch { return ""; }
+  });
+
+  const [adminKeyInput, setAdminKeyInput] = useState("");
+
+  const saveApiBase = (val) => {
+    setApiBase(val);
+    try { localStorage.setItem("bormostats_ui_api_base", val.replace(/\/+$/, "")); } catch {}
   };
+
+  const saveAdminKey = (val) => {
+    setAdminKeyInput(val);
+    if (val.trim()) {
+      try { sessionStorage.setItem("bormostats_admin_key", val.trim()); } catch {}
+    } else {
+      try { sessionStorage.removeItem("bormostats_admin_key"); } catch {}
+    }
+  };
+
+  const toggleLang = () => setLang(lang === "ru" ? "en" : "ru");
 
   return (
     <div className="flex h-full bg-[var(--color-surface)]">
@@ -103,8 +83,8 @@ export default function Layout({ children, onReload }) {
             BS
           </div>
           <div>
-            <p className="font-bold text-sm leading-tight text-[var(--color-on-surface)]">BormoStats</p>
-            <p className="text-xs text-[var(--color-on-surface-variant)] mt-0.5">Marketplace Analytics</p>
+            <p className="font-bold text-sm leading-tight text-[var(--color-on-surface)]">{t("brand.name")}</p>
+            <p className="text-xs text-[var(--color-on-surface-variant)] mt-0.5">{t("brand.tagline")}</p>
           </div>
         </div>
 
@@ -124,13 +104,13 @@ export default function Layout({ children, onReload }) {
                 }`}
               >
                 <Icon size={18} weight={isActive ? "fill" : "regular"} />
-                <span>{item.label}</span>
+                <span>{t(`nav.${item.id}`)}</span>
               </a>
             );
           })}
         </nav>
 
-        <div className="px-2 pb-3">
+        <div className="px-2 pb-3 space-y-0.5">
           <button
             onClick={() => setSettingsOpen(!settingsOpen)}
             className={`flex items-center gap-3 w-full px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150 ${
@@ -140,7 +120,14 @@ export default function Layout({ children, onReload }) {
             }`}
           >
             <Gear size={18} weight={settingsOpen ? "fill" : "regular"} />
-            <span>Settings</span>
+            <span>{t("common.settings")}</span>
+          </button>
+          <button
+            onClick={toggleLang}
+            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-sm font-medium text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container)] hover:text-[var(--color-on-surface)] transition-all duration-150"
+          >
+            <Translate size={18} />
+            <span>{lang === "ru" ? "English" : "Русский"}</span>
           </button>
         </div>
 
@@ -154,30 +141,26 @@ export default function Layout({ children, onReload }) {
             >
               <div className="px-4 py-3 space-y-3">
                 <label className="block">
-                  <span className="text-xs font-semibold text-[var(--color-on-surface-variant)] block mb-1.5">API Base URL</span>
+                  <span className="text-xs font-semibold text-[var(--color-on-surface-variant)] block mb-1.5">{t("common.apiBaseUrl")}</span>
                   <input
                     type="text"
-                    defaultValue={(() => { try { return localStorage.getItem("bormostats_ui_api_base") || ""; } catch { return ""; } })()}
-                    onChange={(e) => { try { localStorage.setItem("bormostats_ui_api_base", e.target.value.replace(/\/+$/, "")); } catch {} }}
-                    placeholder="http://localhost:18080"
+                    value={apiBase}
+                    onChange={(e) => saveApiBase(e.target.value)}
+                    placeholder={t("common.placeholderApi")}
                     className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-container)] border border-[var(--color-outline-variant)] text-sm text-[var(--color-on-surface)] placeholder:text-[var(--color-on-surface-variant)] focus:outline-none focus:border-[var(--color-primary)]"
                   />
                 </label>
                 <label className="block">
-                  <span className="text-xs font-semibold text-[var(--color-on-surface-variant)] block mb-1.5">Admin API Key</span>
+                  <span className="text-xs font-semibold text-[var(--color-on-surface-variant)] block mb-1.5">{t("common.adminApiKey")}</span>
                   <input
                     type="password"
-                    onChange={(e) => {
-                      if (e.target.value.trim()) {
-                        try { sessionStorage.setItem("bormostats_admin_key", e.target.value.trim()); } catch {}
-                      } else {
-                        try { sessionStorage.removeItem("bormostats_admin_key"); } catch {}
-                      }
-                    }}
-                    placeholder="X-API-Key"
+                    value={adminKeyInput}
+                    onChange={(e) => saveAdminKey(e.target.value)}
+                    placeholder={t("common.placeholderKey")}
                     className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-container)] border border-[var(--color-outline-variant)] text-sm text-[var(--color-on-surface)] placeholder:text-[var(--color-on-surface-variant)] focus:outline-none focus:border-[var(--color-primary)]"
                   />
                 </label>
+                <p className="text-xs text-[var(--color-on-surface-variant)] leading-relaxed">{t("common.keyNote")}</p>
               </div>
             </motion.div>
           )}
@@ -195,10 +178,10 @@ export default function Layout({ children, onReload }) {
             </button>
             <div className="min-w-0">
               <h1 className="text-lg font-bold tracking-tight text-[var(--color-on-surface)] truncate">
-                {PAGE_TITLES[currentPath] || "Dashboard"}
+                {t(`pageTitles.${currentPath}`)}
               </h1>
               <p className="text-xs text-[var(--color-on-surface-variant)] truncate mt-0.5">
-                {pageSubtitles[currentPath] || ""}
+                {t(`pageSubtitles.${currentPath}`)}
               </p>
             </div>
           </div>
@@ -207,16 +190,16 @@ export default function Layout({ children, onReload }) {
             <button
               onClick={onReload}
               className="p-2 rounded-lg hover:bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)] transition-colors"
-              title="Reload data"
+              title={t("common.reload")}
             >
               <ArrowClockwise size={18} />
             </button>
             <button
-              onClick={toggleTheme}
+              onClick={toggleLang}
               className="p-2 rounded-lg hover:bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)] transition-colors"
-              title="Toggle theme"
+              title={t("common.language")}
             >
-              {theme === "dark" ? <Sun size={18} /> : <MoonStars size={18} />}
+              <Translate size={18} />
             </button>
           </div>
         </header>

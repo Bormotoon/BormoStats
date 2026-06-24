@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useI18n } from "../utils/i18n.jsx";
 import { request } from "../utils/api.js";
 import { sum, avg, groupSeries, commonParams, moneyFmt, numberFmt, percentFmt } from "../utils/formats.js";
 import MetricCard from "../components/MetricCard.jsx";
@@ -8,6 +9,7 @@ import { AreaChartCard } from "../components/Chart.jsx";
 import { Spinner, EmptyState } from "../components/StatusChip.jsx";
 
 export default function Funnel() {
+  const { t } = useI18n();
   const [searchParams] = useSearchParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -36,28 +38,28 @@ export default function Funnel() {
   if (error) return <div className="rounded-xl border border-[var(--color-error)]/30 bg-[var(--color-error-container)] p-4 text-sm text-[var(--color-error)]">{error}</div>;
 
   const rows = data?.items || [];
-  if (!rows.length) return <EmptyState message="Нет данных по воронке за выбранный период" />;
+  if (!rows.length) return <EmptyState message={t("funnel.empty")} />;
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-        <MetricCard label="Views" value={numberFmt(sum(rows, "views"))} />
-        <MetricCard label="Adds to Cart" value={numberFmt(sum(rows, "adds_to_cart"))} />
-        <MetricCard label="Orders" value={numberFmt(sum(rows, "orders"))} accent="success" />
-        <MetricCard label="Avg CR Order" value={percentFmt(avg(rows, "cr_order"))} />
-        <MetricCard label="Avg CR Cart" value={percentFmt(avg(rows, "cr_cart"))} />
-        <MetricCard label="Rows" value={numberFmt(rows.length)} />
+        <MetricCard label={t("funnel.views")} value={numberFmt(sum(rows, "views"))} />
+        <MetricCard label={t("funnel.addsToCart")} value={numberFmt(sum(rows, "adds_to_cart"))} />
+        <MetricCard label={t("funnel.orders")} value={numberFmt(sum(rows, "orders"))} accent="success" />
+        <MetricCard label={t("funnel.avgCrOrder")} value={percentFmt(avg(rows, "cr_order"))} />
+        <MetricCard label={t("funnel.avgCrCart")} value={percentFmt(avg(rows, "cr_cart"))} />
+        <MetricCard label={t("common.rows")} value={numberFmt(rows.length)} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
         <div className="lg:col-span-4">
-          <AreaChartCard title="Orders by Day" data={groupSeries(rows, "day", "orders")} dataKey="value" name="Orders" color="var(--color-success)" />
+          <AreaChartCard title={t("funnel.ordersByDay")} data={groupSeries(rows, "day", "orders")} dataKey="value" name={t("funnel.orders")} color="var(--color-success)" />
         </div>
-        <MetricCard label="Conversion rate" value={percentFmt(sum(rows, "orders") / sum(rows, "views"))} accent="success" />
+        <MetricCard label={t("funnel.conversionRate")} value={percentFmt(sum(rows, "orders") / sum(rows, "views"))} accent="success" />
       </div>
 
       <section className="md3-card-elevated p-4">
-        <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">Funnel Daily</h3>
+        <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">{t("funnel.funnelDaily")}</h3>
         <DataTable rows={rows} preferredColumns={["day", "marketplace", "account_id", "product_id", "views", "adds_to_cart", "orders", "cr_order", "cr_cart"]} />
       </section>
     </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useI18n } from "../utils/i18n.jsx";
 import { request } from "../utils/api.js";
 import { sum, commonParams, moneyFmt, numberFmt } from "../utils/formats.js";
 import MetricCard from "../components/MetricCard.jsx";
@@ -8,6 +9,7 @@ import { BarChartCard } from "../components/Chart.jsx";
 import { Spinner, EmptyState } from "../components/StatusChip.jsx";
 
 export default function Stocks() {
+  const { t } = useI18n();
   const [searchParams] = useSearchParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -34,7 +36,7 @@ export default function Stocks() {
   if (error) return <div className="rounded-xl border border-[var(--color-error)]/30 bg-[var(--color-error-container)] p-4 text-sm text-[var(--color-error)]">{error}</div>;
 
   const rows = data?.items || [];
-  if (!rows.length) return <EmptyState message="Нет данных по остаткам" />;
+  if (!rows.length) return <EmptyState message={t("stocks.empty")} />;
 
   const lowStock = rows.filter((r) => Number(r.stock_end || 0) <= 5).length;
   const stockByProduct = rows
@@ -51,20 +53,20 @@ export default function Stocks() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <MetricCard label="Total Stock" value={numberFmt(sum(rows, "stock_end"))} className="col-span-2" />
-        <MetricCard label="Rows" value={numberFmt(rows.length)} />
-        <MetricCard label="Low Stock (≤5)" value={numberFmt(lowStock)} accent="error" />
+        <MetricCard label={t("stocks.totalStock")} value={numberFmt(sum(rows, "stock_end"))} className="col-span-2" />
+        <MetricCard label={t("stocks.rows")} value={numberFmt(rows.length)} />
+        <MetricCard label={t("stocks.lowStock")} value={numberFmt(lowStock)} accent="error" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
         <div className="lg:col-span-3">
-          <BarChartCard title="Top Products by Stock" data={topStock} dataKey="value" name="Units" color="var(--color-primary)" />
+          <BarChartCard title={t("stocks.topByStock")} data={topStock} dataKey="value" name={t("common.rows")} color="var(--color-primary)" />
         </div>
-        <MetricCard label="Warehouses" value={numberFmt(new Set(rows.map((r) => r.warehouse_id)).size)} />
+        <MetricCard label={t("stocks.warehouses")} value={numberFmt(new Set(rows.map((r) => r.warehouse_id)).size)} />
       </div>
 
       <section className="md3-card-elevated p-4">
-        <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">Current Stocks</h3>
+        <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">{t("stocks.currentStocks")}</h3>
         <DataTable rows={rows} preferredColumns={["day", "marketplace", "account_id", "product_id", "warehouse_id", "stock_end"]} />
       </section>
     </div>

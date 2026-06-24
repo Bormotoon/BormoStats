@@ -1,13 +1,7 @@
+import { useI18n } from "../utils/i18n.jsx";
 import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
+  ResponsiveContainer, AreaChart, Area, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
 
 function CustomTooltip({ active, payload, label, currency }) {
@@ -69,11 +63,12 @@ export function BarChartCard({ title, data, dataKey = "value", name = "Value", c
 }
 
 function ChartEmpty({ title }) {
+  const { t } = useI18n();
   return (
     <section className="md3-card-elevated p-4">
       <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">{title}</h3>
       <div className="flex items-center justify-center h-[220px] text-[var(--color-on-surface-variant)] text-sm">
-        No data for chart
+        {t("common.noData")}
       </div>
     </section>
   );

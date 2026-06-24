@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useI18n } from "../utils/i18n.jsx";
 import { request } from "../utils/api.js";
 import { numberFmt } from "../utils/formats.js";
 import MetricCard from "../components/MetricCard.jsx";
@@ -6,6 +7,7 @@ import DataTable from "../components/DataTable.jsx";
 import { Spinner, EmptyState } from "../components/StatusChip.jsx";
 
 export default function Watermarks() {
+  const { t } = useI18n();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -24,17 +26,17 @@ export default function Watermarks() {
   if (error) return <div className="rounded-xl border border-[var(--color-error)]/30 bg-[var(--color-error-container)] p-4 text-sm text-[var(--color-error)]">{error}</div>;
 
   const rows = data?.items || [];
-  if (!rows.length) return <EmptyState message="No watermarks found (admin endpoint)" />;
+  if (!rows.length) return <EmptyState message={t("watermarks.empty")} />;
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        <MetricCard label="Rows" value={numberFmt(rows.length)} />
-        <MetricCard label="Distinct Sources" value={numberFmt(new Set(rows.map((r) => r.source)).size)} />
-        <MetricCard label="Distinct Accounts" value={numberFmt(new Set(rows.map((r) => r.account_id)).size)} />
+        <MetricCard label={t("watermarks.rows")} value={numberFmt(rows.length)} />
+        <MetricCard label={t("watermarks.distinctSources")} value={numberFmt(new Set(rows.map((r) => r.source)).size)} />
+        <MetricCard label={t("watermarks.distinctAccounts")} value={numberFmt(new Set(rows.map((r) => r.account_id)).size)} />
       </div>
       <section className="md3-card-elevated p-4">
-        <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">Watermarks</h3>
+        <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">{t("watermarks.title")}</h3>
         <DataTable rows={rows} preferredColumns={["source", "account_id", "watermark_ts", "updated_at"]} />
       </section>
     </div>
