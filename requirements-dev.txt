@@ -24,7 +24,7 @@ lz4==4.4.5
 mypy==1.19.1
 mypy_extensions==1.1.0
 orjson==3.11.7
-packaging==26.0
+packaging==26.2
 pathspec==1.0.4
 platformdirs==4.9.4
 pluggy==1.6.0
