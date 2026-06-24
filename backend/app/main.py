@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import NoReturn
 
 import structlog
-from app.api.v1 import accounts, admin, ads, ai, bidder, costs, funnel, kpis, organizations, plugin, pnl, repricer, sales, stocks, users
+from app.api.v1 import abc_xyz, accounts, admin, ads, ai, bidder, costs, funnel, kpis, organizations, plugin, pnl, repricer, sales, stocks, users
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.core.ops_metrics import refresh_operational_metrics
@@ -52,6 +52,7 @@ app.include_router(accounts.router, prefix="/api/v1")
 app.include_router(bidder.router, prefix="/api/v1")
 app.include_router(repricer.router, prefix="/api/v1")
 app.include_router(pnl.router, prefix="/api/v1")
+app.include_router(abc_xyz.router, prefix="/api/v1")
 ui_dir = Path(__file__).resolve().parent / "ui"
 ui_static = ui_dir / "dist"
 if not ui_static.is_dir():

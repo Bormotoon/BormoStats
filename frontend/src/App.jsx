@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard.jsx";
 import Sales from "./pages/Sales.jsx";
 import Stocks from "./pages/Stocks.jsx";
 import Funnel from "./pages/Funnel.jsx";
+import AbcXyz from "./pages/AbcXyz.jsx";
 import Ads from "./pages/Ads.jsx";
 import Bidder from "./pages/Bidder.jsx";
 import PnL from "./pages/PnL.jsx";
@@ -24,6 +25,7 @@ const PAGES = {
   sales: Sales,
   stocks: Stocks,
   funnel: Funnel,
+  abcXyz: AbcXyz,
   ads: Ads,
   bidder: Bidder,
   pnl: PnL,
