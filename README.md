@@ -51,15 +51,18 @@
 
 ## 🖼️ Screenshots
 
-| Dashboard | Sales Analytics |
-|---|---|
-| ![Dashboard](screenshots/dashboard.png) | ![Sales](screenshots/sales.png) |
-| **Stock Management** | **Funnel Analytics** |
-| ![Stocks](screenshots/stocks.png) | ![Funnel](screenshots/funnel.png) |
-| **Advertising** | **Key Metrics** |
-| ![Ads](screenshots/ads.png) | ![KPIs](screenshots/kpis.png) |
-| **Admin Panel** | |
-| ![Admin](screenshots/admin.png) | |
+| Page | Preview | Description |
+|---|---|---|
+| **Dashboard** | ![Dashboard](screenshots/dashboard.png) | Operational overview: service health, revenue, sales qty, ad cost, stock units, revenue/ad spend trends, top products table |
+| **Sales** | ![Sales](screenshots/sales.png) | Daily sales analytics: aggregated revenue, qty, returns, payout — trend chart and full data table with marketplace/account filters |
+| **Stocks** | ![Stocks](screenshots/stocks.png) | Current inventory: total stock count, low-stock alerts, warehouse breakdown, top products bar chart |
+| **Funnel** | ![Funnel](screenshots/funnel.png) | Conversion funnel: views, adds-to-cart, orders — with CR order/cart averages, daily orders trend |
+| **Ads** | ![Ads](screenshots/ads.png) | Advertising performance: cost, revenue, clicks, orders, ACOS, ROMI — dual trend charts (cost vs revenue by day) |
+| **KPIs** | ![KPIs](screenshots/kpis.png) | 30-day KPIs: revenue, qty, returns, ad cost aggregated by marketplace/account with bar chart |
+| **Watermarks** | ![Watermarks](screenshots/watermarks.png) | Admin — ingestion watermarks cursor table showing data source sync status (wb_sales, ozon_postings, etc.) |
+| **Task Runs** | ![Task Runs](screenshots/taskRuns.png) | Admin — worker task audit log with run status, rows ingested, error messages |
+| **Admin Actions** | ![Admin Actions](screenshots/adminActions.png) | Admin — backfill, transform, and maintenance operations panel with day-range input and response viewer |
+| **System** | ![System](screenshots/system.png) | Service health, readiness, and Prometheus metrics sample
 
 ---
 
@@ -207,7 +210,10 @@ The built-in React SPA is available at `https://localhost:18443/ui/`. It feature
 - **Funnel** — Conversion funnel (views → cart → orders)
 - **Ads** — Advertising performance metrics
 - **KPIs** — Key performance indicators over time
-- **Admin** — Backfill, transform, mart management, watermarks, task audit
+- **Watermarks** — Ingestion watermark cursors (admin)
+- **Task Runs** — Worker task audit log (admin)
+- **Admin Actions** — Backfill, transform, mart management, maintenance operations
+- **System** — Service health, readiness, Prometheus metrics
 
 > 🔐 The admin key is stored **in session memory only**. It must be re-entered after closing the tab or refreshing the page.
 
