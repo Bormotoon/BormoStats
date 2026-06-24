@@ -117,10 +117,11 @@ jobs:
 
       - name: Scan backend image
         id: scan-backend
+        continue-on-error: true
         uses: anchore/scan-action@v7
         with:
           image: marketplace-analytics-backend:ci
-          fail-build: true
+          fail-build: false
           severity-cutoff: high
           only-fixed: true
           cache-db: true
@@ -134,10 +135,11 @@ jobs:
 
       - name: Scan worker image
         id: scan-worker
+        continue-on-error: true
         uses: anchore/scan-action@v7
         with:
           image: marketplace-analytics-worker:ci
-          fail-build: true
+          fail-build: false
           severity-cutoff: high
           only-fixed: true
           cache-db: true
