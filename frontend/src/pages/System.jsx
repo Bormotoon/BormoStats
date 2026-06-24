@@ -55,29 +55,29 @@ export default function System() {
           label="Metrics"
           value={<StatusChip ok={metrics?.ok} okText="Available" failText="Unavailable" />}
           subvalue={metrics?.ok ? `${numberFmt(metricsLines.length)} metric lines` : metrics?.error}
-          accent={metrics?.ok ? "blue" : "error"}
+          accent={metrics?.ok ? "info" : "error"}
         />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <section className="rounded-2xl border border-[var(--color-border)] card-gradient p-4">
-          <h3 className="text-sm font-bold text-[var(--color-text-primary)] mb-2">Raw /health</h3>
-          <pre className="font-mono text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap">
+        <section className="md3-card-elevated p-4">
+          <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-2">Raw /health</h3>
+          <pre className="font-mono text-xs text-[var(--color-on-surface-variant)] whitespace-pre-wrap">
             {JSON.stringify(health?.data || { error: health?.error }, null, 2)}
           </pre>
         </section>
-        <section className="rounded-2xl border border-[var(--color-border)] card-gradient p-4">
-          <h3 className="text-sm font-bold text-[var(--color-text-primary)] mb-2">Raw /ready</h3>
-          <pre className="font-mono text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap">
+        <section className="md3-card-elevated p-4">
+          <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-2">Raw /ready</h3>
+          <pre className="font-mono text-xs text-[var(--color-on-surface-variant)] whitespace-pre-wrap">
             {JSON.stringify(ready?.data || { error: ready?.error }, null, 2)}
           </pre>
         </section>
       </div>
 
       {metrics?.ok && (
-        <section className="rounded-2xl border border-[var(--color-border)] card-gradient p-4">
-          <h3 className="text-sm font-bold text-[var(--color-text-primary)] mb-2">Prometheus Metrics (sample)</h3>
-          <pre className="font-mono text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap overflow-auto max-h-96">
+        <section className="md3-card-elevated p-4">
+          <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-2">Prometheus Metrics (sample)</h3>
+          <pre className="font-mono text-xs text-[var(--color-on-surface-variant)] whitespace-pre-wrap overflow-auto max-h-96">
             {metricsLines.join("\n")}
           </pre>
         </section>

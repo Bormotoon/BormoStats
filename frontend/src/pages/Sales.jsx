@@ -33,23 +33,29 @@ export default function Sales() {
   }, [searchParams]);
 
   if (loading) return <Spinner />;
-  if (error) return <div className="rounded-xl border border-[var(--color-error)]/30 bg-[var(--color-error)]/10 p-4 text-sm text-[var(--color-error)]">{error}</div>;
+  if (error) return <div className="rounded-xl border border-[var(--color-error)]/30 bg-[var(--color-error-container)] p-4 text-sm text-[var(--color-error)]">{error}</div>;
 
   const rows = data?.items || [];
   if (!rows.length) return <EmptyState message="Нет данных по продажам за выбранный период" />;
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <MetricCard label="Rows" value={numberFmt(rows.length)} />
-        <MetricCard label="Revenue" value={moneyFmt(sum(rows, "revenue"))} accent="success" />
+        <MetricCard label="Revenue" value={moneyFmt(sum(rows, "revenue"))} accent="success" className="col-span-2" />
         <MetricCard label="Qty" value={numberFmt(sum(rows, "qty"))} />
         <MetricCard label="Returns" value={numberFmt(sum(rows, "returns_qty"))} accent="warning" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+        <div className="lg:col-span-3">
+          <AreaChartCard title="Revenue by Day" data={groupSeries(rows, "day", "revenue")} dataKey="value" name="Revenue" />
+        </div>
         <MetricCard label="Payout" value={moneyFmt(sum(rows, "payout"))} />
       </div>
-      <AreaChartCard title="Revenue by Day" data={groupSeries(rows, "day", "revenue")} dataKey="value" name="Revenue" />
-      <section className="rounded-2xl border border-[var(--color-border)] card-gradient p-4">
-        <h3 className="text-sm font-bold text-[var(--color-text-primary)] mb-3">Sales Daily</h3>
+
+      <section className="md3-card-elevated p-4">
+        <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">Sales Daily</h3>
         <DataTable rows={rows} preferredColumns={["day", "marketplace", "account_id", "product_id", "qty", "revenue", "returns_qty", "payout"]} />
       </section>
     </div>

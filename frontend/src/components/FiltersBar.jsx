@@ -66,7 +66,7 @@ export default function FiltersBar({ pageId }) {
     <div className="mb-4">
       <button
         onClick={() => setShow(!show)}
-        className="flex items-center gap-2 text-xs font-semibold text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors mb-2"
+        className="flex items-center gap-2 text-xs font-semibold text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)] transition-colors mb-2"
       >
         <FunnelIcon size={14} />
         Filters
@@ -80,19 +80,19 @@ export default function FiltersBar({ pageId }) {
           exit={{ height: 0, opacity: 0 }}
           className="overflow-hidden"
         >
-          <div className="flex flex-wrap gap-3 p-3 rounded-xl border border-[var(--color-border)] card-gradient">
+          <div className="flex flex-wrap gap-3 p-3 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-low)]">
             {activeFilters.map((key) => {
               const config = FILTER_CONFIG[key];
               return (
                 <label key={key} className="flex flex-col gap-1 min-w-[140px]">
-                  <span className="text-xs font-semibold text-[var(--color-text-muted)]">
+                  <span className="text-xs font-semibold text-[var(--color-on-surface-variant)]">
                     {config.label}
                   </span>
                   {config.type === "select" ? (
                     <select
                       value={getValue(key)}
                       onChange={(e) => updateFilter(key, e.target.value)}
-                      className="px-2.5 py-1.5 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-brand)]"
+                      className="px-2.5 py-1.5 rounded-lg bg-[var(--color-surface)] border border-[var(--color-outline-variant)] text-sm text-[var(--color-on-surface)] focus:outline-none focus:border-[var(--color-primary)]"
                     >
                       {config.options.map((opt) => (
                         <option key={opt.value} value={opt.value}>
@@ -106,7 +106,7 @@ export default function FiltersBar({ pageId }) {
                       value={getValue(key)}
                       onChange={(e) => updateFilter(key, e.target.value)}
                       placeholder={config.label}
-                      className="px-2.5 py-1.5 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-brand)]"
+                      className="px-2.5 py-1.5 rounded-lg bg-[var(--color-surface)] border border-[var(--color-outline-variant)] text-sm text-[var(--color-on-surface)] placeholder:text-[var(--color-on-surface-variant)] focus:outline-none focus:border-[var(--color-primary)]"
                     />
                   )}
                 </label>
@@ -115,7 +115,7 @@ export default function FiltersBar({ pageId }) {
             <div className="flex items-end gap-2">
               <button
                 onClick={resetFilters}
-                className="px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-xs font-semibold text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-highest)] transition-colors"
+                className="px-3 py-1.5 rounded-lg border border-[var(--color-outline-variant)] text-xs font-semibold text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container)] transition-colors"
               >
                 Reset
               </button>

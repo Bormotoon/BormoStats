@@ -1,32 +1,32 @@
 import { motion } from "motion/react";
 
-export default function MetricCard({ label, value, subvalue, accent }) {
+const accentColors = {
+  success: "var(--color-success)",
+  warning: "var(--color-warning)",
+  error: "var(--color-error)",
+  blue: "var(--color-primary)",
+};
+
+export default function MetricCard({ label, value, subvalue, accent, className = "" }) {
+  const accentColor = accentColors[accent];
+
   return (
     <motion.article
-      initial={{ opacity: 0, y: 16 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl border border-[var(--color-border)] card-gradient p-4 flex flex-col"
+      className={`md3-card-elevated p-4 flex flex-col ${className}`}
     >
-      <span className="text-xs font-bold text-[var(--color-text-muted)] tracking-wide uppercase">
+      <span className="text-[11px] font-semibold text-[var(--color-on-surface-variant)] tracking-wide uppercase">
         {label}
       </span>
       <span
-        className={`mt-2 text-2xl font-extrabold leading-none ${
-          accent === "success"
-            ? "text-[var(--color-success)]"
-            : accent === "warning"
-              ? "text-[var(--color-warning)]"
-              : accent === "error"
-                ? "text-[var(--color-error)]"
-                : accent === "blue"
-                  ? "text-[var(--color-accent-blue)]"
-                  : "text-[var(--color-text-primary)]"
-        }`}
+        className="mt-2 text-2xl font-bold tracking-tight leading-none"
+        style={{ color: accentColor || "var(--color-on-surface)" }}
       >
         {value}
       </span>
       {subvalue && (
-        <span className="mt-2 text-xs text-[var(--color-text-muted)]">{subvalue}</span>
+        <span className="mt-2 text-xs text-[var(--color-on-surface-variant)]">{subvalue}</span>
       )}
     </motion.article>
   );

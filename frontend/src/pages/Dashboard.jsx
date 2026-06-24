@@ -52,22 +52,30 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-4 md:grid-cols-6 gap-3">
         <MetricCard label="Health" value={<StatusChip ok={health?.status === "ok"} okText="Healthy" failText="Unhealthy" />} subvalue="FastAPI" accent={health?.status === "ok" ? "success" : "error"} />
         <MetricCard label="Ready" value={<StatusChip ok={ready?.status === "ready"} okText="Ready" failText="Not Ready" />} subvalue="ClickHouse+Redis" accent={ready?.status === "ready" ? "success" : "error"} />
-        <MetricCard label="Revenue" value={moneyFmt(sum(salesRows, "revenue"))} subvalue="за период" />
+        <MetricCard label="Revenue" value={moneyFmt(sum(salesRows, "revenue"))} subvalue="за период" className="col-span-2" />
         <MetricCard label="Sales Qty" value={numberFmt(sum(salesRows, "qty"))} subvalue="сумма qty" />
         <MetricCard label="Ad Cost" value={moneyFmt(sum(adsRows, "cost"))} subvalue="сумма cost" />
-        <MetricCard label="Stock Units" value={numberFmt(sum(state.stocks, "stock_end"))} subvalue={`${numberFmt(state.stocks.length)} позиций`} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <AreaChartCard title="Revenue Trend" data={groupSeries(salesRows, "day", "revenue")} dataKey="value" name="Revenue" />
-        <AreaChartCard title="Ad Spend Trend" data={groupSeries(adsRows, "day", "cost")} dataKey="value" name="Ad Cost" color="var(--color-warning)" />
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+        <MetricCard label="Stock Units" value={numberFmt(sum(state.stocks, "stock_end"))} subvalue={`${numberFmt(state.stocks.length)} позиций`} className="lg:col-span-1" />
+        <div className="lg:col-span-3">
+          <AreaChartCard title="Revenue Trend" data={groupSeries(salesRows, "day", "revenue")} dataKey="value" name="Revenue" />
+        </div>
       </div>
 
-      <section className="rounded-2xl border border-[var(--color-border)] card-gradient p-4">
-        <h3 className="text-sm font-bold text-[var(--color-text-primary)] mb-3">Top Products by Revenue</h3>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+        <div className="lg:col-span-3">
+          <AreaChartCard title="Ad Spend Trend" data={groupSeries(adsRows, "day", "cost")} dataKey="value" name="Ad Cost" color="var(--color-warning)" />
+        </div>
+        <MetricCard label="Stock Items" value={numberFmt(new Set(state.stocks.map(r => r.product_id)).size)} subvalue="unique products" />
+      </div>
+
+      <section className="md3-card-elevated p-4">
+        <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">Top Products by Revenue</h3>
         <DataTable rows={topProducts} preferredColumns={["day", "marketplace", "account_id", "product_id", "qty", "revenue", "returns_qty", "payout"]} />
       </section>
     </div>

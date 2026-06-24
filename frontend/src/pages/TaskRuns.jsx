@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { request } from "../utils/api.js";
-import { numberFmt } from "../utils/formats.js";
+import { numberFmt, percentFmt } from "../utils/formats.js";
 import MetricCard from "../components/MetricCard.jsx";
 import DataTable from "../components/DataTable.jsx";
 import { Spinner, EmptyState } from "../components/StatusChip.jsx";
@@ -25,7 +25,7 @@ export default function TaskRuns() {
   }, [limit]);
 
   if (loading) return <Spinner />;
-  if (error) return <div className="rounded-xl border border-[var(--color-error)]/30 bg-[var(--color-error)]/10 p-4 text-sm text-[var(--color-error)]">{error}</div>;
+  if (error) return <div className="rounded-xl border border-[var(--color-error)]/30 bg-[var(--color-error-container)] p-4 text-sm text-[var(--color-error)]">{error}</div>;
 
   const rows = data?.items || [];
   if (!rows.length) return <EmptyState message="No task runs found" />;
@@ -35,13 +35,14 @@ export default function TaskRuns() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <MetricCard label="Total Runs" value={numberFmt(rows.length)} />
         <MetricCard label="Success" value={numberFmt(success)} accent="success" />
         <MetricCard label="Failed" value={numberFmt(failed)} accent="error" />
+        <MetricCard label="Success Rate" value={rows.length ? percentFmt(success / rows.length) : "0%"} accent={success >= failed ? "success" : "error"} />
       </div>
-      <section className="rounded-2xl border border-[var(--color-border)] card-gradient p-4">
-        <h3 className="text-sm font-bold text-[var(--color-text-primary)] mb-3">Task Runs</h3>
+      <section className="md3-card-elevated p-4">
+        <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">Task Runs</h3>
         <DataTable rows={rows} preferredColumns={["task_name", "run_id", "started_at", "finished_at", "status", "rows_ingested", "message", "meta_json"]} />
       </section>
     </div>

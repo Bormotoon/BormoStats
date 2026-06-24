@@ -31,7 +31,7 @@ export default function Stocks() {
   }, [searchParams]);
 
   if (loading) return <Spinner />;
-  if (error) return <div className="rounded-xl border border-[var(--color-error)]/30 bg-[var(--color-error)]/10 p-4 text-sm text-[var(--color-error)]">{error}</div>;
+  if (error) return <div className="rounded-xl border border-[var(--color-error)]/30 bg-[var(--color-error-container)] p-4 text-sm text-[var(--color-error)]">{error}</div>;
 
   const rows = data?.items || [];
   if (!rows.length) return <EmptyState message="Нет данных по остаткам" />;
@@ -51,14 +51,20 @@ export default function Stocks() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <MetricCard label="Total Stock" value={numberFmt(sum(rows, "stock_end"))} className="col-span-2" />
         <MetricCard label="Rows" value={numberFmt(rows.length)} />
-        <MetricCard label="Total Stock" value={numberFmt(sum(rows, "stock_end"))} />
         <MetricCard label="Low Stock (≤5)" value={numberFmt(lowStock)} accent="error" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+        <div className="lg:col-span-3">
+          <BarChartCard title="Top Products by Stock" data={topStock} dataKey="value" name="Units" color="var(--color-primary)" />
+        </div>
         <MetricCard label="Warehouses" value={numberFmt(new Set(rows.map((r) => r.warehouse_id)).size)} />
       </div>
-      <BarChartCard title="Top Products by Stock" data={topStock} dataKey="value" name="Units" color="var(--color-accent-blue)" />
-      <section className="rounded-2xl border border-[var(--color-border)] card-gradient p-4">
-        <h3 className="text-sm font-bold text-[var(--color-text-primary)] mb-3">Current Stocks</h3>
+
+      <section className="md3-card-elevated p-4">
+        <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">Current Stocks</h3>
         <DataTable rows={rows} preferredColumns={["day", "marketplace", "account_id", "product_id", "warehouse_id", "stock_end"]} />
       </section>
     </div>

@@ -52,17 +52,17 @@ export default function AdminActions() {
   return (
     <div className="space-y-4">
       {!hasKey && (
-        <div className="rounded-xl border border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 p-4">
+        <div className="rounded-xl border border-[var(--color-warning)]/30 bg-[var(--color-warning-container)] p-4">
           <h3 className="text-sm font-bold text-[var(--color-warning)] mb-1">Admin Key Required</h3>
-          <p className="text-xs text-[var(--color-text-secondary)]">
+          <p className="text-xs text-[var(--color-on-surface-variant)]">
             Set the Admin API key in Settings (sidebar) to use these operations.
           </p>
         </div>
       )}
 
-      <div className="rounded-2xl border border-[var(--color-border)] card-gradient p-4 space-y-4">
+      <div className="md3-card-elevated p-4 space-y-4">
         <div>
-          <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1.5">Action</label>
+          <label className="block text-xs font-semibold text-[var(--color-on-surface-variant)] mb-1.5">Action</label>
           <select
             value={selected.id}
             onChange={(e) => {
@@ -70,7 +70,7 @@ export default function AdminActions() {
               setSelected(action);
               setDays(action.daysDefault || 14);
             }}
-            className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-brand)]"
+            className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-container)] border border-[var(--color-outline-variant)] text-sm text-[var(--color-on-surface)] focus:outline-none focus:border-[var(--color-primary)]"
           >
             {ADMIN_ACTIONS.map((a) => (
               <option key={a.id} value={a.id}>{a.label}</option>
@@ -78,11 +78,11 @@ export default function AdminActions() {
           </select>
         </div>
 
-        <p className="text-sm text-[var(--color-text-secondary)]">{selected.desc}</p>
+        <p className="text-sm text-[var(--color-on-surface-variant)]">{selected.desc}</p>
 
         {selected.hasDays && (
           <div>
-            <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1.5">
+            <label className="block text-xs font-semibold text-[var(--color-on-surface-variant)] mb-1.5">
               Days ({selected.daysMin}–{selected.daysMax})
             </label>
             <input
@@ -91,7 +91,7 @@ export default function AdminActions() {
               max={selected.daysMax}
               value={days}
               onChange={(e) => setDays(Number(e.target.value) || selected.daysDefault)}
-              className="w-32 px-3 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-brand)]"
+              className="w-32 px-3 py-2 rounded-lg bg-[var(--color-surface-container)] border border-[var(--color-outline-variant)] text-sm text-[var(--color-on-surface)] focus:outline-none focus:border-[var(--color-primary)]"
             />
           </div>
         )}
@@ -99,7 +99,7 @@ export default function AdminActions() {
         <button
           onClick={runAction}
           disabled={loading}
-          className="px-6 py-2.5 rounded-xl bg-[var(--color-brand)] text-white font-bold text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+          className="px-6 py-2.5 rounded-full bg-[var(--color-primary)] text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
         >
           {loading ? "Executing..." : "Execute Action"}
         </button>
@@ -107,8 +107,8 @@ export default function AdminActions() {
         {feedback.message && (
           <div className={`text-sm p-3 rounded-xl ${
             feedback.kind === "success"
-              ? "bg-[var(--color-success)]/10 text-[var(--color-success)] border border-[var(--color-success)]/30"
-              : "bg-[var(--color-error)]/10 text-[var(--color-error)] border border-[var(--color-error)]/30"
+              ? "bg-[var(--color-success-container)] text-[var(--color-success)]"
+              : "bg-[var(--color-error-container)] text-[var(--color-error)]"
           }`}>
             {feedback.message}
           </div>
@@ -119,10 +119,10 @@ export default function AdminActions() {
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl border border-[var(--color-border)] card-gradient p-4"
+          className="md3-card-elevated p-4"
         >
-          <h3 className="text-sm font-bold text-[var(--color-text-primary)] mb-2">Response</h3>
-          <pre className="font-mono text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap overflow-auto max-h-96">
+          <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-2">Response</h3>
+          <pre className="font-mono text-xs text-[var(--color-on-surface-variant)] whitespace-pre-wrap overflow-auto max-h-96">
             {JSON.stringify(response, null, 2)}
           </pre>
         </motion.div>

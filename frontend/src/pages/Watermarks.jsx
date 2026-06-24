@@ -21,7 +21,7 @@ export default function Watermarks() {
   }, []);
 
   if (loading) return <Spinner />;
-  if (error) return <div className="rounded-xl border border-[var(--color-error)]/30 bg-[var(--color-error)]/10 p-4 text-sm text-[var(--color-error)]">{error}</div>;
+  if (error) return <div className="rounded-xl border border-[var(--color-error)]/30 bg-[var(--color-error-container)] p-4 text-sm text-[var(--color-error)]">{error}</div>;
 
   const rows = data?.items || [];
   if (!rows.length) return <EmptyState message="No watermarks found (admin endpoint)" />;
@@ -33,8 +33,8 @@ export default function Watermarks() {
         <MetricCard label="Distinct Sources" value={numberFmt(new Set(rows.map((r) => r.source)).size)} />
         <MetricCard label="Distinct Accounts" value={numberFmt(new Set(rows.map((r) => r.account_id)).size)} />
       </div>
-      <section className="rounded-2xl border border-[var(--color-border)] card-gradient p-4">
-        <h3 className="text-sm font-bold text-[var(--color-text-primary)] mb-3">Watermarks</h3>
+      <section className="md3-card-elevated p-4">
+        <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">Watermarks</h3>
         <DataTable rows={rows} preferredColumns={["source", "account_id", "watermark_ts", "updated_at"]} />
       </section>
     </div>
