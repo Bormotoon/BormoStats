@@ -169,7 +169,7 @@ BormoStats/
 │   ├── PULL_REQUEST_TEMPLATE.md
 │   └── dependabot.yml          # Автообновление зависимостей
 │
-├── marketplace-analytics/      # Основной пакет приложения
+├── backend/                   # FastAPI + Celery бэкенд
 │   ├── automation/             # Движок правил автоматизации
 │   │   ├── engine.py           # Безопасный вычислитель YAML-правил (AST)
 │   │   ├── actions/            # Исполнители действий
@@ -320,7 +320,6 @@ cd BormoStats
 2. Скопируйте и заполните файл окружения:
 
 ```bash
-cd marketplace-analytics
 cp .env.example .env
 ```
 
@@ -833,7 +832,7 @@ make perf-smoke      # Нагрузочный дымовой тест
 make docker-config   # Валидация docker-compose.yml
 ```
 
-### Проектный Makefile (`marketplace-analytics/`)
+### Проектный Makefile
 
 ```bash
 make up              # Запуск стека
@@ -907,7 +906,6 @@ docker run --rm \
 ### Локальная настройка
 
 ```bash
-cd marketplace-analytics
 python3 -m venv .venv
 ./.venv/bin/pip install --upgrade pip
 ./.venv/bin/pip install -r requirements-dev.txt
@@ -918,7 +916,7 @@ cp .env.example .env
 
 ```bash
 make lint               # Ruff
-./.venv/bin/black --check .   # Black
+./make format-check      # Ruff format (замена Black)
 make typecheck          # MyPy (strict)
 make test               # pytest
 ```
@@ -938,18 +936,17 @@ make test               # pytest
 
 | Документ | Содержание |
 |---|---|
-| [marketplace-analytics/README.md](marketplace-analytics/README.md) | Runtime-гайд, API, операционные guardrails |
-| [docs/architecture.md](marketplace-analytics/docs/architecture.md) | Архитектура и потоки данных |
-| [docs/environments.md](marketplace-analytics/docs/environments.md) | Модель сред dev/stage/prod |
-| [docs/observability.md](marketplace-analytics/docs/observability.md) | Метрики, алерты, Grafana |
-| [docs/disaster_recovery.md](marketplace-analytics/docs/disaster_recovery.md) | Бэкапы, RPO/RTO, восстановление |
-| [docs/credential_rotation.md](marketplace-analytics/docs/credential_rotation.md) | Ротация секретов |
-| [docs/migration_policy.md](marketplace-analytics/docs/migration_policy.md) | Политика миграций |
-| [docs/performance.md](marketplace-analytics/docs/performance.md) | Нагрузочные цели и результаты |
-| [docs/runbooks.md](marketplace-analytics/docs/runbooks.md) | Операторские процедуры |
-| [docs/troubleshooting.md](marketplace-analytics/docs/troubleshooting.md) | Диагностика проблем |
-| [docs/release_management.md](marketplace-analytics/docs/release_management.md) | Управление релизами |
-| [docs/supply_chain_security.md](marketplace-analytics/docs/supply_chain_security.md) | Безопасность цепочки поставок |
+| [docs/architecture.md](docs/architecture.md) | Архитектура и потоки данных |
+| [docs/environments.md](docs/environments.md) | Модель сред dev/stage/prod |
+| [docs/observability.md](docs/observability.md) | Метрики, алерты, Grafana |
+| [docs/disaster_recovery.md](docs/disaster_recovery.md) | Бэкапы, RPO/RTO, восстановление |
+| [docs/credential_rotation.md](docs/credential_rotation.md) | Ротация секретов |
+| [docs/migration_policy.md](docs/migration_policy.md) | Политика миграций |
+| [docs/performance.md](docs/performance.md) | Нагрузочные цели и результаты |
+| [docs/runbooks.md](docs/runbooks.md) | Операторские процедуры |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | Диагностика проблем |
+| [docs/release_management.md](docs/release_management.md) | Управление релизами |
+| [docs/supply_chain_security.md](docs/supply_chain_security.md) | Безопасность цепочки поставок |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Правила контрибуции |
 | [SECURITY.md](SECURITY.md) | Политика безопасности |
 | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | Кодекс поведения |

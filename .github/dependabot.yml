@@ -6,12 +6,12 @@ updates:
       interval: "weekly"
 
   - package-ecosystem: "pip"
-    directory: "/marketplace-analytics"
+    directory: "/"
     schedule:
       interval: "weekly"
 
   - package-ecosystem: "docker"
-    directory: "/marketplace-analytics"
+    directory: "/"
     schedule:
       interval: "weekly"
 

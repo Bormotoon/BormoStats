@@ -1,54 +1,92 @@
-.PHONY: help bootstrap lint format typecheck test check check-tokens perf-smoke docker-config up
+.PHONY: help up down logs ps migrate bootstrap lint format format-check typecheck test check check-tokens perf-smoke docker-config frontend
 
-PROJECT_DIR := marketplace-analytics
+STACK_NAME ?= bormostats
+COMPOSE_CMD = docker compose --project-name $(STACK_NAME) --env-file .env -f infra/docker/docker-compose.yml
+VENV_BIN := .venv/bin
+PYTHON_BIN := $(if $(wildcard $(VENV_BIN)/python),$(VENV_BIN)/python,python3)
+RUFF_BIN := $(if $(wildcard $(VENV_BIN)/ruff),$(VENV_BIN)/ruff,ruff)
+MYPY_BIN := $(if $(wildcard $(VENV_BIN)/mypy),$(VENV_BIN)/mypy,mypy)
+PYTEST_BIN := $(if $(wildcard $(VENV_BIN)/pytest),$(VENV_BIN)/pytest,pytest)
 
 help:
 	@echo "BormoStats — Marketplace Analytics"
 	@echo ""
 	@echo "Quick start:"
-	@echo "  make up          Build and start all services (Docker)"
+	@echo "  make up           Build and start all services"
+	@echo ""
+	@echo "Management:"
+	@echo "  make down         Stop all services"
+	@echo "  make logs         Tail logs"
+	@echo "  make ps           Container status"
+	@echo "  make migrate      Apply ClickHouse migrations"
+	@echo "  make bootstrap    Full stack init (after .env is ready)"
 	@echo ""
 	@echo "Development:"
-	@echo "  make lint        Run ruff linter"
-	@echo "  make format      Run ruff formatter"
-	@echo "  make typecheck   Run mypy type checker"
-	@echo "  make test        Run pytest"
-	@echo "  make check       Run all checks (lint + format + typecheck + test)"
+	@echo "  make frontend     Build React frontend"
+	@echo "  make lint         Ruff check"
+	@echo "  make format       Ruff format"
+	@echo "  make format-check Ruff format check"
+	@echo "  make typecheck    MyPy strict"
+	@echo "  make test         Pytest"
+	@echo "  make check        Run all checks (lint + format + typecheck + test)"
 	@echo ""
 	@echo "Operations:"
-	@echo "  make bootstrap   Full stack initialization"
-	@echo "  make check-tokens Validate WB/Ozon API tokens"
-	@echo "  make perf-smoke  Load smoke test"
+	@echo "  make check-tokens  Validate WB/Ozon API tokens"
+	@echo "  make perf-smoke    Load smoke test"
+	@echo ""
+	@echo "Variables: STACK_NAME=$(STACK_NAME)"
 
 up:
-	cd $(PROJECT_DIR) && bash scripts/run_local.sh
+	bash scripts/run_local.sh
+
+down:
+	$(COMPOSE_CMD) down
+
+logs:
+	$(COMPOSE_CMD) logs -f --tail=200
+
+ps:
+	$(COMPOSE_CMD) ps
+
+migrate:
+	$(PYTHON_BIN) warehouse/apply_migrations.py
 
 bootstrap:
-	$(MAKE) -C $(PROJECT_DIR) bootstrap
+	./scripts/bootstrap.sh
 
 lint:
-	$(MAKE) -C $(PROJECT_DIR) lint
+	$(RUFF_BIN) check .
 
 format:
-	$(MAKE) -C $(PROJECT_DIR) format
+	$(RUFF_BIN) format .
+
+format-check:
+	$(RUFF_BIN) format --check .
 
 typecheck:
-	$(MAKE) -C $(PROJECT_DIR) typecheck
+	$(MYPY_BIN) backend workers collectors automation warehouse scripts common
 
 test:
-	$(MAKE) -C $(PROJECT_DIR) test
+	$(PYTEST_BIN) -q
 
 check:
-	$(MAKE) -C $(PROJECT_DIR) lint
-	$(MAKE) -C $(PROJECT_DIR) black-check
-	$(MAKE) -C $(PROJECT_DIR) typecheck
-	$(MAKE) -C $(PROJECT_DIR) test
+	$(RUFF_BIN) check .
+	$(RUFF_BIN) format --check .
+	$(MYPY_BIN) backend workers collectors automation warehouse scripts common
+	$(PYTEST_BIN) -q
 
 check-tokens:
-	$(MAKE) -C $(PROJECT_DIR) check-tokens
+	$(PYTHON_BIN) scripts/check_tokens.py
 
 perf-smoke:
-	$(MAKE) -C $(PROJECT_DIR) perf-smoke
+	$(PYTHON_BIN) scripts/perf_smoke.py
 
 docker-config:
-	$(MAKE) -C $(PROJECT_DIR) docker-config
+	$(COMPOSE_CMD) config -q
+
+frontend:
+	cd frontend && npm ci && npm run build
+	rm -rf ../backend/app/ui/dist 2>/dev/null || true
+	cp -r frontend/dist backend/app/ui/dist
+	cp frontend/favicon.svg backend/app/ui/dist/ 2>/dev/null || true
+	@echo "Frontend built -> backend/app/ui/dist/"

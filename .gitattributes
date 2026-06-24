@@ -1,9 +1,19 @@
 * text=auto eol=lf
 
+*.py text eol=lf diff=python
+*.sql text eol=lf diff=sql
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.cfg text eol=lf
+*.ini text eol=lf
+*.sh text eol=lf
+*.env.example text eol=lf
+*.dockerignore text eol=lf
+.gitignore text eol=lf
+
 *.png binary
 *.jpg binary
-*.jpeg binary
-*.gif binary
 *.ico binary
-*.pdf binary
-
+*.db binary

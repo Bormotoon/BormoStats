@@ -16,9 +16,6 @@ jobs:
   lint-test:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: marketplace-analytics
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,10 +50,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build backend image
-        run: docker build -f marketplace-analytics/backend/Dockerfile marketplace-analytics
+        run: docker build -f backend/Dockerfile .
 
       - name: Build worker image
-        run: docker build -f marketplace-analytics/workers/Dockerfile marketplace-analytics
+        run: docker build -f workers/Dockerfile .
 
   supply-chain:
     runs-on: ubuntu-latest
@@ -64,9 +61,6 @@ jobs:
     permissions:
       contents: write
       security-events: write
-    defaults:
-      run:
-        working-directory: marketplace-analytics
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -86,41 +80,41 @@ jobs:
         run: pip-audit -r requirements.txt -r requirements-dev.txt
 
       - name: Build backend image
-        run: docker build -t marketplace-analytics-backend:ci -f backend/Dockerfile .
+        run: docker build -t bormostats-backend:ci -f backend/Dockerfile .
 
       - name: Build worker image
-        run: docker build -t marketplace-analytics-worker:ci -f workers/Dockerfile .
+        run: docker build -t bormostats-worker:ci -f workers/Dockerfile .
 
       - name: Generate source SBOM
         uses: anchore/sbom-action@v0
         with:
-          path: ./marketplace-analytics
+          path: .
           format: spdx-json
-          output-file: ./marketplace-analytics/source-sbom.spdx.json
-          artifact-name: marketplace-analytics-source-sbom
+          output-file: ./source-sbom.spdx.json
+          artifact-name: bormostats-source-sbom
 
       - name: Generate backend image SBOM
         uses: anchore/sbom-action@v0
         with:
-          image: marketplace-analytics-backend:ci
+          image: bormostats-backend:ci
           format: spdx-json
-          output-file: ./marketplace-analytics/backend-image-sbom.spdx.json
-          artifact-name: marketplace-analytics-backend-image-sbom
+          output-file: ./backend-image-sbom.spdx.json
+          artifact-name: bormostats-backend-image-sbom
 
       - name: Generate worker image SBOM
         uses: anchore/sbom-action@v0
         with:
-          image: marketplace-analytics-worker:ci
+          image: bormostats-worker:ci
           format: spdx-json
-          output-file: ./marketplace-analytics/worker-image-sbom.spdx.json
-          artifact-name: marketplace-analytics-worker-image-sbom
+          output-file: ./worker-image-sbom.spdx.json
+          artifact-name: bormostats-worker-image-sbom
 
       - name: Scan backend image
         id: scan-backend
         continue-on-error: true
         uses: anchore/scan-action@v7
         with:
-          image: marketplace-analytics-backend:ci
+          image: bormostats-backend:ci
           fail-build: false
           severity-cutoff: high
           only-fixed: true
@@ -131,14 +125,14 @@ jobs:
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: ${{ steps.scan-backend.outputs.sarif }}
-          category: marketplace-analytics-backend-image
+          category: bormostats-backend-image
 
       - name: Scan worker image
         id: scan-worker
         continue-on-error: true
         uses: anchore/scan-action@v7
         with:
-          image: marketplace-analytics-worker:ci
+          image: bormostats-worker:ci
           fail-build: false
           severity-cutoff: high
           only-fixed: true
@@ -149,14 +143,11 @@ jobs:
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: ${{ steps.scan-worker.outputs.sarif }}
-          category: marketplace-analytics-worker-image
+          category: bormostats-worker-image
 
   migration-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: marketplace-analytics
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -213,8 +204,7 @@ jobs:
 
       - name: Start ClickHouse and Redis
         run: |
-          cd infra/docker
-          docker compose --env-file ../../.env -f docker-compose.yml up -d clickhouse redis
+          docker compose --env-file .env -f infra/docker/docker-compose.yml up -d clickhouse redis
 
       - name: Wait for ClickHouse
         run: |
@@ -227,8 +217,7 @@ jobs:
             fi
             sleep 2
           done
-          cd infra/docker
-          docker compose --env-file ../../.env -f docker-compose.yml logs clickhouse
+          docker compose --env-file .env -f infra/docker/docker-compose.yml logs clickhouse
           exit 1
 
       - name: Provision ClickHouse users
@@ -299,5 +288,4 @@ jobs:
       - name: Stop services
         if: always()
         run: |
-          cd infra/docker
-          docker compose --env-file ../../.env -f docker-compose.yml down -v
+          docker compose --env-file .env -f infra/docker/docker-compose.yml down -v
