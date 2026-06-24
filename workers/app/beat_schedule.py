@@ -93,4 +93,8 @@ beat_schedule = {
         "task": "tasks.bidder.bidder_evaluate_rules",
         "schedule": crontab(minute="*/5"),
     },
+    "repricer_evaluate_rules": {
+        "task": "tasks.repricer.repricer_evaluate_rules",
+        "schedule": crontab(minute="*/10"),
+    },
 }

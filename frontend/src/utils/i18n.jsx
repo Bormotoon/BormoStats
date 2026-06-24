@@ -7,17 +7,18 @@ const ru = {
   nav: {
     dashboard: "Дашборд", sales: "Продажи", stocks: "Остатки",
     funnel: "Воронка", ads: "Реклама", bidder: "Биддер",
-    kpis: "KPI", watermarks: "Водяные знаки",
+    repricer: "Репрайсер", kpis: "KPI", watermarks: "Водяные знаки",
     taskRuns: "Запуски задач", adminActions: "Админ", system: "Система",
   },
   pageTitles: {
     dashboard: "Дашборд", sales: "Продажи", stocks: "Остатки",
     funnel: "Воронка", ads: "Реклама", bidder: "Биддер",
-    kpis: "KPI", watermarks: "Водяные знаки",
+    repricer: "Репрайсер", kpis: "KPI", watermarks: "Водяные знаки",
     taskRuns: "Запуски задач", adminActions: "Действия админа", system: "Система",
   },
   pageSubtitles: {
     bidder: "Управление ставками рекламных кампаний",
+    repricer: "Динамическое ценообразование и break-even",
     dashboard: "Продажи, реклама, остатки и статус сервисов",
     sales: "Дневные продажи из mrt_sales_daily",
     stocks: "Текущие остатки по последнему дню из mrt_stock_daily",
@@ -141,17 +142,18 @@ const en = {
   nav: {
     dashboard: "Dashboard", sales: "Sales", stocks: "Stocks",
     funnel: "Funnel", ads: "Ads", bidder: "Bidder",
-    kpis: "KPIs", watermarks: "Watermarks",
+    repricer: "Repricer", kpis: "KPIs", watermarks: "Watermarks",
     taskRuns: "Task Runs", adminActions: "Admin", system: "System",
   },
   pageTitles: {
     dashboard: "Dashboard", sales: "Sales", stocks: "Stocks",
     funnel: "Funnel", ads: "Ads", bidder: "Bidder",
-    kpis: "KPIs", watermarks: "Watermarks",
+    repricer: "Repricer", kpis: "KPIs", watermarks: "Watermarks",
     taskRuns: "Task Runs", adminActions: "Admin Actions", system: "System",
   },
   pageSubtitles: {
     bidder: "Ad campaign bid management",
+    repricer: "Dynamic pricing and break-even analysis",
     dashboard: "Sales, ads, stocks, and service status at a glance",
     sales: "Daily sales from mrt_sales_daily",
     stocks: "Current stock by the latest day in mrt_stock_daily",
