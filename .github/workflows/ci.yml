@@ -120,13 +120,6 @@ jobs:
           only-fixed: true
           cache-db: true
 
-      - name: Upload backend SARIF
-        if: always() && steps.scan-backend.outputs.sarif != ''
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: ${{ steps.scan-backend.outputs.sarif }}
-          category: bormostats-backend-image
-
       - name: Scan worker image
         id: scan-worker
         continue-on-error: true
@@ -137,13 +130,6 @@ jobs:
           severity-cutoff: high
           only-fixed: true
           cache-db: true
-
-      - name: Upload worker SARIF
-        if: always() && steps.scan-worker.outputs.sarif != ''
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: ${{ steps.scan-worker.outputs.sarif }}
-          category: bormostats-worker-image
 
   migration-smoke:
     runs-on: ubuntu-latest
