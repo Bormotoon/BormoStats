@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useI18n } from "../utils/i18n.jsx";
+import AccountSwitcher from "./AccountSwitcher.jsx";
 import {
   ChartLineUp, ShoppingCart, Warehouse, Funnel, Megaphone,
   Target, Drop, ListChecks, ShieldCheck, Monitor,
@@ -186,7 +187,8 @@ export default function Layout({ children, onReload }) {
             </div>
           </div>
 
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
+            <AccountSwitcher />
             <button
               onClick={onReload}
               className="p-2 rounded-lg hover:bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)] transition-colors"
