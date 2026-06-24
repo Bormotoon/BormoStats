@@ -17,6 +17,7 @@ import Watermarks from "./pages/Watermarks.jsx";
 import TaskRuns from "./pages/TaskRuns.jsx";
 import AdminActions from "./pages/AdminActions.jsx";
 import System from "./pages/System.jsx";
+import Pim from "./pages/Pim.jsx";
 import { loadSettings, getTheme } from "./utils/api.js";
 loadSettings();
 
@@ -35,6 +36,7 @@ const PAGES = {
   taskRuns: TaskRuns,
   adminActions: AdminActions,
   system: System,
+  pim: Pim,
 };
 
 function getPageFromHash() {

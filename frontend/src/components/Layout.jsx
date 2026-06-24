@@ -5,7 +5,7 @@ import AccountSwitcher from "./AccountSwitcher.jsx";
 import {
   ChartLineUp, ShoppingCart, Warehouse, Funnel, Megaphone,
   Target, Drop, ListChecks, ShieldCheck, Monitor, CurrencyCircleDollar, Tag, ChartBar, ChartPie,
-  Gear, List, MoonStars, Sun, ArrowClockwise, Translate,
+  Gear, List, MoonStars, Sun, ArrowClockwise, Translate, Notepad,
 } from "@phosphor-icons/react";
 
 const NAV_ITEMS = [
@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { id: "abcXyz", icon: ChartPie },
   { id: "kpis", icon: Target },
   { id: "watermarks", icon: Drop },
+  { id: "pim", icon: Notepad },
   { id: "taskRuns", icon: ListChecks },
   { id: "adminActions", icon: ShieldCheck },
   { id: "system", icon: Monitor },
