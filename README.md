@@ -20,6 +20,11 @@
 
 ---
 
+<p align="center">
+  <a href="README.ru.md"><strong>Русский</strong></a> •
+  <strong>English</strong>
+</p>
+
 [Features](#-features) • [Quick Start](#-quick-start) • [Architecture](#-architecture) • [Screenshots](#-screenshots) • [API](#-api) • [Configuration](#-configuration) • [Documentation](#-documentation) • [Contributing](#-contributing)
 
 </div>
@@ -444,7 +449,8 @@ BormoStats/
 ├── requirements-dev.txt        # Development dependencies
 ├── .env.example                # Environment template
 ├── docker-compose.yml          # Full stack definition
-├── README.md                   # You are here
+├── README.md                   # English (default)
+├── README.ru.md                # Русская версия
 ├── CONTRIBUTING.md
 ├── SECURITY.md
 ├── CODE_OF_CONDUCT.md
