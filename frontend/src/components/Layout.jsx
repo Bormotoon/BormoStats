@@ -1,5 +1,4 @@
-import { useRef, useState, useEffect } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ChartLineUp,
@@ -64,8 +63,19 @@ export default function Layout({ children, title, onReload }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [theme, setThemeState] = useState(getTheme());
-  const location = useLocation();
-  const currentPath = location.pathname.replace(/^\//, "") || "dashboard";
+  const [currentPath, setCurrentPath] = useState(() => {
+    const hash = window.location.hash.replace(/^#\//, "") || "dashboard";
+    return hash.split("/")[0].split("?")[0];
+  });
+
+  useEffect(() => {
+    const onHashChange = () => {
+      const hash = window.location.hash.replace(/^#\//, "") || "dashboard";
+      setCurrentPath(hash.split("/")[0].split("?")[0]);
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
 
   const toggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
@@ -107,9 +117,9 @@ export default function Layout({ children, title, onReload }) {
             const Icon = item.icon;
             const isActive = currentPath === item.id;
             return (
-              <NavLink
+              <a
                 key={item.id}
-                to={`/${item.id}`}
+                href={`#/${item.id}`}
                 onClick={() => setSidebarOpen(false)}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
                   isActive
@@ -119,7 +129,7 @@ export default function Layout({ children, title, onReload }) {
               >
                 <Icon size={18} weight={isActive ? "fill" : "regular"} />
                 <span>{item.label}</span>
-              </NavLink>
+              </a>
             );
           })}
         </nav>

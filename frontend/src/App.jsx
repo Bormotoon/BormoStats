@@ -1,5 +1,4 @@
-import { useEffect } from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import Layout from "./components/Layout.jsx";
 import FiltersBar from "./components/FiltersBar.jsx";
@@ -28,19 +27,26 @@ const PAGES = {
   system: System,
 };
 
+function getPageFromHash() {
+  const hash = window.location.hash.replace(/^#\//, "") || "dashboard";
+  return hash.split("/")[0].split("?")[0];
+}
+
 export default function App() {
-  const location = useLocation();
-  const currentPath = location.pathname.replace(/^\//, "") || "dashboard";
+  const [currentPath, setCurrentPath] = useState(getPageFromHash);
   const PageComponent = PAGES[currentPath];
 
   useEffect(() => {
     loadSettings();
     document.documentElement.dataset.theme = getTheme();
+    const onHashChange = () => setCurrentPath(getPageFromHash());
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
-  const handleReload = () => {
+  const handleReload = useCallback(() => {
     window.location.reload();
-  };
+  }, []);
 
   return (
     <Layout onReload={handleReload}>
