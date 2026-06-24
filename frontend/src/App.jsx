@@ -9,6 +9,7 @@ import Stocks from "./pages/Stocks.jsx";
 import Funnel from "./pages/Funnel.jsx";
 import Ads from "./pages/Ads.jsx";
 import Bidder from "./pages/Bidder.jsx";
+import PnL from "./pages/PnL.jsx";
 import Repricer from "./pages/Repricer.jsx";
 import KPIs from "./pages/KPIs.jsx";
 import Watermarks from "./pages/Watermarks.jsx";
@@ -25,6 +26,7 @@ const PAGES = {
   funnel: Funnel,
   ads: Ads,
   bidder: Bidder,
+  pnl: PnL,
   repricer: Repricer,
   kpis: KPIs,
   watermarks: Watermarks,
