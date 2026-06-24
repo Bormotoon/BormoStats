@@ -10,6 +10,7 @@ const ru = {
     repricer: "Репрайсер", pnl: "P&L", abcXyz: "ABC/XYZ",
     kpis: "KPI", watermarks: "Водяные знаки",
     pim: "PIM",
+    integrations: "Интеграции",
     taskRuns: "Запуски задач", adminActions: "Админ", system: "Система",
   },
   pageTitles: {
@@ -18,6 +19,7 @@ const ru = {
     repricer: "Репрайсер", pnl: "P&L", abcXyz: "ABC/XYZ",
     kpis: "KPI", watermarks: "Водяные знаки",
     pim: "PIM",
+    integrations: "Интеграции",
     taskRuns: "Запуски задач", adminActions: "Действия админа", system: "Система",
   },
   pageSubtitles: {
@@ -33,6 +35,7 @@ const ru = {
     kpis: "KPI за 30 дней по маркетплейсу / аккаунту",
     watermarks: "Системные водяные знаки ингрестации (admin)",
     pim: "Каталог товаров, бренды, категории",
+    integrations: "Webhooks и загрузка остатков",
     taskRuns: "История запусков задач workers (admin)",
     adminActions: "Whitelist операции админа: backfill, rebuild, maintenance",
     system: "Health, readiness, метрики Prometheus",
@@ -167,6 +170,7 @@ const en = {
     repricer: "Repricer", pnl: "P&L", abcXyz: "ABC/XYZ",
     kpis: "KPIs",     watermarks: "Watermarks",
     pim: "PIM",
+    integrations: "Integrations",
     taskRuns: "Task Runs", adminActions: "Admin", system: "System",
   },
   pageTitles: {
@@ -175,6 +179,7 @@ const en = {
     repricer: "Repricer", pnl: "P&L", abcXyz: "ABC/XYZ",
     kpis: "KPIs",     watermarks: "Watermarks",
     pim: "PIM",
+    integrations: "Integrations",
     taskRuns: "Task Runs", adminActions: "Admin Actions", system: "System",
   },
   pageSubtitles: {
@@ -190,6 +195,7 @@ const en = {
     kpis: "30d KPIs by marketplace / account",
     watermarks: "System ingestion watermarks (admin)",
     pim: "Product catalog, brands, categories",
+    integrations: "Webhooks and stock upload",
     taskRuns: "Worker task run history (admin)",
     adminActions: "Whitelisted admin operations: backfill, rebuild, maintenance",
     system: "Health, readiness, and Prometheus metrics",

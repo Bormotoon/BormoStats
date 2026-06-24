@@ -79,9 +79,11 @@
   - **ClickHouse:** Таблицы dim_brand, dim_category, dim_product_pim (migration 0019).
   - **FastAPI:** CRUD для брендов и категорий, PATCH/GET для товаров PIM, AI-генерация описаний, bulk-update.
   - **React:** Страница PIM с тремя вкладками (Товары/Бренды/Категории), inline-редактирование, выбор бренда/категории, кнопка AI-генерации описания.
-- [ ] **6.2. Webhooks & 1C/МойСклад (Basic API)**
-  - Реализовать REST API эндпоинт `POST /api/v1/integrations/stock/update`.
-  - Формат: прием массива `[{"sku": "123", "stock": 50}]`. Бэкенд сам распределяет и отправляет эти остатки на WB (FBS) и Ozon (FBS) по их официальным API.
+- [x] **6.2. Webhooks & 1C/МойСклад (Basic API)**
+  - REST API эндпоинт `POST /api/v1/integrations/stock/update` — принимает массив `[{"sku", "stock", "warehouse_id"}]`, отправляет на WB (POST /api/v2/stocks) и Ozon (POST /v1/product/import/stocks).
+  - ClickHouse таблицы `webhook_subscriptions` и `webhook_logs` (migration 0020).
+  - CRUD API для webhook подписок (+ React UI).
+  - Marketplace API credentials добавлены в Settings backend'а (WB_TOKEN_STATISTICS, OZON_CLIENT_ID, OZON_API_KEY).
 
 ---
 
