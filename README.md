@@ -41,6 +41,13 @@
 | **Modern Web UI** | Built-in React 19 SPA with dark theme, dashboards, and admin panel |
 | **BI Dashboards** | Metabase integration for custom dashboards and ad-hoc SQL queries |
 | **Telegram Alerts** | YAML-defined automation rules: high ACOS, low stock, no sales |
+| **Bidder** | Automated bid management for WB/Ozon ad campaigns with CPM/position rules |
+| **Repricer** | Dynamic pricing with margin validation and break-even analysis |
+| **P&L** | Full profit & loss statements with indirect expense tracking |
+| **ABC/XYZ** | Automated assortment analysis (revenue contribution + demand stability) |
+| **Actionable Insights** | Daily anomaly detection → task queue with Telegram digest |
+| **PIM** | Product enrichment: brands, categories, SEO, AI-generated descriptions |
+| **Webhooks** | Stock update integration endpoint (1C/МойСклад compatible), webhook subscriptions |
 | **Admin API** | Backfill, transforms, watermarks, task audit, and maintenance operations |
 | **Observability** | Prometheus metrics, Grafana dashboards, alert rules |
 | **Supply Chain Security** | pip-audit, Docker image scanning (Grype), SBOM generation (SPDX) |
@@ -226,12 +233,18 @@ sudo make install-systemd
 
 The built-in React SPA is available at `https://localhost:18443/ui/`. It features:
 
-- **Dashboard** — Operational overview with key metrics and charts
+- **Dashboard** — Operational overview with key metrics, charts, and task widget
 - **Sales** — Daily sales analytics with filters
 - **Stocks** — Current stock levels by warehouse
 - **Funnel** — Conversion funnel (views → cart → orders)
 - **Ads** — Advertising performance metrics
+- **Bidder** — Ad campaign bid management with CPM/position sliders
+- **Repricer** — Dynamic pricing rules with break-even table
+- **P&L** — Profit & loss statement with expense breakdown
+- **ABC/XYZ** — Assortment analysis with badge classification (AX = Leader, CZ = Illiquid)
 - **KPIs** — Key performance indicators over time
+- **PIM** — Product catalog enrichment: brands, categories, SEO, AI description generation
+- **Integrations** — Stock upload to WB/Ozon, webhook subscriptions, webhook logs
 - **Watermarks** — Ingestion watermark cursors (admin)
 - **Task Runs** — Worker task audit log (admin)
 - **Admin Actions** — Backfill, transform, mart management, maintenance operations
@@ -252,6 +265,24 @@ The built-in React SPA is available at `https://localhost:18443/ui/`. It feature
 | `GET` | `/api/v1/funnel/daily` | Daily funnel (views → cart → orders) |
 | `GET` | `/api/v1/ads/daily` | Daily advertising |
 | `GET` | `/api/v1/kpis` | Key performance indicators |
+| `GET` | `/api/v1/abc-xyz` | ABC/XYZ assortment analysis |
+| `GET` | `/api/v1/pnl` | Profit & loss statement |
+| `GET` | `/api/v1/organizations` | Multi-tenant organization management |
+| `GET` | `/api/v1/users/me` | Current user profile |
+| `GET` | `/api/v1/accounts` | Account switcher list |
+| `GET` | `/api/v1/bidder/...` | Bidder rules & campaign status |
+| `GET` | `/api/v1/repricer/...` | Repricer rules & break-even data |
+| `GET` | `/api/v1/insights/tasks` | Actionable recommendation tasks |
+| `PATCH` | `/api/v1/insights/tasks/{id}` | Update task status |
+| `GET` | `/api/v1/pim/products` | PIM product catalog |
+| `GET` | `/api/v1/pim/brands` | Brand reference list |
+| `GET` | `/api/v1/pim/categories` | Category reference list |
+| `POST` | `/api/v1/pim/products/generate-description` | AI description generation |
+| `POST` | `/api/v1/pim/products/bulk-update` | Bulk product enrichment |
+| `POST` | `/api/v1/integrations/stock/update` | Push stock to WB/Ozon APIs |
+| `GET` | `/api/v1/integrations/subscriptions` | Webhook subscriptions |
+| `POST` | `/api/v1/integrations/subscriptions` | Create webhook subscription |
+| `GET` | `/api/v1/integrations/logs` | Webhook delivery logs |
 
 **Query Parameters:**
 - `marketplace` — filter by marketplace (`wb` or `ozon`)
@@ -381,7 +412,7 @@ make docker-config
 - `tests/integration/` — Integration tests (admin API, full scenarios)
 - `tests/fixtures/` — JSON fixtures (e.g., `ozon_cancelled_posting.json`)
 
-Current coverage: **64 tests** (54 unit + 10 integration).
+Current coverage: **54 unit tests**.
 
 ---
 
@@ -395,11 +426,11 @@ BormoStats/
 ├── backend/                    # FastAPI + Uvicorn
 │   ├── app/
 │   │   ├── main.py             # Entry point: routers, health, metrics
-│   │   ├── api/v1/             # REST API routes (sales, stocks, funnel, ads, kpis, admin)
+│   │   ├── api/v1/             # REST API routes (sales, stocks, funnel, ads, kpis, bidder, repricer, pnl, abc-xyz, insights, pim, integrations, admin)
 │   │   ├── core/               # Config, deps, logging, rate limiting
 │   │   ├── db/                 # ClickHouse client + SQL queries
 │   │   ├── models/             # Pydantic request/response models
-│   │   ├── services/           # Business logic (MetricsService, AdminService)
+│   │   ├── services/           # Business logic (MetricsService, AdminService, PimService, InsightsService, IntegrationsService)
 │   │   └── ui/                 # Embedded web UI (built SPA)
 │   └── Dockerfile              # Multi-stage build (Node → Python)
 │
@@ -407,7 +438,7 @@ BormoStats/
 │   ├── app/
 │   │   ├── celery_app.py       # Celery application config
 │   │   ├── beat_schedule.py    # Periodic task schedule
-│   │   ├── tasks/              # wb_collect, ozon_collect, transforms, marts, maintenance
+│   │   ├── tasks/              # wb_collect, ozon_collect, transforms, marts, maintenance, bidder, repricer, insights
 │   │   ├── sql/                # SQL transforms and mart definitions
 │   │   └── utils/              # Locking, watermarks, metrics, data quality
 │   └── Dockerfile
@@ -423,7 +454,7 @@ BormoStats/
 │   └── common/                 # HTTP client, retry, circuit breaker, redaction
 │
 ├── warehouse/                  # ClickHouse schema and migrations
-│   ├── migrations/             # Sequential SQL migrations (0001–0011)
+│   ├── migrations/             # Sequential SQL migrations (0001–0020)
 │   ├── apply_migrations.py
 │   └── ddl/                    # Reference DDL
 │
@@ -435,7 +466,7 @@ BormoStats/
 ├── automation/                 # YAML automation rules engine
 │   ├── engine.py               # AST-based rule evaluator (no exec/eval)
 │   ├── actions/                # Telegram action executor
-│   └── rules/                  # bad_acos, low_stock, no_sales_7d
+│   └── rules/                  # bad_acos, low_stock, no_sales_7d, turnover_alert, stagnant_stock, bad_ad_efficiency, daily_digest
 │
 ├── scripts/                    # Operator utilities
 │   ├── bootstrap.sh            # Full stack initialization
@@ -443,7 +474,7 @@ BormoStats/
 │   ├── backfill.py             # Manual data backfill
 │   └── provision_clickhouse_users.py
 │
-├── tests/                      # Test suite (64 tests)
+├── tests/                      # Test suite (54 unit tests)
 │   ├── unit/                   # Unit tests
 │   ├── integration/            # Integration tests
 │   └── fixtures/               # JSON API fixtures
@@ -513,7 +544,7 @@ cp .env.example .env
 make lint           # Ruff linting
 make format-check   # Ruff format check
 make typecheck      # MyPy strict typing
-make test           # pytest (64 tests)
+make test           # pytest (54 tests)
 ```
 
 ### Dependency Policy

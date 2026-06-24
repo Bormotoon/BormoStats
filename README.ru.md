@@ -41,6 +41,13 @@
 | **Современный веб-интерфейс** | Встроенное React 19 SPA с Material Design 3 и двуязычным интерфейсом |
 | **BI Дашборды** | Интеграция с Metabase для произвольных дашбордов и SQL-запросов |
 | **Telegram Уведомления** | YAML-правила автоматизации: высокий ACOS, низкий остаток, отсутствие продаж |
+| **Биддер** | Автоматическое управление ставками для РК WB/Ozon с правилами по CPM/позиции |
+| **Репрайсер** | Динамическое ценообразование с валидацией маржи и break-even анализом |
+| **P&L** | Полный отчёт о прибылях и убытках с учётом косвенных расходов |
+| **ABC/XYZ** | Автоматический анализ ассортимента (доля в выручке + стабильность спроса) |
+| **Actionable Insights** | Ежедневное сканирование аномалий → очередь задач с Telegram-дайджестом |
+| **PIM** | Обогащение карточек товаров: бренды, категории, SEO, AI-генерация описаний |
+| **Webhooks** | Эндпоинт загрузки остатков (1С/МойСклад), webhook подписки |
 | **Admin API** | Бэкфилл, трансформации, водяные знаки, аудит задач и обслуживание |
 | **Мониторинг** | Prometheus метрики, Grafana дашборды, правила оповещений |
 | **Безопасность цепочки поставок** | pip-audit, сканирование Docker образов (Grype), генерация SBOM (SPDX) |
@@ -226,12 +233,18 @@ sudo make install-systemd
 
 Встроенное React SPA доступно по адресу `https://localhost:18443/ui/`. Интерфейс полностью переведён на русский и английский языки с переключением в один клик. Включает:
 
-- **Dashboard** — Обзор работы с ключевыми метриками и графиками
+- **Dashboard** — Обзор работы с ключевыми метриками, графиками и виджетом задач
 - **Sales** — Аналитика продаж по дням с фильтрами
 - **Stocks** — Текущие остатки по складам
 - **Funnel** — Воронка конверсии (просмотры → корзина → заказы)
 - **Ads** — Метрики эффективности рекламы
+- **Биддер** — Управление ставками РК с ползунками CPM/позиции
+- **Репрайсер** — Правила динамического ценообразования с break-even таблицей
+- **P&L** — Отчёт о прибылях и убытках с разбивкой расходов
+- **ABC/XYZ** — Анализ ассортимента с бейджами (AX = Лидер, CZ = Неликвид)
 - **KPIs** — Ключевые показатели эффективности за период
+- **PIM** — Каталог товаров: бренды, категории, SEO, AI-генерация описаний
+- **Интеграции** — Загрузка остатков на WB/Ozon, webhook подписки, логи
 - **Watermarks** — Курсоры водяных знаков инкрементальной загрузки (admin)
 - **Task Runs** — Аудит задач воркеров (admin)
 - **Admin Actions** — Бэкфилл, трансформации, управление marts, обслуживание
@@ -259,6 +272,24 @@ sudo make install-systemd
 | `GET` | `/api/v1/funnel/daily` | Ежедневная воронка (просмотры → корзина → заказы) |
 | `GET` | `/api/v1/ads/daily` | Ежедневная реклама |
 | `GET` | `/api/v1/kpis` | Ключевые показатели эффективности |
+| `GET` | `/api/v1/abc-xyz` | ABC/XYZ анализ ассортимента |
+| `GET` | `/api/v1/pnl` | Отчёт о прибылях и убытках |
+| `GET` | `/api/v1/organizations` | Управление организациями (multi-tenant) |
+| `GET` | `/api/v1/users/me` | Профиль текущего пользователя |
+| `GET` | `/api/v1/accounts` | Список аккаунтов (переключатель) |
+| `GET` | `/api/v1/bidder/...` | Правила биддера и статус кампаний |
+| `GET` | `/api/v1/repricer/...` | Правила репрайсера и break-even |
+| `GET` | `/api/v1/insights/tasks` | Рекомендательные задачи |
+| `PATCH` | `/api/v1/insights/tasks/{id}` | Обновить статус задачи |
+| `GET` | `/api/v1/pim/products` | PIM каталог товаров |
+| `GET` | `/api/v1/pim/brands` | Справочник брендов |
+| `GET` | `/api/v1/pim/categories` | Справочник категорий |
+| `POST` | `/api/v1/pim/products/generate-description` | AI-генерация описания |
+| `POST` | `/api/v1/pim/products/bulk-update` | Массовое обогащение товаров |
+| `POST` | `/api/v1/integrations/stock/update` | Отправить остатки в WB/Ozon |
+| `GET` | `/api/v1/integrations/subscriptions` | Webhook подписки |
+| `POST` | `/api/v1/integrations/subscriptions` | Создать webhook подписку |
+| `GET` | `/api/v1/integrations/logs` | Логи доставки webhook |
 
 **Параметры запроса:**
 - `marketplace` — фильтр по маркетплейсу (`wb` или `ozon`)
@@ -388,7 +419,7 @@ make docker-config
 - `tests/integration/` — Интеграционные тесты (admin API, полные сценарии)
 - `tests/fixtures/` — JSON фикстуры (например, `ozon_cancelled_posting.json`)
 
-Текущее покрытие: **64 теста** (54 модульных + 10 интеграционных).
+Текущее покрытие: **54 модульных теста**.
 
 ---
 
@@ -402,11 +433,11 @@ BormoStats/
 ├── backend/                    # FastAPI + Uvicorn
 │   ├── app/
 │   │   ├── main.py             # Точка входа: роутеры, health, метрики
-│   │   ├── api/v1/             # REST API маршруты (sales, stocks, funnel, ads, kpis, admin)
+│   │   ├── api/v1/             # REST API маршруты (sales, stocks, funnel, ads, kpis, bidder, repricer, pnl, abc-xyz, insights, pim, integrations, admin)
 │   │   ├── core/               # Конфигурация, зависимости, логирование, rate limiting
 │   │   ├── db/                 # ClickHouse клиент + SQL запросы
 │   │   ├── models/             # Pydantic модели запросов/ответов
-│   │   ├── services/           # Бизнес-логика (MetricsService, AdminService)
+│   │   ├── services/           # Бизнес-логика (MetricsService, AdminService, PimService, InsightsService, IntegrationsService)
 │   │   └── ui/                 # Встроенный веб-интерфейс (собранное SPA)
 │   └── Dockerfile              # Multi-stage сборка (Node → Python)
 │
@@ -414,7 +445,7 @@ BormoStats/
 │   ├── app/
 │   │   ├── celery_app.py       # Конфигурация Celery приложения
 │   │   ├── beat_schedule.py    # Расписание периодических задач
-│   │   ├── tasks/              # wb_collect, ozon_collect, transforms, marts, maintenance
+│   │   ├── tasks/              # wb_collect, ozon_collect, transforms, marts, maintenance, bidder, repricer, insights
 │   │   ├── sql/                # SQL трансформации и mart определения
 │   │   └── utils/              # Блокировки, водяные знаки, метрики, качество данных
 │   └── Dockerfile
@@ -430,7 +461,7 @@ BormoStats/
 │   └── common/                 # HTTP клиент, retry, circuit breaker, маскировка
 │
 ├── warehouse/                  # Схема ClickHouse и миграции
-│   ├── migrations/             # Последовательные SQL миграции (0001–0011)
+│   ├── migrations/             # Последовательные SQL миграции (0001–0020)
 │   ├── apply_migrations.py
 │   └── ddl/                    # Справочные DDL
 │
@@ -442,7 +473,7 @@ BormoStats/
 ├── automation/                 # Движок YAML правил автоматизации
 │   ├── engine.py               # AST-оценщик правил (без exec/eval)
 │   ├── actions/                # Исполнитель Telegram действий
-│   └── rules/                  # bad_acos, low_stock, no_sales_7d
+│   └── rules/                  # bad_acos, low_stock, no_sales_7d, turnover_alert, stagnant_stock, bad_ad_efficiency, daily_digest
 │
 ├── scripts/                    # Утилиты оператора
 │   ├── bootstrap.sh            # Полная инициализация стека
@@ -450,7 +481,7 @@ BormoStats/
 │   ├── backfill.py             # Ручной бэкфилл данных
 │   └── provision_clickhouse_users.py
 │
-├── tests/                      # Набор тестов (64 теста)
+├── tests/                      # Набор тестов (54 модульных теста)
 │   ├── unit/                   # Модульные тесты
 │   ├── integration/            # Интеграционные тесты
 │   └── fixtures/               # JSON фикстуры API
@@ -520,7 +551,7 @@ cp .env.example .env
 make lint           # Ruff линтинг
 make format-check   # Ruff проверка форматирования
 make typecheck      # MyPy строгая типизация
-make test           # pytest (64 теста)
+make test           # pytest (54 теста)
 ```
 
 ### Политика зависимостей
