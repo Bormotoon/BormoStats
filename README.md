@@ -565,6 +565,14 @@ make test           # pytest (54 tests)
 
 ---
 
+## ❤️ Support the Project
+
+BormoStats is free and self-hosted. If it helps your marketplace business — support development:
+
+[![Support BormoStats](docs/images/donate_banner.png)](https://dalink.to/bormotoon)
+
+---
+
 ## 📜 License
 
 [MIT](LICENSE) — feel free to use, modify, and distribute.
