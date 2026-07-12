@@ -17,6 +17,8 @@
 [![License](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
 [![Docker](https://img.shields.io/badge/docker-multi--stage-%232496ED?logo=docker)](https://docker.com/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](/CONTRIBUTING.md)
+[![педобраз.рф](https://img.shields.io/badge/%D0%BF%D0%B5%D0%B4%D0%BE%D0%B1%D1%80%D0%B0%D0%B7.%D1%80%D1%84-%D1%81%D1%82%D1%80%D0%B0%D0%BD%D0%B8%D1%86%D0%B0_%D0%BF%D1%80%D0%BE%D0%B5%D0%BA%D1%82%D0%B0-D64500)](https://xn--80abidn3bem.xn--p1ai/projects/bormostats/)
+[![Поддержать](https://img.shields.io/badge/%E2%9D%A4-%D0%9F%D0%BE%D0%B4%D0%B4%D0%B5%D1%80%D0%B6%D0%B0%D1%82%D1%8C%20%D0%BF%D1%80%D0%BE%D0%B5%D0%BA%D1%82-E53935)](https://dalink.to/bormotoon)
 
 ---
 
@@ -26,6 +28,8 @@
 </p>
 
 [Возможности](#-возможности) • [Быстрый старт](#-быстрый-старт) • [Архитектура](#-архитектура) • [Скриншоты](#-скриншоты) • [API](#-api) • [Конфигурация](#-конфигурация) • [Документация](#-документация) • [Участие](#-участие)
+
+🌐 **Страница проекта:** [педобраз.рф/projects/bormostats](https://xn--80abidn3bem.xn--p1ai/projects/bormostats/)
 
 </div>
 
