@@ -580,7 +580,7 @@ make test           # pytest (54 теста)
 
 BormoStats бесплатен и self-hosted. Если он помогает вашему бизнесу на маркетплейсах — поддержите разработку:
 
-[![Поддержать BormoStats](docs/images/donate_banner.png)](https://dalink.to/bormotoon)
+[![Поддержать BormoStats](docs/images/donate_banner_ru.png)](https://dalink.to/bormotoon)
 
 ---
 
