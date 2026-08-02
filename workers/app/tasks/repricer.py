@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import structlog
-from app.celery_app import app
-from app.runtime import get_ch_client, new_run_context
+from app.utils.celery_helpers import shared_task
+from app.utils.runtime import get_ch_client, new_run_context
+from clickhouse_connect.driver import Client
 
 LOGGER = structlog.get_logger(__name__)
 
 
-@app.task(bind=True, max_retries=3, default_retry_delay=60)
-def repricer_evaluate_rules(self) -> dict[str, object]:
+@shared_task(max_retries=3, default_retry_delay=60, name="tasks.repricer.repricer_evaluate_rules")
+def repricer_evaluate_rules() -> dict[str, int]:
     """Evaluate active price rules and adjust prices via API."""
-    new_run_context("repricer_evaluate_rules")
+    new_run_context()
     ch = get_ch_client()
     stats = {"checked": 0, "updated": 0, "errors": 0, "skipped_min_price": 0}
 
@@ -34,7 +37,7 @@ def repricer_evaluate_rules(self) -> dict[str, object]:
     return stats
 
 
-def _fetch_active_rules(ch) -> list[dict[str, object]]:
+def _fetch_active_rules(ch: Client) -> list[dict[str, Any]]:
     rows = ch.query(
         "SELECT rule_id, marketplace, account_id, product_id, min_price, max_price, "
         "target_margin_percent"
@@ -43,7 +46,7 @@ def _fetch_active_rules(ch) -> list[dict[str, object]]:
     return [dict(zip(rows.column_names, row, strict=True)) for row in rows.result_rows]
 
 
-def _evaluate_rule(ch, rule: dict[str, object], stats: dict[str, int]) -> None:
+def _evaluate_rule(ch: Client, rule: dict[str, Any], stats: dict[str, int]) -> None:
     marketplace = rule["marketplace"]
     account_id = rule["account_id"]
     product_id = rule["product_id"]

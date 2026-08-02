@@ -7,8 +7,9 @@ import uuid
 from datetime import datetime
 
 import structlog
-from app.celery_app import app
-from app.runtime import get_ch_client, new_run_context
+from app.utils.celery_helpers import shared_task
+from app.utils.runtime import get_ch_client, new_run_context
+from clickhouse_connect.driver import Client
 
 from automation.actions.telegram import TelegramAction
 
@@ -19,7 +20,7 @@ INSERT_COLS = (
 )
 
 
-def _insert_task(ch, task: dict[str, object]) -> None:
+def _insert_task(ch: Client, task: dict[str, object]) -> None:
     ch.command(
         f"INSERT INTO dim_actionable_task ({INSERT_COLS})"
         " VALUES ({tid:String}, {oid:String}, {tt:String}, {mp:String}, {aid:String},"
@@ -29,10 +30,10 @@ def _insert_task(ch, task: dict[str, object]) -> None:
     )
 
 
-@app.task(bind=True, max_retries=2)
-def generate_actionable_tasks(self) -> dict[str, int]:
+@shared_task(max_retries=2, name="tasks.insights.generate_actionable_tasks")
+def generate_actionable_tasks() -> dict[str, int]:
     ch = get_ch_client()
-    new_run_context("generate_actionable_tasks")
+    new_run_context()
     stats = {"inserted": 0}
 
     now = datetime.utcnow()
@@ -51,7 +52,7 @@ def generate_actionable_tasks(self) -> dict[str, int]:
     return stats
 
 
-def _trigger_turnover(ch, org_id: str, now: datetime) -> int:
+def _trigger_turnover(ch: Client, org_id: str, now: datetime) -> int:
     rows = ch.query(
         "SELECT marketplace, account_id, product_id, avg(stock_end) AS avg_stock,"
         " avg(qty) AS avg_daily_sales, if(avg(qty) > 0, avg(stock_end) / avg(qty), "
@@ -89,7 +90,7 @@ def _trigger_turnover(ch, org_id: str, now: datetime) -> int:
     return count
 
 
-def _trigger_stagnant(ch, org_id: str, now: datetime) -> int:
+def _trigger_stagnant(ch: Client, org_id: str, now: datetime) -> int:
     rows = ch.query(
         "SELECT a.marketplace, a.account_id, a.product_id, a.revenue_60d, s.stock_end"
         " FROM mrt_abc_xyz_analysis a"
@@ -126,7 +127,7 @@ def _trigger_stagnant(ch, org_id: str, now: datetime) -> int:
     return count
 
 
-def _trigger_bad_ads(ch, org_id: str, now: datetime) -> int:
+def _trigger_bad_ads(ch: Client, org_id: str, now: datetime) -> int:
     rows = ch.query(
         "SELECT marketplace, account_id, campaign_id, sum(cost) AS cost_14d, "
         "sum(orders) AS orders_14d"
@@ -162,10 +163,10 @@ def _trigger_bad_ads(ch, org_id: str, now: datetime) -> int:
     return count
 
 
-@app.task(bind=True, max_retries=2)
-def send_daily_digest(self) -> dict[str, object]:
+@shared_task(max_retries=2, name="tasks.insights.send_daily_digest")
+def send_daily_digest() -> dict[str, object]:
     ch = get_ch_client()
-    new_run_context("send_daily_digest")
+    new_run_context()
     telegram = TelegramAction(
         bot_token=os.getenv("TG_BOT_TOKEN", ""),
         chat_id=os.getenv("TG_CHAT_ID", ""),

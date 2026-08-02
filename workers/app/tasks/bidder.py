@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import structlog
-from app.celery_app import app
-from app.runtime import get_ch_client, new_run_context
+from app.utils.celery_helpers import shared_task
+from app.utils.runtime import get_ch_client, new_run_context
 from clickhouse_connect.driver import Client
 
 LOGGER = structlog.get_logger(__name__)
 
 
-@app.task(bind=True, max_retries=3, default_retry_delay=60)
-def bidder_evaluate_rules(self) -> dict[str, object]:
+@shared_task(max_retries=3, default_retry_delay=60, name="tasks.bidder.bidder_evaluate_rules")
+def bidder_evaluate_rules() -> dict[str, int]:
     """Evaluate active bid rules and adjust campaign bids via API."""
-    new_run_context("bidder_evaluate_rules")
+    new_run_context()
     ch = get_ch_client()
     stats = {"checked": 0, "updated": 0, "errors": 0}
 
@@ -35,7 +37,7 @@ def bidder_evaluate_rules(self) -> dict[str, object]:
     return stats
 
 
-def _fetch_active_rules(ch: Client) -> list[dict[str, object]]:
+def _fetch_active_rules(ch: Client) -> list[dict[str, Any]]:
     rows = ch.query(
         "SELECT rule_id, campaign_id, marketplace, account_id, target_cpm, max_cpm, target_position"
         " FROM dim_ad_rule FINAL WHERE is_active = 1"
@@ -43,7 +45,7 @@ def _fetch_active_rules(ch: Client) -> list[dict[str, object]]:
     return [dict(zip(rows.column_names, row, strict=True)) for row in rows.result_rows]
 
 
-def _evaluate_rule(ch: Client, rule: dict[str, object], stats: dict[str, int]) -> None:
+def _evaluate_rule(ch: Client, rule: dict[str, Any], stats: dict[str, int]) -> None:
     campaign_id = rule["campaign_id"]
     marketplace = rule["marketplace"]
     account_id = rule["account_id"]
