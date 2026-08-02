@@ -6,7 +6,28 @@ from pathlib import Path
 from typing import NoReturn
 
 import structlog
-from app.api.v1 import abc_xyz, accounts, admin, ads, ai, bidder, costs, extension, funnel, insights, integrations, kpis, organizations, pim, plugin, pnl, repricer, sales, stocks, users
+from app.api.v1 import (
+    abc_xyz,
+    accounts,
+    admin,
+    ads,
+    ai,
+    bidder,
+    costs,
+    extension,
+    funnel,
+    insights,
+    integrations,
+    kpis,
+    organizations,
+    pim,
+    plugin,
+    pnl,
+    repricer,
+    sales,
+    stocks,
+    users,
+)
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.core.ops_metrics import refresh_operational_metrics

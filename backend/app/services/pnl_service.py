@@ -4,17 +4,28 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from app.models.pnl import AdditionalExpense, AdditionalExpenseCreate, AdditionalExpenseUpdate, PnlRow
+from app.models.pnl import (
+    AdditionalExpense,
+    AdditionalExpenseCreate,
+    AdditionalExpenseUpdate,
+    PnlRow,
+)
 from clickhouse_connect.driver import Client
 
-_EXP_COLS = "expense_id, organization_id, category, amount_rub, month, description, created_at, updated_at"
+_EXP_COLS = (
+    "expense_id, organization_id, category, amount_rub, month, description, created_at, updated_at"
+)
 _EXP_INSERT = (
     "INSERT INTO dim_additional_expense ({cols})"
     " VALUES ({eid:String}, {oid:String}, {cat:String}, {amt:Float64},"
     " {month:Date}, {desc:String}, {created:DateTime}, {now:DateTime})"
 )
 
-_PNL_COLS = "month, organization_id, marketplace, account_id, revenue_rub, commission_rub, logistics_rub, returns_cost_rub, gross_profit_rub, ad_cost_rub, additional_expenses_rub, operating_profit_rub, ebitda_rub, net_profit_rub, margin_pct"
+_PNL_COLS = (
+    "month, organization_id, marketplace, account_id, revenue_rub, commission_rub, "
+    "logistics_rub, returns_cost_rub, gross_profit_rub, ad_cost_rub, "
+    "additional_expenses_rub, operating_profit_rub, ebitda_rub, net_profit_rub, margin_pct"
+)
 
 
 class PnlService:
@@ -56,9 +67,12 @@ class PnlService:
             updated_at=now,
         )
 
-    def update_expense(self, expense_id: str, data: AdditionalExpenseUpdate) -> AdditionalExpense | None:
+    def update_expense(
+        self, expense_id: str, data: AdditionalExpenseUpdate
+    ) -> AdditionalExpense | None:
         rows = self._ch.query(
-            f"SELECT {_EXP_COLS} FROM dim_additional_expense FINAL WHERE expense_id = {{eid:String}}",
+            f"SELECT {_EXP_COLS} FROM dim_additional_expense FINAL"
+            " WHERE expense_id = {eid:String}",
             parameters={"eid": expense_id},
         )
         existing = None

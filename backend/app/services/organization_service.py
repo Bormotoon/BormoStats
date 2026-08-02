@@ -47,7 +47,8 @@ class OrganizationService:
 
     def get_organization(self, organization_id: str) -> Organization | None:
         rows = self._ch.query(
-            f"SELECT {_ORG_COLS} FROM dim_organization FINAL WHERE organization_id = {{oid:String}}",
+            f"SELECT {_ORG_COLS} FROM dim_organization FINAL"
+            " WHERE organization_id = {oid:String}",
             parameters={"oid": organization_id},
         )
         for r in rows.named_results():
@@ -73,7 +74,9 @@ class OrganizationService:
             updated_at=now,
         )
 
-    def update_organization(self, organization_id: str, data: OrganizationUpdate) -> Organization | None:
+    def update_organization(
+        self, organization_id: str, data: OrganizationUpdate
+    ) -> Organization | None:
         existing = self.get_organization(organization_id)
         if existing is None:
             return None
@@ -118,7 +121,9 @@ class OrganizationService:
         )
         return [_row_to_member(r) for r in rows.named_results()]
 
-    def add_member(self, organization_id: str, data: OrganizationMemberCreate) -> OrganizationMember:
+    def add_member(
+        self, organization_id: str, data: OrganizationMemberCreate
+    ) -> OrganizationMember:
         now = datetime.utcnow()
         self._ch.command(
             _MEMBER_INSERT.format(cols=_MEMBER_COLS),
@@ -138,7 +143,9 @@ class OrganizationService:
             updated_at=now,
         )
 
-    def update_member(self, organization_id: str, user_id: str, data: OrganizationMemberUpdate) -> OrganizationMember | None:
+    def update_member(
+        self, organization_id: str, user_id: str, data: OrganizationMemberUpdate
+    ) -> OrganizationMember | None:
         now = datetime.utcnow()
         existing = self.get_member(organization_id, user_id)
         if existing is None:
@@ -205,7 +212,9 @@ class OrganizationService:
             return _row_to_account(r)
         return None
 
-    def create_shop_account(self, data: ShopAccountCreate, organization_id: str = "default") -> ShopAccount:
+    def create_shop_account(
+        self, data: ShopAccountCreate, organization_id: str = "default"
+    ) -> ShopAccount:
         now = datetime.utcnow()
         self._ch.command(
             _ACCT_INSERT.format(cols=_ACCT_COLS),
@@ -226,7 +235,9 @@ class OrganizationService:
             created_at=now,
         )
 
-    def update_shop_account(self, account_id: str, marketplace: str, data: ShopAccountUpdate) -> ShopAccount | None:
+    def update_shop_account(
+        self, account_id: str, marketplace: str, data: ShopAccountUpdate
+    ) -> ShopAccount | None:
         existing = self.get_shop_account(account_id, marketplace)
         if existing is None:
             return None

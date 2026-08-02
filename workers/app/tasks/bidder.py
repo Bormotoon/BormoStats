@@ -13,7 +13,7 @@ LOGGER = structlog.get_logger(__name__)
 @app.task(bind=True, max_retries=3, default_retry_delay=60)
 def bidder_evaluate_rules(self) -> dict[str, object]:
     """Evaluate active bid rules and adjust campaign bids via API."""
-    run_id = new_run_context("bidder_evaluate_rules")
+    new_run_context("bidder_evaluate_rules")
     ch = get_ch_client()
     stats = {"checked": 0, "updated": 0, "errors": 0}
 
@@ -52,7 +52,8 @@ def _evaluate_rule(ch: Client, rule: dict[str, object], stats: dict[str, int]) -
 
     rows = ch.query(
         "SELECT campaign_id, current_cpm FROM dim_ad_campaign FINAL"
-        " WHERE campaign_id = {cid:String} AND marketplace = {mp:String} AND account_id = {aid:String}",
+        " WHERE campaign_id = {cid:String} AND marketplace = {mp:String}"
+        " AND account_id = {aid:String}",
         parameters={"cid": campaign_id, "mp": marketplace, "aid": account_id},
     )
     for r in rows.named_results():

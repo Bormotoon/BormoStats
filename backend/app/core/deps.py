@@ -123,7 +123,8 @@ def get_current_user(
         )
 
     rows = ch.query(
-        "SELECT user_id, name, email, api_key, role, organization_id, is_active, created_at, updated_at"
+        "SELECT user_id, name, email, api_key, role, organization_id, is_active, "
+        "created_at, updated_at"
         " FROM dim_user FINAL WHERE api_key = {key:String} AND is_active = 1",
         parameters={"key": x_api_key},
     )
@@ -157,6 +158,7 @@ CurrentUserDependency = Annotated[User, Depends(get_current_user)]
 
 def require_admin_key_or_org_role(min_role: OrgMemberRole) -> Any:
     """Accept either the master admin API key or a user API key with sufficient org role."""
+
     def _checker(
         request: Request,
         ch: ChClientDependency,

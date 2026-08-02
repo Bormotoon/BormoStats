@@ -7,11 +7,20 @@ from typing import Any
 from app.models.bidder import AdCampaign, AdRule, AdRuleCreate, AdRuleUpdate
 from clickhouse_connect.driver import Client
 
-_CAMP_COLS = "campaign_id, marketplace, account_id, title, status, daily_budget, current_cpm, current_cpc, created_at, updated_at"
-_RULE_COLS = "rule_id, campaign_id, marketplace, account_id, target_cpm, max_cpm, target_position, is_active, created_at, updated_at"
+_CAMP_COLS = (
+    "campaign_id, marketplace, account_id, title, status, daily_budget, current_cpm, "
+    "current_cpc, created_at, updated_at"
+)
+_RULE_COLS = (
+    "rule_id, campaign_id, marketplace, account_id, target_cpm, max_cpm, target_position, "
+    "is_active, created_at, updated_at"
+)
 
+# Колонки подставлены сразу f-строкой, а плейсхолдеры ClickHouse оставлены как есть:
+# вызывать тут `.format(cols=...)` нельзя — Python попытается разобрать и
+# {rid:String} и упадёт с KeyError. Именно так и было до 02.08.2026.
 _RULE_INSERT = (
-    "INSERT INTO dim_ad_rule ({cols})"
+    f"INSERT INTO dim_ad_rule ({_RULE_COLS})"
     " VALUES ({rid:String}, {cid:String}, {mp:String}, {aid:String},"
     " {tcpm:Float64}, {mcpm:Float64}, {tpos:UInt8}, {active:UInt8},"
     " {created:DateTime}, {now:DateTime})"
@@ -22,7 +31,9 @@ class BidderService:
     def __init__(self, ch: Client) -> None:
         self._ch = ch
 
-    def list_campaigns(self, marketplace: str | None = None, account_id: str | None = None) -> list[AdCampaign]:
+    def list_campaigns(
+        self, marketplace: str | None = None, account_id: str | None = None
+    ) -> list[AdCampaign]:
         where = []
         params: dict[str, object] = {}
         if marketplace:
@@ -33,12 +44,16 @@ class BidderService:
             params["aid"] = account_id
         clause = (" WHERE " + " AND ".join(where)) if where else ""
         rows = self._ch.query(
-            f"SELECT {_CAMP_COLS} FROM dim_ad_campaign FINAL" + clause + " ORDER BY marketplace, title",
+            f"SELECT {_CAMP_COLS} FROM dim_ad_campaign FINAL"
+            + clause
+            + " ORDER BY marketplace, title",
             parameters=params,
         )
         return [_row_to_campaign(r) for r in rows.named_results()]
 
-    def list_rules(self, marketplace: str | None = None, account_id: str | None = None) -> list[AdRule]:
+    def list_rules(
+        self, marketplace: str | None = None, account_id: str | None = None
+    ) -> list[AdRule]:
         where = []
         params: dict[str, object] = {}
         if marketplace:
@@ -49,7 +64,9 @@ class BidderService:
             params["aid"] = account_id
         clause = (" WHERE " + " AND ".join(where)) if where else ""
         rows = self._ch.query(
-            f"SELECT {_RULE_COLS} FROM dim_ad_rule FINAL" + clause + " ORDER BY marketplace, campaign_id",
+            f"SELECT {_RULE_COLS} FROM dim_ad_rule FINAL"
+            + clause
+            + " ORDER BY marketplace, campaign_id",
             parameters=params,
         )
         return [_row_to_rule(r) for r in rows.named_results()]
@@ -67,7 +84,7 @@ class BidderService:
         now = datetime.utcnow()
         rule_id = str(uuid.uuid4())[:8]
         self._ch.command(
-            _RULE_INSERT.format(cols=_RULE_COLS),
+            _RULE_INSERT,
             parameters={
                 "rid": rule_id,
                 "cid": data.campaign_id,
@@ -101,10 +118,12 @@ class BidderService:
         now = datetime.utcnow()
         target_cpm = data.target_cpm if data.target_cpm is not None else existing.target_cpm
         max_cpm = data.max_cpm if data.max_cpm is not None else existing.max_cpm
-        target_position = data.target_position if data.target_position is not None else existing.target_position
+        target_position = (
+            data.target_position if data.target_position is not None else existing.target_position
+        )
         is_active = data.is_active if data.is_active is not None else existing.is_active
         self._ch.command(
-            _RULE_INSERT.format(cols=_RULE_COLS),
+            _RULE_INSERT,
             parameters={
                 "rid": rule_id,
                 "cid": existing.campaign_id,
@@ -145,10 +164,13 @@ class BidderService:
         now = datetime.utcnow()
         for c in campaigns:
             self._ch.command(
-                "INSERT INTO dim_ad_campaign ({cols})"
+                # f-строка только на первом куске: `.format()` по всему запросу давал бы
+                # KeyError на плейсхолдерах ClickHouse вида {cid:String} — их подставляет
+                # сам драйвер через parameters, а не Python.
+                f"INSERT INTO dim_ad_campaign ({_CAMP_COLS})"
                 " VALUES ({cid:String}, {mp:String}, {aid:String}, {title:String},"
                 " {status:String}, {budget:Nullable(Float64)}, {cpm:Nullable(Float64)},"
-                " {cpc:Nullable(Float64)}, {created:DateTime}, {now:DateTime})".format(cols=_CAMP_COLS),
+                " {cpc:Nullable(Float64)}, {created:DateTime}, {now:DateTime})",
                 parameters={
                     "cid": c.campaign_id,
                     "mp": c.marketplace,

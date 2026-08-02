@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import uuid
 from datetime import datetime
 from typing import Any
@@ -13,7 +12,6 @@ from app.models.integrations import (
     WebhookLog,
     WebhookSubscription,
     WebhookSubscriptionCreate,
-    WebhookSubscriptionUpdate,
 )
 from clickhouse_connect.driver import Client
 
@@ -87,14 +85,10 @@ class IntegrationsService:
                 data: dict[str, Any] = resp.json()
                 if data.get("error"):
                     err_text = data.get("errorText", "unknown")
-                    return StockUpdateResult(
-                        marketplace="wb", success=False, errors=[err_text]
-                    )
+                    return StockUpdateResult(marketplace="wb", success=False, errors=[err_text])
                 return StockUpdateResult(marketplace="wb", success=True)
         except httpx.HTTPError as exc:
-            return StockUpdateResult(
-                marketplace="wb", success=False, errors=[str(exc)]
-            )
+            return StockUpdateResult(marketplace="wb", success=False, errors=[str(exc)])
 
     def _push_ozon_stock(self, items: list[StockUpdateItem]) -> StockUpdateResult:
         if not self._ozon_client_id or not self._ozon_api_key:
@@ -137,9 +131,7 @@ class IntegrationsService:
                 resp.raise_for_status()
                 return StockUpdateResult(marketplace="ozon", success=True)
         except httpx.HTTPError as exc:
-            return StockUpdateResult(
-                marketplace="ozon", success=False, errors=[str(exc)]
-            )
+            return StockUpdateResult(marketplace="ozon", success=False, errors=[str(exc)])
 
     # -- Webhook Subscriptions ---------------------------------------------------
 
@@ -159,7 +151,8 @@ class IntegrationsService:
         now = datetime.utcnow()
         self._ch.command(
             "INSERT INTO webhook_subscriptions"
-            " (subscription_id, organization_id, name, endpoint_url, secret, events, is_active, created_at, updated_at)"
+            " (subscription_id, organization_id, name, endpoint_url, secret, events, "
+            "is_active, created_at, updated_at)"
             " VALUES ({sid:String}, {oid:String}, {name:String}, {url:String}, {secret:String},"
             " {events:Array(String)}, 1, {created:DateTime}, {updated:DateTime})",
             parameters={

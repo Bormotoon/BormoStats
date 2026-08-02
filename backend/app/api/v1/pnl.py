@@ -3,7 +3,12 @@ from __future__ import annotations
 from app.api.errors import API_ERROR_RESPONSES
 from app.core.deps import ChClientDependency, require_admin_key_or_org_role
 from app.models.organization import OrgMemberRole
-from app.models.pnl import AdditionalExpense, AdditionalExpenseCreate, AdditionalExpenseUpdate, PnlRow
+from app.models.pnl import (
+    AdditionalExpense,
+    AdditionalExpenseCreate,
+    AdditionalExpenseUpdate,
+    PnlRow,
+)
 from app.services.pnl_service import PnlService
 from fastapi import APIRouter, Depends, HTTPException, status
 

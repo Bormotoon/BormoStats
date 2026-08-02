@@ -6,14 +6,19 @@ from typing import Any
 from app.models.insights import ActionableTask, TaskUpdate
 from clickhouse_connect.driver import Client
 
-_TASK_COLS = "task_id, organization_id, trigger_type, marketplace, account_id, product_id, campaign_id, title, description, priority, status, created_at, resolved_at"
+_TASK_COLS = (
+    "task_id, organization_id, trigger_type, marketplace, account_id, product_id, "
+    "campaign_id, title, description, priority, status, created_at, resolved_at"
+)
 
 
 class InsightsService:
     def __init__(self, ch: Client) -> None:
         self._ch = ch
 
-    def list_tasks(self, organization_id: str = "default", status: str | None = None) -> list[ActionableTask]:
+    def list_tasks(
+        self, organization_id: str = "default", status: str | None = None
+    ) -> list[ActionableTask]:
         where = ["organization_id = %(oid)s"]
         params: dict[str, object] = {"oid": organization_id}
         if status:
@@ -21,7 +26,9 @@ class InsightsService:
             params["status"] = status
         clause = " WHERE " + " AND ".join(where)
         rows = self._ch.query(
-            f"SELECT {_TASK_COLS} FROM dim_actionable_task FINAL" + clause + " ORDER BY created_at DESC",
+            f"SELECT {_TASK_COLS} FROM dim_actionable_task FINAL"
+            + clause
+            + " ORDER BY created_at DESC",
             parameters=params,
         )
         return [_row_to_task(r) for r in rows.named_results()]
@@ -39,12 +46,13 @@ class InsightsService:
         now = datetime.utcnow()
         resolved = now if data.status == "resolved" else existing.resolved_at
         self._ch.command(
-            "INSERT INTO dim_actionable_task ({cols})"
+            # f-строка только на первом куске: `.format()` по всему запросу давал бы
+            # KeyError на плейсхолдерах ClickHouse вида {tid:String} — их подставляет
+            # сам драйвер через parameters, а не Python.
+            f"INSERT INTO dim_actionable_task ({_TASK_COLS})"
             " VALUES ({tid:String}, {oid:String}, {tt:String}, {mp:String}, {aid:String},"
             " {pid:Nullable(String)}, {cid:Nullable(String)}, {title:String}, {desc:String},"
-            " {prio:String}, {status:String}, {created:DateTime}, {resolved:Nullable(DateTime)})".format(
-                cols=_TASK_COLS
-            ),
+            " {prio:String}, {status:String}, {created:DateTime}, {resolved:Nullable(DateTime)})",
             parameters={
                 "tid": existing.task_id,
                 "oid": existing.organization_id,

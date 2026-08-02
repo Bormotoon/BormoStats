@@ -12,7 +12,7 @@ LOGGER = structlog.get_logger(__name__)
 @app.task(bind=True, max_retries=3, default_retry_delay=60)
 def repricer_evaluate_rules(self) -> dict[str, object]:
     """Evaluate active price rules and adjust prices via API."""
-    run_id = new_run_context("repricer_evaluate_rules")
+    new_run_context("repricer_evaluate_rules")
     ch = get_ch_client()
     stats = {"checked": 0, "updated": 0, "errors": 0, "skipped_min_price": 0}
 
@@ -36,7 +36,8 @@ def repricer_evaluate_rules(self) -> dict[str, object]:
 
 def _fetch_active_rules(ch) -> list[dict[str, object]]:
     rows = ch.query(
-        "SELECT rule_id, marketplace, account_id, product_id, min_price, max_price, target_margin_percent"
+        "SELECT rule_id, marketplace, account_id, product_id, min_price, max_price, "
+        "target_margin_percent"
         " FROM dim_price_rule FINAL WHERE is_active = 1"
     )
     return [dict(zip(rows.column_names, row, strict=True)) for row in rows.result_rows]
@@ -52,7 +53,8 @@ def _evaluate_rule(ch, rule: dict[str, object], stats: dict[str, int]) -> None:
 
     be_rows = ch.query(
         "SELECT breakeven_price, current_price FROM mrt_breakeven_daily FINAL"
-        " WHERE marketplace = {mp:String} AND account_id = {aid:String} AND product_id = {pid:String}"
+        " WHERE marketplace = {mp:String} AND account_id = {aid:String}"
+        " AND product_id = {pid:String}"
         " ORDER BY day DESC LIMIT 1",
         parameters={"mp": marketplace, "aid": account_id, "pid": product_id},
     )
@@ -60,10 +62,7 @@ def _evaluate_rule(ch, rule: dict[str, object], stats: dict[str, int]) -> None:
         breakeven = float(r["breakeven_price"])
         current = float(r["current_price"])
 
-        if target_margin > 0:
-            target_price = breakeven * (1 + target_margin / 100)
-        else:
-            target_price = breakeven
+        target_price = breakeven * (1 + target_margin / 100) if target_margin > 0 else breakeven
 
         if min_price > 0 and target_price < min_price:
             target_price = min_price

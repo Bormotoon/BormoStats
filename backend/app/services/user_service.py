@@ -82,7 +82,9 @@ class UserService:
         email = data.email if data.email is not None else existing.email
         role = data.role if data.role is not None else existing.role
         active = data.is_active if data.is_active is not None else existing.is_active
-        org_id = data.organization_id if data.organization_id is not None else existing.organization_id
+        org_id = (
+            data.organization_id if data.organization_id is not None else existing.organization_id
+        )
         self._ch.command(
             _INSERT.format(cols=_COLS),
             parameters={

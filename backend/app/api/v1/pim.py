@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 from app.api.errors import API_ERROR_RESPONSES
 from app.core.config import get_settings
 from app.core.deps import ChClientDependency, CurrentUserDependency, require_admin_key_or_org_role

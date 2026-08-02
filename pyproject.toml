@@ -14,7 +14,9 @@ target-version = "py314"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "N", "RUF", "W", "SIM"]
-ignore = ["B008"]
+# RUF001/002/003 срабатывают на обычном РУССКОМ тексте (Р, К, Н, е — кириллица),
+# а интерфейс и уведомления здесь русские. Правило даёт только шум.
+ignore = ["B008", "RUF001", "RUF002", "RUF003"]
 
 [tool.ruff.format]
 quote-style = "double"

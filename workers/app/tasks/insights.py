@@ -13,7 +13,10 @@ from app.runtime import get_ch_client, new_run_context
 from automation.actions.telegram import TelegramAction
 
 LOGGER = structlog.get_logger(__name__)
-INSERT_COLS = "task_id, organization_id, trigger_type, marketplace, account_id, product_id, campaign_id, title, description, priority, status, created_at, resolved_at"
+INSERT_COLS = (
+    "task_id, organization_id, trigger_type, marketplace, account_id, product_id, "
+    "campaign_id, title, description, priority, status, created_at, resolved_at"
+)
 
 
 def _insert_task(ch, task: dict[str, object]) -> None:
@@ -29,7 +32,7 @@ def _insert_task(ch, task: dict[str, object]) -> None:
 @app.task(bind=True, max_retries=2)
 def generate_actionable_tasks(self) -> dict[str, int]:
     ch = get_ch_client()
-    run_id = new_run_context("generate_actionable_tasks")
+    new_run_context("generate_actionable_tasks")
     stats = {"inserted": 0}
 
     now = datetime.utcnow()
@@ -51,7 +54,8 @@ def generate_actionable_tasks(self) -> dict[str, int]:
 def _trigger_turnover(ch, org_id: str, now: datetime) -> int:
     rows = ch.query(
         "SELECT marketplace, account_id, product_id, avg(stock_end) AS avg_stock,"
-        " avg(qty) AS avg_daily_sales, if(avg(qty) > 0, avg(stock_end) / avg(qty), 999) AS turnover_days"
+        " avg(qty) AS avg_daily_sales, if(avg(qty) > 0, avg(stock_end) / avg(qty), "
+        "999) AS turnover_days"
         " FROM mrt_sales_daily WHERE day >= now() - 14 GROUP BY marketplace, account_id, product_id"
         " HAVING turnover_days < 10"
     )
@@ -59,21 +63,28 @@ def _trigger_turnover(ch, org_id: str, now: datetime) -> int:
     for r in rows.result_rows:
         tid = str(uuid.uuid4())[:8]
         mp, aid, pid, stock, sales, turnover = r
-        _insert_task(ch, {
-            "tid": tid,
-            "oid": org_id,
-            "tt": "turnover",
-            "mp": mp,
-            "aid": aid,
-            "pid": str(pid),
-            "cid": None,
-            "title": f"Нужна поставка: {mp}/{pid}",
-            "desc": f"Оборачиваемость {float(turnover):.0f} дней. Остаток {float(stock):.0f}, среднедневные продажи {float(sales):.0f}. Рекомендуется поставка > {float(sales):.0f} шт.",
-            "prio": "high",
-            "status": "open",
-            "created": now,
-            "resolved": None,
-        })
+        _insert_task(
+            ch,
+            {
+                "tid": tid,
+                "oid": org_id,
+                "tt": "turnover",
+                "mp": mp,
+                "aid": aid,
+                "pid": str(pid),
+                "cid": None,
+                "title": f"Нужна поставка: {mp}/{pid}",
+                "desc": (
+                    f"Оборачиваемость {float(turnover):.0f} дней. "
+                    f"Остаток {float(stock):.0f}, среднедневные продажи {float(sales):.0f}. "
+                    f"Рекомендуется поставка > {float(sales):.0f} шт."
+                ),
+                "prio": "high",
+                "status": "open",
+                "created": now,
+                "resolved": None,
+            },
+        )
         count += 1
     return count
 
@@ -90,28 +101,35 @@ def _trigger_stagnant(ch, org_id: str, now: datetime) -> int:
     for r in rows.result_rows:
         tid = str(uuid.uuid4())[:8]
         mp, aid, pid, rev, stock = r
-        _insert_task(ch, {
-            "tid": tid,
-            "oid": org_id,
-            "tt": "stagnant",
-            "mp": mp,
-            "aid": aid,
-            "pid": str(pid),
-            "cid": None,
-            "title": f"Зависший товар: {mp}/{pid}",
-            "desc": f"ABC=C, остаток {float(stock):.0f}, выручка 60д {float(rev):.0f}₽. Снизьте цену или запустите акцию.",
-            "prio": "medium",
-            "status": "open",
-            "created": now,
-            "resolved": None,
-        })
+        _insert_task(
+            ch,
+            {
+                "tid": tid,
+                "oid": org_id,
+                "tt": "stagnant",
+                "mp": mp,
+                "aid": aid,
+                "pid": str(pid),
+                "cid": None,
+                "title": f"Зависший товар: {mp}/{pid}",
+                "desc": (
+                    f"ABC=C, остаток {float(stock):.0f}, выручка 60д {float(rev):.0f}₽. "
+                    "Снизьте цену или запустите акцию."
+                ),
+                "prio": "medium",
+                "status": "open",
+                "created": now,
+                "resolved": None,
+            },
+        )
         count += 1
     return count
 
 
 def _trigger_bad_ads(ch, org_id: str, now: datetime) -> int:
     rows = ch.query(
-        "SELECT marketplace, account_id, campaign_id, sum(cost) AS cost_14d, sum(orders) AS orders_14d"
+        "SELECT marketplace, account_id, campaign_id, sum(cost) AS cost_14d, "
+        "sum(orders) AS orders_14d"
         " FROM mrt_ads_daily WHERE day >= now() - 14"
         " GROUP BY marketplace, account_id, campaign_id"
         " HAVING cost_14d > 0 AND orders_14d = 0"
@@ -120,21 +138,26 @@ def _trigger_bad_ads(ch, org_id: str, now: datetime) -> int:
     for r in rows.result_rows:
         tid = str(uuid.uuid4())[:8]
         mp, aid, cid, cost, _ = r
-        _insert_task(ch, {
-            "tid": tid,
-            "oid": org_id,
-            "tt": "bad_ad",
-            "mp": mp,
-            "aid": aid,
-            "pid": None,
-            "cid": cid,
-            "title": f"Неэффективная РК: {mp}/{cid}",
-            "desc": f"Расходы {float(cost):.0f}₽ за 14 дней, 0 заказов. Рекомендуется отключить.",
-            "prio": "high",
-            "status": "open",
-            "created": now,
-            "resolved": None,
-        })
+        _insert_task(
+            ch,
+            {
+                "tid": tid,
+                "oid": org_id,
+                "tt": "bad_ad",
+                "mp": mp,
+                "aid": aid,
+                "pid": None,
+                "cid": cid,
+                "title": f"Неэффективная РК: {mp}/{cid}",
+                "desc": (
+                    f"Расходы {float(cost):.0f}₽ за 14 дней, 0 заказов. Рекомендуется отключить."
+                ),
+                "prio": "high",
+                "status": "open",
+                "created": now,
+                "resolved": None,
+            },
+        )
         count += 1
     return count
 
@@ -142,7 +165,7 @@ def _trigger_bad_ads(ch, org_id: str, now: datetime) -> int:
 @app.task(bind=True, max_retries=2)
 def send_daily_digest(self) -> dict[str, object]:
     ch = get_ch_client()
-    run_id = new_run_context("send_daily_digest")
+    new_run_context("send_daily_digest")
     telegram = TelegramAction(
         bot_token=os.getenv("TG_BOT_TOKEN", ""),
         chat_id=os.getenv("TG_CHAT_ID", ""),
@@ -170,7 +193,7 @@ def send_daily_digest(self) -> dict[str, object]:
     high_total = 0
     labels = {"turnover": "🚚 Поставки", "stagnant": "📦 Зависшие товары", "bad_ad": "📢 Реклама"}
 
-    for trigger_type, priority, cnt in rows.result_rows:
+    for _trigger_type, priority, cnt in rows.result_rows:
         total += cnt
         if priority == "high":
             high_total += cnt

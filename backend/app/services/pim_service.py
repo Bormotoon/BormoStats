@@ -45,8 +45,10 @@ class PimService:
         brand_id = data.brand_id or str(uuid.uuid4())[:12]
         now = datetime.utcnow()
         self._ch.command(
-            "INSERT INTO dim_brand (brand_id, organization_id, name, description, logo_url, created_at, updated_at)"
-            " VALUES ({bid:String}, {oid:String}, {name:String}, {desc:String}, {logo:String}, {created:DateTime}, {updated:DateTime})",
+            "INSERT INTO dim_brand (brand_id, organization_id, name, description, "
+            "logo_url, created_at, updated_at)"
+            " VALUES ({bid:String}, {oid:String}, {name:String}, {desc:String}, "
+            "{logo:String}, {created:DateTime}, {updated:DateTime})",
             parameters={
                 "bid": brand_id,
                 "oid": "default",
@@ -57,7 +59,15 @@ class PimService:
                 "updated": now,
             },
         )
-        return Brand(brand_id=brand_id, organization_id="default", name=data.name, description=data.description, logo_url=data.logo_url, created_at=now, updated_at=now)
+        return Brand(
+            brand_id=brand_id,
+            organization_id="default",
+            name=data.name,
+            description=data.description,
+            logo_url=data.logo_url,
+            created_at=now,
+            updated_at=now,
+        )
 
     def update_brand(self, brand_id: str, data: BrandUpdate) -> Brand | None:
         existing = self.get_brand(brand_id)
@@ -65,8 +75,10 @@ class PimService:
             return None
         now = datetime.utcnow()
         self._ch.command(
-            "INSERT INTO dim_brand (brand_id, organization_id, name, description, logo_url, created_at, updated_at)"
-            " VALUES ({bid:String}, {oid:String}, {name:String}, {desc:String}, {logo:String}, {created:DateTime}, {updated:DateTime})",
+            "INSERT INTO dim_brand (brand_id, organization_id, name, description, "
+            "logo_url, created_at, updated_at)"
+            " VALUES ({bid:String}, {oid:String}, {name:String}, {desc:String}, "
+            "{logo:String}, {created:DateTime}, {updated:DateTime})",
             parameters={
                 "bid": brand_id,
                 "oid": existing.organization_id,
@@ -118,8 +130,10 @@ class PimService:
             if parent:
                 path = f"{parent.path}/{data.name}"
         self._ch.command(
-            "INSERT INTO dim_category (category_id, organization_id, name, parent_id, path, created_at, updated_at)"
-            " VALUES ({cid:String}, {oid:String}, {name:String}, {pid:Nullable(String)}, {path:String}, {created:DateTime}, {updated:DateTime})",
+            "INSERT INTO dim_category (category_id, organization_id, name, parent_id, "
+            "path, created_at, updated_at)"
+            " VALUES ({cid:String}, {oid:String}, {name:String}, {pid:Nullable(String)}, "
+            "{path:String}, {created:DateTime}, {updated:DateTime})",
             parameters={
                 "cid": category_id,
                 "oid": "default",
@@ -130,7 +144,15 @@ class PimService:
                 "updated": now,
             },
         )
-        return Category(category_id=category_id, organization_id="default", name=data.name, parent_id=data.parent_id, path=path, created_at=now, updated_at=now)
+        return Category(
+            category_id=category_id,
+            organization_id="default",
+            name=data.name,
+            parent_id=data.parent_id,
+            path=path,
+            created_at=now,
+            updated_at=now,
+        )
 
     def update_category(self, category_id: str, data: CategoryUpdate) -> Category | None:
         existing = self.get_category(category_id)
@@ -145,8 +167,10 @@ class PimService:
             if parent:
                 path = f"{parent.path}/{name}"
         self._ch.command(
-            "INSERT INTO dim_category (category_id, organization_id, name, parent_id, path, created_at, updated_at)"
-            " VALUES ({cid:String}, {oid:String}, {name:String}, {pid:Nullable(String)}, {path:String}, {created:DateTime}, {updated:DateTime})",
+            "INSERT INTO dim_category (category_id, organization_id, name, parent_id, "
+            "path, created_at, updated_at)"
+            " VALUES ({cid:String}, {oid:String}, {name:String}, {pid:Nullable(String)}, "
+            "{path:String}, {created:DateTime}, {updated:DateTime})",
             parameters={
                 "cid": category_id,
                 "oid": existing.organization_id,
@@ -172,7 +196,11 @@ class PimService:
     # -- Product PIM --------------------------------------------------------------
 
     def list_products(
-        self, organization_id: str, marketplace: str | None = None, account_id: str | None = None, q: str | None = None
+        self,
+        organization_id: str,
+        marketplace: str | None = None,
+        account_id: str | None = None,
+        q: str | None = None,
     ) -> list[ProductPim]:
         where = ["pim.organization_id = {oid:String}"]
         params: dict[str, object] = {"oid": organization_id}
@@ -204,7 +232,8 @@ class PimService:
             "SELECT organization_id, marketplace, account_id, product_id, title, description,"
             " seo_keywords, brand_id, category_id, images, updated_at"
             " FROM dim_product_pim FINAL"
-            " WHERE marketplace = {mp:String} AND account_id = {aid:String} AND product_id = {pid:String}",
+            " WHERE marketplace = {mp:String} AND account_id = {aid:String}"
+            " AND product_id = {pid:String}",
             parameters={"mp": marketplace, "aid": account_id, "pid": product_id},
         )
         for r in rows.named_results():
@@ -214,7 +243,8 @@ class PimService:
     def upsert_product(self, data: ProductPim) -> ProductPim:
         now = datetime.utcnow()
         self._ch.command(
-            "INSERT INTO dim_product_pim (organization_id, marketplace, account_id, product_id, title,"
+            "INSERT INTO dim_product_pim (organization_id, marketplace, account_id, "
+            "product_id, title,"
             " description, seo_keywords, brand_id, category_id, images, updated_at)"
             " VALUES ({oid:String}, {mp:String}, {aid:String}, {pid:String}, {title:String},"
             " {desc:String}, {seo:String}, {bid:Nullable(String)}, {cid:Nullable(String)},"
@@ -247,7 +277,9 @@ class PimService:
             updated_at=now,
         )
 
-    def update_product(self, marketplace: str, account_id: str, product_id: str, data: ProductPimUpdate) -> ProductPim | None:
+    def update_product(
+        self, marketplace: str, account_id: str, product_id: str, data: ProductPimUpdate
+    ) -> ProductPim | None:
         existing = self.get_product(marketplace, account_id, product_id)
         if not existing:
             return None
@@ -258,7 +290,9 @@ class PimService:
             product_id=product_id,
             title=data.title if data.title is not None else existing.title,
             description=data.description if data.description is not None else existing.description,
-            seo_keywords=data.seo_keywords if data.seo_keywords is not None else existing.seo_keywords,
+            seo_keywords=data.seo_keywords
+            if data.seo_keywords is not None
+            else existing.seo_keywords,
             brand_id=data.brand_id if data.brand_id is not None else existing.brand_id,
             category_id=data.category_id if data.category_id is not None else existing.category_id,
             images=data.images if data.images is not None else existing.images,
@@ -266,7 +300,9 @@ class PimService:
         )
         return self.upsert_product(merged)
 
-    def bulk_update_products(self, organization_id: str, updates: list[ProductPimBulkUpdateItem]) -> int:
+    def bulk_update_products(
+        self, organization_id: str, updates: list[ProductPimBulkUpdateItem]
+    ) -> int:
         count = 0
         for upd in updates:
             self.update_product(upd.marketplace, upd.account_id, upd.product_id, upd)

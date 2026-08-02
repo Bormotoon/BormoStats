@@ -6,7 +6,7 @@ from typing import Any
 from app.api.errors import API_ERROR_RESPONSES
 from app.core.deps import ChClientDependency, require_admin_key_or_org_role
 from app.models.organization import OrgMemberRole
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 
 router = APIRouter(prefix="/extension", tags=["extension"], responses=API_ERROR_RESPONSES)
 
@@ -21,8 +21,10 @@ def receive_positions(
     count = 0
     for item in body:
         ch.command(
-            "INSERT INTO raw_serp_positions (account_id, marketplace, keyword, product_id, position, search_ts)"
-            " VALUES ({aid:String}, {mp:String}, {kw:String}, {pid:UInt64}, {pos:UInt16}, {ts:DateTime})",
+            "INSERT INTO raw_serp_positions (account_id, marketplace, keyword,"
+            " product_id, position, search_ts)"
+            " VALUES ({aid:String}, {mp:String}, {kw:String}, {pid:UInt64},"
+            " {pos:UInt16}, {ts:DateTime})",
             parameters={
                 "aid": item.get("account_id", "default"),
                 "mp": item.get("marketplace", "wb"),

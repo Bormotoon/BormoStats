@@ -2,18 +2,17 @@ from __future__ import annotations
 
 from app.api.errors import API_ERROR_RESPONSES
 from app.core.config import get_settings
-from app.core.deps import ChClientDependency, CurrentUserDependency, require_admin_key_or_org_role
+from app.core.deps import ChClientDependency, require_admin_key_or_org_role
 from app.models.integrations import (
     StockUpdateItem,
     StockUpdateResult,
     WebhookLog,
     WebhookSubscription,
     WebhookSubscriptionCreate,
-    WebhookSubscriptionUpdate,
 )
 from app.models.organization import OrgMemberRole
 from app.services.integrations_service import IntegrationsService
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
 router = APIRouter(prefix="/integrations", tags=["integrations"], responses=API_ERROR_RESPONSES)
 

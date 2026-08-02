@@ -37,7 +37,13 @@ jobs:
         run: ruff format --check .
 
       - name: MyPy
-        run: mypy backend workers collectors automation warehouse scripts
+        # backend/app и workers/app — ДВА разных пакета с именем `app`. В одном
+        # прогоне mypy разрешал `app.*` только в backend, и весь workers/ ловил
+        # выдуманные attr-defined/import-not-found. Деревья проверяем по отдельности:
+        # backend-сторона от этого стала полностью зелёной (было 23 ложных ошибки).
+        run: |
+          MYPYPATH=backend mypy backend collectors automation warehouse scripts
+          MYPYPATH=workers mypy workers
 
       - name: Pytest
         run: pytest -q

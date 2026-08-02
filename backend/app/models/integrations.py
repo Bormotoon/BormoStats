@@ -13,7 +13,9 @@ class StockUpdateItem(BaseModel):
 
 class StockUpdateRequest(BaseModel):
     items: list[StockUpdateItem]
-    marketplace: str | None = Field(default=None, description="'wb' or 'ozon' — if None, push to both")
+    marketplace: str | None = Field(
+        default=None, description="'wb' or 'ozon' — if None, push to both"
+    )
 
 
 class StockUpdateResult(BaseModel):

@@ -7,7 +7,10 @@ from typing import Any
 from app.models.repricer import BreakevenRow, PriceRule, PriceRuleCreate, PriceRuleUpdate
 from clickhouse_connect.driver import Client
 
-_RULE_COLS = "rule_id, marketplace, account_id, product_id, min_price, max_price, target_margin_percent, is_active, created_at, updated_at"
+_RULE_COLS = (
+    "rule_id, marketplace, account_id, product_id, min_price, max_price, "
+    "target_margin_percent, is_active, created_at, updated_at"
+)
 _RULE_INSERT = (
     "INSERT INTO dim_price_rule ({cols})"
     " VALUES ({rid:String}, {mp:String}, {aid:String}, {pid:String},"
@@ -15,14 +18,19 @@ _RULE_INSERT = (
     " {created:DateTime}, {now:DateTime})"
 )
 
-_BE_COLS = "day, marketplace, account_id, product_id, current_price, cost_price, commission_pct, logistics_rub, breakeven_price, min_recommended_price"
+_BE_COLS = (
+    "day, marketplace, account_id, product_id, current_price, cost_price, commission_pct, "
+    "logistics_rub, breakeven_price, min_recommended_price"
+)
 
 
 class RepricerService:
     def __init__(self, ch: Client) -> None:
         self._ch = ch
 
-    def list_rules(self, marketplace: str | None = None, account_id: str | None = None) -> list[PriceRule]:
+    def list_rules(
+        self, marketplace: str | None = None, account_id: str | None = None
+    ) -> list[PriceRule]:
         where = []
         params: dict[str, object] = {}
         if marketplace:
@@ -33,7 +41,9 @@ class RepricerService:
             params["aid"] = account_id
         clause = (" WHERE " + " AND ".join(where)) if where else ""
         rows = self._ch.query(
-            f"SELECT {_RULE_COLS} FROM dim_price_rule FINAL" + clause + " ORDER BY marketplace, product_id",
+            f"SELECT {_RULE_COLS} FROM dim_price_rule FINAL"
+            + clause
+            + " ORDER BY marketplace, product_id",
             parameters=params,
         )
         return [_row_to_rule(r) for r in rows.named_results()]
@@ -85,7 +95,11 @@ class RepricerService:
         now = datetime.utcnow()
         min_price = data.min_price if data.min_price is not None else existing.min_price
         max_price = data.max_price if data.max_price is not None else existing.max_price
-        margin = data.target_margin_percent if data.target_margin_percent is not None else existing.target_margin_percent
+        margin = (
+            data.target_margin_percent
+            if data.target_margin_percent is not None
+            else existing.target_margin_percent
+        )
         is_active = data.is_active if data.is_active is not None else existing.is_active
         self._ch.command(
             _RULE_INSERT.format(cols=_RULE_COLS),
@@ -125,7 +139,9 @@ class RepricerService:
         )
         return True
 
-    def get_breakeven(self, marketplace: str | None = None, account_id: str | None = None) -> list[BreakevenRow]:
+    def get_breakeven(
+        self, marketplace: str | None = None, account_id: str | None = None
+    ) -> list[BreakevenRow]:
         where = []
         params: dict[str, object] = {}
         if marketplace:
@@ -136,7 +152,9 @@ class RepricerService:
             params["aid"] = account_id
         clause = (" WHERE " + " AND ".join(where)) if where else ""
         rows = self._ch.query(
-            f"SELECT {_BE_COLS} FROM mrt_breakeven_daily FINAL" + clause + " ORDER BY breakeven_price DESC",
+            f"SELECT {_BE_COLS} FROM mrt_breakeven_daily FINAL"
+            + clause
+            + " ORDER BY breakeven_price DESC",
             parameters=params,
         )
         return [_row_to_breakeven(r) for r in rows.named_results()]

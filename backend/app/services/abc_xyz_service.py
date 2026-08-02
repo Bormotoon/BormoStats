@@ -4,14 +4,19 @@ from typing import Any
 
 from clickhouse_connect.driver import Client
 
-_ABC_XYZ_COLS = "day, marketplace, account_id, product_id, revenue_60d, share_pct, cumulative_share_pct, abc_class, daily_mean_qty, daily_stddev_qty, cv_pct, xyz_class"
+_ABC_XYZ_COLS = (
+    "day, marketplace, account_id, product_id, revenue_60d, share_pct, cumulative_share_pct, "
+    "abc_class, daily_mean_qty, daily_stddev_qty, cv_pct, xyz_class"
+)
 
 
 class AbcXyzService:
     def __init__(self, ch: Client) -> None:
         self._ch = ch
 
-    def get_analysis(self, marketplace: str | None = None, account_id: str | None = None) -> list[dict[str, Any]]:
+    def get_analysis(
+        self, marketplace: str | None = None, account_id: str | None = None
+    ) -> list[dict[str, Any]]:
         where = []
         params: dict[str, object] = {}
         if marketplace:
@@ -23,7 +28,8 @@ class AbcXyzService:
         clause = (" WHERE " + " AND ".join(where)) if where else ""
         rows = self._ch.query(
             f"SELECT {_ABC_XYZ_COLS} FROM mrt_abc_xyz_analysis FINAL"
-            + clause + " ORDER BY revenue_60d DESC",
+            + clause
+            + " ORDER BY revenue_60d DESC",
             parameters=params,
         )
         return [
