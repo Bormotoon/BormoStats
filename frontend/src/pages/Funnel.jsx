@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useI18n } from "../utils/i18n.jsx";
+import ExportButton from "../components/ExportButton.jsx";
 import { request } from "../utils/api.js";
 import { sum, avg, groupSeries, commonParams, moneyFmt, numberFmt, percentFmt } from "../utils/formats.js";
 import MetricCard from "../components/MetricCard.jsx";
@@ -42,6 +43,9 @@ export default function Funnel() {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <ExportButton dataset="funnel_daily" filters={filters} includeDates={true} />
+      </div>
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
         <MetricCard label={t("funnel.views")} value={numberFmt(sum(rows, "views"))} />
         <MetricCard label={t("funnel.addsToCart")} value={numberFmt(sum(rows, "adds_to_cart"))} />

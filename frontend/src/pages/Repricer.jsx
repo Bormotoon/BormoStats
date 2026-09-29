@@ -4,6 +4,7 @@ import { request, safeCall } from "../utils/api.js";
 import { moneyFmt, numberFmt, percentFmt } from "../utils/formats.js";
 import { Spinner } from "../components/StatusChip.jsx";
 import DataTable from "../components/DataTable.jsx";
+import { ActionLog, DryRunToggle } from "../components/RuleControls.jsx";
 import { motion } from "motion/react";
 import { Tag, Plus, Trash } from "@phosphor-icons/react";
 
@@ -13,6 +14,7 @@ export default function Repricer() {
   const [breakeven, setBreakeven] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("rules");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     setLoading(true);
@@ -35,10 +37,25 @@ export default function Repricer() {
     }
   };
 
+  const setDryRun = async (rule, dryRun) => {
+    const res = await safeCall(() =>
+      request(`/api/v1/repricer/rules/${rule.rule_id}`, {
+        method: "PATCH",
+        admin: true,
+        body: { dry_run: dryRun },
+      })
+    );
+    if (res.ok) {
+      setRules((prev) => prev.map((r) => (r.rule_id === rule.rule_id ? res.data : r)));
+    }
+    setError(res.ok ? "" : res.error);
+  };
+
   if (loading) return <Spinner />;
 
   return (
     <div className="space-y-4">
+      {error && <div role="alert" className="md3-card-elevated p-3 border-l-4 border-red-500 text-sm text-red-700">{error}</div>}
       <div className="flex gap-2 border-b border-[var(--color-outline-variant)]">
         <button
           onClick={() => setTab("rules")}
@@ -112,8 +129,12 @@ export default function Repricer() {
                   <p className="font-mono font-semibold">{percentFmt(rule.target_margin_percent / 100)}</p>
                 </div>
               </div>
+              <div className="mt-3">
+                <DryRunToggle rule={rule} onChange={(v) => setDryRun(rule, v)} />
+              </div>
             </motion.div>
           ))}
+          <ActionLog source="repricer" />
         </div>
       )}
 

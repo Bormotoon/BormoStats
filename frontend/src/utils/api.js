@@ -1,65 +1,179 @@
+// API client and connection settings.
+//
+// Security notes:
+// - The API key (a personal user key, ideally not the platform master key) is kept
+//   in sessionStorage only and is sent with every API request as X-API-Key.
+// - The API base URL defaults to the page origin. In production builds a custom
+//   base is accepted only for origins listed in VITE_ALLOWED_API_ORIGINS, so a
+//   tampered localStorage entry cannot redirect credentials to another host.
+
 const STORE_KEYS = {
   apiBase: "bormostats_ui_api_base",
   theme: "bormostats_ui_theme",
+  apiKey: "bormostats_api_key",
+  legacyAdminKey: "bormostats_admin_key",
+  organization: "bormostats_organization_id",
 };
+
+const ALLOWED_ORIGINS = (import.meta.env.VITE_ALLOWED_API_ORIGINS || "")
+  .split(",")
+  .map((item) => item.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
 
 const state = {
   apiBase: "",
-  adminKey: "",
+  apiKey: "",
+  organizationId: "",
 };
 
+const listeners = new Set();
+
+function safeGet(storage, key) {
+  try {
+    return storage.getItem(key) || "";
+  } catch {
+    return "";
+  }
+}
+
+function safeSet(storage, key, value) {
+  try {
+    if (value) storage.setItem(key, value);
+    else storage.removeItem(key);
+  } catch {
+    // storage may be unavailable (private mode); settings then live in memory only
+  }
+}
+
+function notify() {
+  listeners.forEach((listener) => listener({ ...state }));
+}
+
+export function subscribeSettings(listener) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
 export function loadSettings() {
-  state.apiBase = normalizeBaseUrl(localStorage.getItem(STORE_KEYS.apiBase) || "");
-  state.adminKey = sessionStorage.getItem("bormostats_admin_key") || "";
+  const storedBase = safeGet(localStorage, STORE_KEYS.apiBase);
+  const validation = validateApiBase(storedBase);
+  state.apiBase = validation.ok ? validation.value : "";
+  if (!validation.ok) safeSet(localStorage, STORE_KEYS.apiBase, "");
+
+  // migrate the pre-2026.10 session key name
+  const legacy = safeGet(sessionStorage, STORE_KEYS.legacyAdminKey);
+  if (legacy && !safeGet(sessionStorage, STORE_KEYS.apiKey)) {
+    safeSet(sessionStorage, STORE_KEYS.apiKey, legacy);
+  }
+  safeSet(sessionStorage, STORE_KEYS.legacyAdminKey, "");
+  state.apiKey = safeGet(sessionStorage, STORE_KEYS.apiKey);
+  state.organizationId = safeGet(sessionStorage, STORE_KEYS.organization);
+}
+
+export function getSettings() {
+  return { ...state };
 }
 
 export function getApiBase() {
   return state.apiBase || window.location.origin;
 }
 
-export function getAdminKey() {
-  return state.adminKey;
+export function getApiKey() {
+  return state.apiKey;
 }
 
-export function setAdminKey(key) {
-  state.adminKey = key;
-  if (key) {
-    sessionStorage.setItem("bormostats_admin_key", key);
-  } else {
-    sessionStorage.removeItem("bormostats_admin_key");
+/** @deprecated kept for older pages; every key is now sent with every request. */
+export const getAdminKey = getApiKey;
+
+export function setApiKey(key) {
+  state.apiKey = (key || "").trim();
+  safeSet(sessionStorage, STORE_KEYS.apiKey, state.apiKey);
+  notify();
+}
+
+export function setOrganizationId(value) {
+  state.organizationId = (value || "").trim();
+  safeSet(sessionStorage, STORE_KEYS.organization, state.organizationId);
+  notify();
+}
+
+export function signOut() {
+  state.apiKey = "";
+  state.organizationId = "";
+  safeSet(sessionStorage, STORE_KEYS.apiKey, "");
+  safeSet(sessionStorage, STORE_KEYS.organization, "");
+  notify();
+}
+
+/**
+ * Validate a user-supplied API base URL.
+ * Returns { ok, value, error, crossOrigin }.
+ */
+export function validateApiBase(raw) {
+  const trimmed = (raw || "").trim().replace(/\/+$/, "");
+  if (!trimmed) return { ok: true, value: "", error: "", crossOrigin: false };
+  let url;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    return { ok: false, value: "", error: "invalidUrl", crossOrigin: false };
   }
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    return { ok: false, value: "", error: "invalidProtocol", crossOrigin: false };
+  }
+  if (url.username || url.password) {
+    return { ok: false, value: "", error: "invalidUrl", crossOrigin: false };
+  }
+  const origin = url.origin;
+  const crossOrigin = origin !== window.location.origin;
+  if (crossOrigin && import.meta.env.PROD && !ALLOWED_ORIGINS.includes(origin)) {
+    return { ok: false, value: "", error: "originNotAllowed", crossOrigin };
+  }
+  if (import.meta.env.PROD && url.protocol === "http:" && window.location.protocol === "https:") {
+    return { ok: false, value: "", error: "insecureProtocol", crossOrigin };
+  }
+  return { ok: true, value: `${origin}${url.pathname.replace(/\/+$/, "")}`, error: "", crossOrigin };
 }
 
 export function setApiBase(base) {
-  state.apiBase = normalizeBaseUrl(base);
-  localStorage.setItem(STORE_KEYS.apiBase, state.apiBase);
+  const result = validateApiBase(base);
+  if (result.ok) {
+    state.apiBase = result.value;
+    safeSet(localStorage, STORE_KEYS.apiBase, state.apiBase);
+    notify();
+  }
+  return result;
 }
 
 export function getTheme() {
-  return localStorage.getItem(STORE_KEYS.theme) || "dark";
+  return safeGet(localStorage, STORE_KEYS.theme) || "dark";
 }
 
 export function setTheme(theme) {
-  localStorage.setItem(STORE_KEYS.theme, theme);
+  safeSet(localStorage, STORE_KEYS.theme, theme);
   document.documentElement.dataset.theme = theme;
 }
 
-function normalizeBaseUrl(value) {
-  const trimmed = value.trim();
-  if (!trimmed) return "";
-  return trimmed.replace(/\/+$/, "");
+export class ApiError extends Error {
+  constructor(status, message) {
+    super(`HTTP ${status}: ${message}`);
+    this.status = status;
+  }
 }
 
 export async function request(path, options = {}) {
   const { query, method = "GET", body } = options;
   const headers = {};
-  const admin = options.admin ?? false;
+  const requireKey = options.admin ?? false;
 
-  if (admin) {
-    if (!state.adminKey.trim()) {
-      throw new Error("Admin API key not set. Set it in Settings.");
-    }
-    headers["X-API-Key"] = state.adminKey.trim();
+  if (requireKey && !state.apiKey) {
+    throw new Error("API key not set. Set it in Settings.");
+  }
+  if (state.apiKey) {
+    headers["X-API-Key"] = state.apiKey;
+  }
+  if (state.organizationId) {
+    headers["X-Organization-Id"] = state.organizationId;
   }
   if (body !== undefined) {
     headers["Content-Type"] = "application/json";
@@ -77,6 +191,7 @@ export async function request(path, options = {}) {
   const response = await fetch(url.toString(), {
     method,
     headers,
+    credentials: "omit",
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 
@@ -89,14 +204,44 @@ export async function request(path, options = {}) {
     } catch {
       message = text;
     }
-    throw new Error(`HTTP ${response.status}: ${message}`);
+    throw new ApiError(response.status, message);
   }
 
   const contentType = response.headers.get("content-type") || "";
   if (contentType.includes("text/plain")) {
     return response.text();
   }
+  if (response.status === 204) {
+    return null;
+  }
   return response.json();
+}
+
+/** Download a protected file (the API key travels in a header, so plain links cannot be used). */
+export async function downloadFile(path, fallbackName) {
+  const headers = {};
+  if (state.apiKey) headers["X-API-Key"] = state.apiKey;
+  if (state.organizationId) headers["X-Organization-Id"] = state.organizationId;
+  const response = await fetch(new URL(`${getApiBase()}${path}`, window.location.origin), {
+    headers,
+    credentials: "omit",
+  });
+  if (!response.ok) throw new ApiError(response.status, await response.text());
+  const disposition = response.headers.get("content-disposition") || "";
+  const match = disposition.match(/filename="?([^";]+)"?/);
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = match ? match[1] : fallbackName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+export function getCurrentPrincipal() {
+  return request("/api/v1/users/me");
 }
 
 export async function safeCall(fn) {

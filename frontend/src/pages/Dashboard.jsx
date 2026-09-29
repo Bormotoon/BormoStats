@@ -38,8 +38,8 @@ export default function Dashboard() {
       request("/api/v1/stocks/current", { query: paramsNd }).then(r => r.items || []).catch(() => []),
       request("/api/v1/kpis", { query: paramsNd }).then(r => r.items || []).catch(() => []),
       request("/api/v1/insights/tasks", { query: { status: "open" }, admin: true }).then(r => r || []).catch(() => []),
-      request("/health").catch(() => null),
-      request("/ready").catch(() => null),
+      request("/health/live").catch(() => null),
+      request("/health/ready").catch(() => null),
     ]).then(([sales, ads, stocks, kpis, tasks, health, ready]) => {
       if (!cancelled) {
         setState({ loading: false, sales, ads, stocks, kpis, tasks, health, ready, error: "" });

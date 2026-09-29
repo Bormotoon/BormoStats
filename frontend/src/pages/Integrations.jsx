@@ -2,7 +2,15 @@ import { useState, useEffect } from "react";
 import { useI18n } from "../utils/i18n.jsx";
 import { request } from "../utils/api.js";
 import { Spinner } from "../components/StatusChip.jsx";
-import { Plus, Trash, PaperPlaneRight, Check, XCircle } from "@phosphor-icons/react";
+import { Plus, Trash, PaperPlaneRight, Check, XCircle, ArrowsClockwise, Lightning, Copy } from "@phosphor-icons/react";
+
+const DELIVERY_STYLES = {
+  delivered: "border-green-500",
+  retrying: "border-amber-500",
+  dead_letter: "border-red-500",
+  blocked: "border-red-500",
+  skipped: "border-gray-400",
+};
 
 export default function Integrations() {
   const { t } = useI18n();
@@ -15,19 +23,45 @@ export default function Integrations() {
   const [warehouseInput, setWarehouseInput] = useState("");
   const [pushResults, setPushResults] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", endpoint_url: "", secret: "", events: "" });
+  const [form, setForm] = useState({ name: "", endpoint_url: "", events: [] });
+  const [eventTypes, setEventTypes] = useState([]);
+  const [revealedSecret, setRevealedSecret] = useState(null);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     setLoading(true);
     Promise.all([
       request("/api/v1/integrations/subscriptions").then(r => r || []).catch(() => []),
       request("/api/v1/integrations/logs").then(r => r || []).catch(() => []),
-    ]).then(([s, l]) => {
+      request("/api/v1/integrations/events").then(r => r || []).catch(() => []),
+    ]).then(([s, l, e]) => {
       setSubs(s);
       setLogs(l);
+      setEventTypes(e);
       setLoading(false);
     });
   }, []);
+
+  const run = async (fn) => {
+    setError("");
+    setNotice("");
+    try {
+      return await fn();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      return null;
+    }
+  };
+
+  const toggleEvent = (eventType) => {
+    setForm((f) => ({
+      ...f,
+      events: f.events.includes(eventType)
+        ? f.events.filter((e) => e !== eventType)
+        : [...f.events, eventType],
+    }));
+  };
 
   const handlePushStock = async () => {
     const items = skuInput.split("\n").filter(Boolean).map((line) => {
@@ -40,46 +74,83 @@ export default function Integrations() {
     });
     if (items.length === 0) return;
     const params = {};
-    const results = await request("/api/v1/integrations/stock/update", {
+    const results = await run(() => request("/api/v1/integrations/stock/update", {
       method: "POST",
       body: items,
       query: params,
       admin: true,
-    }).catch(() => null);
+    }));
     setPushResults(results);
   };
 
   const handleAddSub = async () => {
-    const body = {
-      name: form.name,
-      endpoint_url: form.endpoint_url,
-      secret: form.secret,
-      events: form.events.split(",").map((e) => e.trim()).filter(Boolean),
-    };
-    const sub = await request("/api/v1/integrations/subscriptions", {
+    const created = await run(() => request("/api/v1/integrations/subscriptions", {
       method: "POST",
-      body,
+      body: { name: form.name, endpoint_url: form.endpoint_url, events: form.events },
       admin: true,
-    }).catch(() => null);
-    if (sub) {
-      setSubs((prev) => [...prev, sub]);
+    }));
+    if (created) {
+      const { secret, ...sub } = created;
+      setSubs((prev) => [sub, ...prev]);
+      setRevealedSecret({ name: sub.name, secret });
       setShowForm(false);
-      setForm({ name: "", endpoint_url: "", secret: "", events: "" });
+      setForm({ name: "", endpoint_url: "", events: [] });
     }
   };
 
+  const handleRotate = async (sub) => {
+    const rotated = await run(() => request(`/api/v1/integrations/subscriptions/${sub.subscription_id}/rotate-secret`, {
+      method: "POST",
+      admin: true,
+    }));
+    if (rotated) setRevealedSecret({ name: sub.name, secret: rotated.secret });
+  };
+
+  const handleTest = async (sub) => {
+    const result = await run(() => request(`/api/v1/integrations/subscriptions/${sub.subscription_id}/test`, {
+      method: "POST",
+      admin: true,
+    }));
+    if (result) setNotice(`Тестовое событие ${result.event_id} поставлено в очередь`);
+  };
+
   const handleDeleteSub = async (id) => {
-    await request(`/api/v1/integrations/subscriptions/${id}`, {
+    const ok = await run(() => request(`/api/v1/integrations/subscriptions/${id}`, {
       method: "DELETE",
       admin: true,
-    }).catch(() => {});
-    setSubs((prev) => prev.filter((s) => s.subscription_id !== id));
+    }));
+    if (ok) setSubs((prev) => prev.filter((s) => s.subscription_id !== id));
   };
 
   if (loading) return <Spinner />;
 
   return (
     <div className="space-y-4">
+      {error && (
+        <div role="alert" className="md3-card-elevated p-3 border-l-4 border-red-500 text-sm text-red-700">{error}</div>
+      )}
+      {notice && (
+        <div role="status" className="md3-card-elevated p-3 border-l-4 border-green-500 text-sm">{notice}</div>
+      )}
+      {revealedSecret && (
+        <div role="alert" className="md3-card-elevated p-3 border-l-4 border-amber-500 space-y-2">
+          <p className="text-sm font-semibold">
+            Секрет подписи для «{revealedSecret.name}» — показывается один раз. Сохраните его у получателя.
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="text-xs break-all bg-[var(--color-surface-container)] px-2 py-1 rounded">{revealedSecret.secret}</code>
+            <button
+              type="button"
+              aria-label="Скопировать секрет"
+              onClick={() => navigator.clipboard?.writeText(revealedSecret.secret)}
+              className="p-1.5 rounded-full hover:bg-[var(--color-surface-container)]"
+            >
+              <Copy size={14} />
+            </button>
+          </div>
+          <button type="button" onClick={() => setRevealedSecret(null)} className="text-xs underline">Я сохранил секрет</button>
+        </div>
+      )}
       <div className="flex gap-2 border-b border-[var(--color-outline-variant)] pb-2">
         {["stock", "webhooks", "logs"].map((tKey) => (
           <button
@@ -188,20 +259,25 @@ export default function Integrations() {
                 onChange={(e) => setForm((f) => ({ ...f, endpoint_url: e.target.value }))}
                 placeholder="https://..."
               />
-              <input
-                className="w-full px-2 py-1 rounded border border-[var(--color-outline)] bg-[var(--color-surface)] text-sm"
-                value={form.secret}
-                onChange={(e) => setForm((f) => ({ ...f, secret: e.target.value }))}
-                placeholder="Secret (опционально)"
-              />
-              <input
-                className="w-full px-2 py-1 rounded border border-[var(--color-outline)] bg-[var(--color-surface)] text-sm"
-                value={form.events}
-                onChange={(e) => setForm((f) => ({ ...f, events: e.target.value }))}
-                placeholder="stock.updated, order.created (через запятую)"
-              />
+              <fieldset className="flex flex-wrap gap-3">
+                <legend className="text-xs text-[var(--color-on-surface-variant)] mb-1">События</legend>
+                {eventTypes.map((eventType) => (
+                  <label key={eventType} className="flex items-center gap-1 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={form.events.includes(eventType)}
+                      onChange={() => toggleEvent(eventType)}
+                    />
+                    <span className="font-mono">{eventType}</span>
+                  </label>
+                ))}
+              </fieldset>
+              <p className="text-xs text-[var(--color-on-surface-variant)]">
+                Только HTTPS-адреса в интернете. Секрет подписи будет сгенерирован и показан один раз.
+              </p>
               <button
                 onClick={handleAddSub}
+                disabled={!form.name || !form.endpoint_url || form.events.length === 0}
                 className="px-3 py-1 rounded-full bg-[var(--color-primary)] text-white text-sm font-medium"
               >
                 <Check size={14} className="inline mr-1" /> Сохранить
@@ -227,12 +303,32 @@ export default function Integrations() {
                     </div>
                   )}
                 </div>
-                <button
-                  onClick={() => handleDeleteSub(sub.subscription_id)}
-                  className="p-1.5 rounded-full hover:bg-[var(--color-surface-container)] text-red-500"
-                >
-                  <Trash size={14} />
-                </button>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => handleTest(sub)}
+                    aria-label="Отправить тестовое событие"
+                    title="Отправить тестовое событие"
+                    className="p-1.5 rounded-full hover:bg-[var(--color-surface-container)]"
+                  >
+                    <Lightning size={14} />
+                  </button>
+                  <button
+                    onClick={() => handleRotate(sub)}
+                    aria-label="Сменить секрет"
+                    title="Сменить секрет"
+                    className="p-1.5 rounded-full hover:bg-[var(--color-surface-container)]"
+                  >
+                    <ArrowsClockwise size={14} />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteSub(sub.subscription_id)}
+                    aria-label="Удалить подписку"
+                    title="Удалить подписку"
+                    className="p-1.5 rounded-full hover:bg-[var(--color-surface-container)] text-red-500"
+                  >
+                    <Trash size={14} />
+                  </button>
+                </div>
               </div>
             ))
           )}
@@ -248,14 +344,19 @@ export default function Integrations() {
               <div
                 key={log.log_id}
                 className={`md3-card-elevated p-3 border-l-4 ${
-                  log.success ? "border-green-500" : "border-red-500"
+                  DELIVERY_STYLES[log.status] || (log.success ? "border-green-500" : "border-red-500")
                 }`}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-mono text-[var(--color-on-surface-variant)]">{log.event_type}</span>
                   <span className={`text-xs font-semibold ${log.success ? "text-green-600" : "text-red-600"}`}>
-                    {log.success ? "OK" : `HTTP ${log.response_status}`}
+                    {log.status || (log.success ? "OK" : "failed")}
+                    {log.response_status ? ` · HTTP ${log.response_status}` : ""}
                   </span>
+                  <span className="text-xs text-[var(--color-on-surface-variant)]">попытка {log.attempt}</span>
+                  {log.next_retry_at && (
+                    <span className="text-xs text-[var(--color-on-surface-variant)]">повтор: {new Date(log.next_retry_at).toLocaleString()}</span>
+                  )}
                 </div>
                 {log.request_body && (
                   <p className="text-xs text-[var(--color-on-surface-variant)] mt-1 truncate">{log.request_body}</p>

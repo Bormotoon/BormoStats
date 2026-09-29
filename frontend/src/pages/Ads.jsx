@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useI18n } from "../utils/i18n.jsx";
+import ExportButton from "../components/ExportButton.jsx";
 import { request } from "../utils/api.js";
 import { sum, avg, groupSeries, commonParams, moneyFmt, numberFmt, percentFmt } from "../utils/formats.js";
 import MetricCard from "../components/MetricCard.jsx";
@@ -42,6 +43,9 @@ export default function Ads() {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <ExportButton dataset="ads_daily" filters={filters} includeDates={true} />
+      </div>
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
         <MetricCard label={t("ads.cost")} value={moneyFmt(sum(rows, "cost"))} accent="error" />
         <MetricCard label={t("ads.revenue")} value={moneyFmt(sum(rows, "revenue"))} accent="success" />

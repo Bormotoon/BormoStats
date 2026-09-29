@@ -3,6 +3,7 @@ import { useI18n } from "../utils/i18n.jsx";
 import { request, safeCall } from "../utils/api.js";
 import { moneyFmt } from "../utils/formats.js";
 import { Spinner } from "../components/StatusChip.jsx";
+import { ActionLog, CommitRange, DryRunToggle } from "../components/RuleControls.jsx";
 import { motion, AnimatePresence } from "motion/react";
 import { Megaphone, Sliders, FloppyDisk, Trash } from "@phosphor-icons/react";
 
@@ -13,6 +14,7 @@ export default function Bidder() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState({});
   const [accountFilter, setAccountFilter] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     setLoading(true);
@@ -39,6 +41,7 @@ export default function Bidder() {
       target_cpm: existing?.target_cpm || 0,
       max_cpm: existing?.max_cpm || 0,
       target_position: existing?.target_position || 0,
+      product_id: existing?.product_id || "",
     };
 
     setSaving((s) => ({ ...s, [campaign.campaign_id]: true }));
@@ -56,6 +59,7 @@ export default function Bidder() {
           prev.map((r) => (r.rule_id === existing.rule_id ? res.data : r))
         );
       }
+      setError(res.ok ? "" : res.error);
     } else {
       const res = await safeCall(() =>
         request("/api/v1/bidder/rules", {
@@ -67,6 +71,7 @@ export default function Bidder() {
       if (res.ok) {
         setRules((prev) => [...prev, res.data]);
       }
+      setError(res.ok ? "" : res.error);
     }
 
     setSaving((s) => ({ ...s, [campaign.campaign_id]: false }));
@@ -94,6 +99,7 @@ export default function Bidder() {
 
   return (
     <div className="space-y-4">
+      {error && <div role="alert" className="md3-card-elevated p-3 border-l-4 border-red-500 text-sm text-red-700">{error}</div>}
       {accounts.length > 1 && (
         <div className="flex gap-2">
           <select
@@ -154,13 +160,12 @@ export default function Bidder() {
                     <span>Target CPM</span>
                     <span className="font-mono">{moneyFmt(rule?.target_cpm ?? 0)}</span>
                   </label>
-                  <input
-                    type="range"
+                  <CommitRange
                     min={0}
                     max={500}
                     step={5}
                     value={rule?.target_cpm ?? 0}
-                    onChange={(e) => upsertRule(campaign, "target_cpm", Number(e.target.value))}
+                    onCommit={(v) => upsertRule(campaign, "target_cpm", v)}
                     className="w-full accent-[var(--color-primary)]"
                   />
                   <div className="flex justify-between text-xs text-[var(--color-on-surface-variant)] mt-0.5">
@@ -174,13 +179,12 @@ export default function Bidder() {
                     <span>Max CPM</span>
                     <span className="font-mono">{moneyFmt(rule?.max_cpm ?? 0)}</span>
                   </label>
-                  <input
-                    type="range"
+                  <CommitRange
                     min={0}
                     max={1000}
                     step={10}
                     value={rule?.max_cpm ?? 0}
-                    onChange={(e) => upsertRule(campaign, "max_cpm", Number(e.target.value))}
+                    onCommit={(v) => upsertRule(campaign, "max_cpm", v)}
                     className="w-full accent-[var(--color-warning)]"
                   />
                   <div className="flex justify-between text-xs text-[var(--color-on-surface-variant)] mt-0.5">
@@ -194,19 +198,35 @@ export default function Bidder() {
                     <span>Target Position</span>
                     <span className="font-mono">{rule?.target_position ?? 0}</span>
                   </label>
-                  <input
-                    type="range"
+                  <CommitRange
                     min={0}
                     max={100}
                     step={1}
                     value={rule?.target_position ?? 0}
-                    onChange={(e) => upsertRule(campaign, "target_position", Number(e.target.value))}
+                    onCommit={(v) => upsertRule(campaign, "target_position", v)}
                     className="w-full accent-[var(--color-primary)]"
                   />
                   <div className="flex justify-between text-xs text-[var(--color-on-surface-variant)] mt-0.5">
                     <span>0</span>
                     <span>100</span>
                   </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-semibold text-[var(--color-on-surface-variant)]">
+                    Артикул WB (nm_id) для ставки
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      defaultValue={rule?.product_id ?? ""}
+                      onBlur={(e) => {
+                        if (!rule && e.target.value) upsertRule(campaign, "product_id", e.target.value.trim());
+                      }}
+                      disabled={!!rule}
+                      className="mt-1 w-full px-2 py-1 rounded border border-[var(--color-outline)] bg-[var(--color-surface)] text-sm font-mono"
+                    />
+                  </label>
+                  <DryRunToggle rule={rule} disabled={isSaving} onChange={(v) => upsertRule(campaign, "dry_run", v)} />
                 </div>
 
                 <div className="flex items-end justify-end gap-2">
@@ -232,6 +252,8 @@ export default function Bidder() {
           );
         })}
       </div>
+
+      <ActionLog source="bidder" />
     </div>
   );
 }

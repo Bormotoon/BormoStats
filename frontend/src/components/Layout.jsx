@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useI18n } from "../utils/i18n.jsx";
 import AccountSwitcher from "./AccountSwitcher.jsx";
+import SettingsPanel from "./SettingsPanel.jsx";
+import FreshnessBanner from "./FreshnessBanner.jsx";
 import {
   ChartLineUp, ShoppingCart, Warehouse, Funnel, Megaphone,
   Target, Drop, ListChecks, ShieldCheck, Monitor, CurrencyCircleDollar, Tag, ChartBar, ChartPie,
@@ -43,26 +45,6 @@ export default function Layout({ children, onReload }) {
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
-
-  const [apiBase, setApiBase] = useState(() => {
-    try { return localStorage.getItem("bormostats_ui_api_base") || ""; } catch { return ""; }
-  });
-
-  const [adminKeyInput, setAdminKeyInput] = useState("");
-
-  const saveApiBase = (val) => {
-    setApiBase(val);
-    try { localStorage.setItem("bormostats_ui_api_base", val.replace(/\/+$/, "")); } catch {}
-  };
-
-  const saveAdminKey = (val) => {
-    setAdminKeyInput(val);
-    if (val.trim()) {
-      try { sessionStorage.setItem("bormostats_admin_key", val.trim()); } catch {}
-    } else {
-      try { sessionStorage.removeItem("bormostats_admin_key"); } catch {}
-    }
-  };
 
   const toggleLang = () => setLang(lang === "ru" ? "en" : "ru");
 
@@ -120,6 +102,7 @@ export default function Layout({ children, onReload }) {
         <div className="px-2 pb-3 space-y-0.5">
           <button
             onClick={() => setSettingsOpen(!settingsOpen)}
+            aria-expanded={settingsOpen}
             className={`flex items-center gap-3 w-full px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150 ${
               settingsOpen
                 ? "bg-[var(--color-primary-container)] text-[var(--color-on-primary-container)]"
@@ -146,29 +129,7 @@ export default function Layout({ children, onReload }) {
               exit={{ height: 0, opacity: 0 }}
               className="overflow-hidden border-t border-[var(--color-outline-variant)]"
             >
-              <div className="px-4 py-3 space-y-3">
-                <label className="block">
-                  <span className="text-xs font-semibold text-[var(--color-on-surface-variant)] block mb-1.5">{t("common.apiBaseUrl")}</span>
-                  <input
-                    type="text"
-                    value={apiBase}
-                    onChange={(e) => saveApiBase(e.target.value)}
-                    placeholder={t("common.placeholderApi")}
-                    className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-container)] border border-[var(--color-outline-variant)] text-sm text-[var(--color-on-surface)] placeholder:text-[var(--color-on-surface-variant)] focus:outline-none focus:border-[var(--color-primary)]"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-xs font-semibold text-[var(--color-on-surface-variant)] block mb-1.5">{t("common.adminApiKey")}</span>
-                  <input
-                    type="password"
-                    value={adminKeyInput}
-                    onChange={(e) => saveAdminKey(e.target.value)}
-                    placeholder={t("common.placeholderKey")}
-                    className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-container)] border border-[var(--color-outline-variant)] text-sm text-[var(--color-on-surface)] placeholder:text-[var(--color-on-surface-variant)] focus:outline-none focus:border-[var(--color-primary)]"
-                  />
-                </label>
-                <p className="text-xs text-[var(--color-on-surface-variant)] leading-relaxed">{t("common.keyNote")}</p>
-              </div>
+              <SettingsPanel />
             </motion.div>
           )}
         </AnimatePresence>
@@ -211,6 +172,8 @@ export default function Layout({ children, onReload }) {
             </button>
           </div>
         </header>
+
+        <FreshnessBanner lang={lang} />
 
         <div className="flex-1 overflow-y-auto p-4 lg:p-6">
           {children}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useI18n } from "../utils/i18n.jsx";
+import ExportButton from "../components/ExportButton.jsx";
 import { request } from "../utils/api.js";
 import { sum, commonParams, moneyFmt, numberFmt, percentFmt } from "../utils/formats.js";
 import MetricCard from "../components/MetricCard.jsx";
@@ -44,6 +45,9 @@ export default function KPIs() {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <ExportButton dataset="kpis" filters={filters} includeDates={false} />
+      </div>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <MetricCard label={t("kpis.revenue30d")} value={moneyFmt(sum(rows, "revenue_30d"))} accent="success" className="col-span-2" />
         <MetricCard label={t("kpis.qty30d")} value={numberFmt(sum(rows, "qty_30d"))} />

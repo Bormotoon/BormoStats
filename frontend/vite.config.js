@@ -20,8 +20,6 @@ export default defineConfig({
     proxy: {
       "/api": "http://localhost:18080",
       "/health": "http://localhost:18080",
-      "/ready": "http://localhost:18080",
-      "/metrics": "http://localhost:18080",
     },
   },
 });

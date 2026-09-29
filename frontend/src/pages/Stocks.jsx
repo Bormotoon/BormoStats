@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useI18n } from "../utils/i18n.jsx";
+import ExportButton from "../components/ExportButton.jsx";
 import { request } from "../utils/api.js";
 import { sum, commonParams, moneyFmt, numberFmt } from "../utils/formats.js";
 import MetricCard from "../components/MetricCard.jsx";
@@ -52,6 +53,9 @@ export default function Stocks() {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <ExportButton dataset="stocks_current" filters={filters} includeDates={false} />
+      </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <MetricCard label={t("stocks.totalStock")} value={numberFmt(sum(rows, "stock_end"))} className="col-span-2" />
         <MetricCard label={t("stocks.rows")} value={numberFmt(rows.length)} />
