@@ -7,8 +7,12 @@ ANALYTICS_BASE_URL = "https://seller-analytics-api.wildberries.ru"
 
 SALES_PATH = "/api/v1/supplier/sales"
 ORDERS_PATH = "/api/v1/supplier/orders"
-STOCKS_PATH = "/api/v1/supplier/stocks"
-FUNNEL_PATH = "/api/v2/nm-report/detail"
+# /api/v1/supplier/stocks was switched off on 2026-06-23; the analytics report replaces it
+STOCKS_PATH = "/api/analytics/v1/stocks-report/wb-warehouses"
+STOCKS_PAGE_LIMIT = 250000
+# v2 /api/v2/nm-report/detail was removed by WB (404); v3 returns per-period totals per card
+FUNNEL_PATH = "/api/analytics/v3/sales-funnel/products"
+FUNNEL_PAGE_LIMIT = 1000
 
 # Write APIs (verified against WB OpenAPI specs, 2026)
 MARKETPLACE_BASE_URL = "https://marketplace-api.wildberries.ru"

@@ -98,35 +98,78 @@ def parse_stocks(
     account_id: str,
     snapshot_ts: datetime,
 ) -> list[dict[str, Any]]:
+    """Parse ``/api/analytics/v1/stocks-report/wb-warehouses`` records.
+
+    The table keeps one row per size (``chrt_id``), so warehouses are summed. WB reports
+    a single aggregated warehouse ``-999999`` for now, which has no real id and is NULL.
+    """
     snap = as_ch_datetime(snapshot_ts)
-    rows: list[dict[str, Any]] = []
+    grouped: dict[int, dict[str, Any]] = {}
     for item in records:
-        rows.append(
-            {
+        chrt_id = _safe_int(item.get("chrtId"))
+        warehouse_id = _safe_int(item.get("warehouseId"))
+        row = grouped.get(chrt_id)
+        if row is None:
+            row = grouped[chrt_id] = {
                 "run_id": run_id,
                 "account_id": account_id,
                 "snapshot_ts": snap,
                 "nm_id": _safe_int(item.get("nmId")) or None,
-                "chrt_id": _safe_int(item.get("chrtId")),
-                "sku": item.get("sku"),
-                "warehouse_id": _safe_int(item.get("warehouseId")) or None,
-                "amount": _safe_int(
-                    item.get("quantity")
-                    or item.get("quantityFull")
-                    or item.get("inWayToClient")
-                    or 0
-                ),
-                "payload": json.dumps(item, ensure_ascii=True),
+                "chrt_id": chrt_id,
+                # the report has no barcode
+                "sku": None,
+                "warehouse_id": warehouse_id if warehouse_id > 0 else None,
+                "amount": 0,
+                "parts": [],
             }
-        )
+        elif row["warehouse_id"] != warehouse_id:
+            row["warehouse_id"] = None
+        # quantity is what customers can put into the cart right now
+        row["amount"] += _safe_int(item.get("quantity"))
+        row["parts"].append(item)
+
+    rows: list[dict[str, Any]] = []
+    for row in grouped.values():
+        row["payload"] = json.dumps(row.pop("parts"), ensure_ascii=True)
+        rows.append(row)
     return rows
+
+
+def _flatten_funnel_v3(item: dict[str, Any]) -> dict[str, Any]:
+    """Map a v3 sales-funnel product record onto the flat field names used below.
+
+    ``past``/``comparison`` duplicate other days, so only ``product`` and
+    ``statistic.selected`` are kept in the stored payload.
+    """
+    product = item.get("product") or {}
+    selected = (item.get("statistic") or {}).get("selected") or {}
+    conversions = selected.get("conversions") or {}
+    return {
+        "day": (selected.get("period") or {}).get("start"),
+        "nmId": product.get("nmId"),
+        "openCardCount": selected.get("openCount"),
+        "addToCartCount": selected.get("cartCount"),
+        "ordersCount": selected.get("orderCount"),
+        "ordersSumRub": selected.get("orderSum"),
+        "buyoutsCount": selected.get("buyoutCount"),
+        "buyoutsSumRub": selected.get("buyoutSum"),
+        "cancelCount": selected.get("cancelCount"),
+        "cancelSumRub": selected.get("cancelSum"),
+        "addToCartConv": conversions.get("addToCartPercent"),
+        "cartToOrderConv": conversions.get("cartToOrderPercent"),
+        "buyoutPercent": conversions.get("buyoutPercent"),
+        "addToWishlist": selected.get("addToWishlist"),
+        "currency": item.get("currency"),
+        "_payload": {"product": product, "selected": selected, "currency": item.get("currency")},
+    }
 
 
 def parse_funnel(
     records: list[dict[str, Any]], run_id: str, account_id: str
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    for item in records:
+    for record in records:
+        item = _flatten_funnel_v3(record) if "statistic" in record else record
         day_raw = item.get("date") or item.get("day")
         day_val = _to_datetime(day_raw).date()
         rows.append(
@@ -156,7 +199,7 @@ def parse_funnel(
                 "buyout_percent": _safe_float(item.get("buyoutPercent") or item.get("buyoutCR")),
                 "add_to_wishlist": _safe_int(item.get("addToWishlist") or item.get("wishlist")),
                 "currency": str(item.get("currency") or "RUB"),
-                "payload": json.dumps(item, ensure_ascii=True),
+                "payload": json.dumps(item.get("_payload", item), ensure_ascii=True),
             }
         )
     return rows

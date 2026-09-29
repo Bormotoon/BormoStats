@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import suppress
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
 from collectors.common.http_client import JsonHttpClient
@@ -65,30 +65,60 @@ class WbApiClient:
         return self.orders_since(datetime.combine(day, time.min, tzinfo=UTC), flag=1)
 
     def stocks(self) -> list[dict[str, Any]]:
-        payload = self.statistics.get(
-            endpoints.STOCKS_PATH,
-            headers=self._statistics_headers(),
-        )
-        return payload if isinstance(payload, list) else []
+        """Current stocks on WB warehouses, one record per size and warehouse."""
+        records: list[dict[str, Any]] = []
+        offset = 0
+        while True:
+            payload = self.analytics.post(
+                endpoints.STOCKS_PATH,
+                headers=self._analytics_headers(),
+                json={"limit": endpoints.STOCKS_PAGE_LIMIT, "offset": offset},
+            )
+            data = payload.get("data") if isinstance(payload, dict) else None
+            items = data.get("items") if isinstance(data, dict) else None
+            if not isinstance(items, list):
+                break
+            records.extend(item for item in items if isinstance(item, dict))
+            if len(items) < endpoints.STOCKS_PAGE_LIMIT:
+                break
+            offset += endpoints.STOCKS_PAGE_LIMIT
+        return records
 
     def funnel_daily(self, from_day: date, to_day: date) -> list[dict[str, Any]]:
-        body = {
-            "period": {
-                "begin": from_day.strftime("%Y-%m-%d"),
-                "end": to_day.strftime("%Y-%m-%d"),
-            },
-            "timezone": "Europe/Moscow",
-            "aggregationLevel": "day",
-        }
-        payload = self.analytics.post(
-            endpoints.FUNNEL_PATH,
-            headers=self._analytics_headers(),
-            json=body,
-        )
-        if isinstance(payload, dict):
-            data = payload.get("data")
-            if isinstance(data, list):
-                return data
-        if isinstance(payload, list):
-            return payload
-        return []
+        """Return one v3 product record per card and day in ``[from_day, to_day]``.
+
+        v3 aggregates over the selected period, so each day is requested separately.
+        """
+        records: list[dict[str, Any]] = []
+        day = from_day
+        while day <= to_day:
+            records.extend(self._funnel_products_for_day(day))
+            day += timedelta(days=1)
+        return records
+
+    def _funnel_products_for_day(self, day: date) -> list[dict[str, Any]]:
+        day_str = day.strftime("%Y-%m-%d")
+        records: list[dict[str, Any]] = []
+        offset = 0
+        while True:
+            payload = self.analytics.post(
+                endpoints.FUNNEL_PATH,
+                headers=self._analytics_headers(),
+                json={
+                    "selectedPeriod": {"start": day_str, "end": day_str},
+                    "limit": endpoints.FUNNEL_PAGE_LIMIT,
+                    "offset": offset,
+                },
+            )
+            data = payload.get("data") if isinstance(payload, dict) else None
+            products = data.get("products") if isinstance(data, dict) else None
+            if not isinstance(products, list):
+                break
+            currency = data.get("currency") if isinstance(data, dict) else None
+            for item in products:
+                if isinstance(item, dict):
+                    records.append({**item, "currency": currency or "RUB"})
+            if len(products) < endpoints.FUNNEL_PAGE_LIMIT:
+                break
+            offset += endpoints.FUNNEL_PAGE_LIMIT
+        return records

@@ -163,15 +163,11 @@ def _check_wb_statistics(timeout_seconds: float) -> CheckResult:
 def _check_wb_analytics(timeout_seconds: float) -> CheckResult:
     token = os.getenv("WB_TOKEN_ANALYTICS", "")
     today = datetime.now(UTC).date().strftime("%Y-%m-%d")
-    body = {
-        "period": {"begin": today, "end": today},
-        "timezone": "Europe/Moscow",
-        "aggregationLevel": "day",
-    }
+    body = {"selectedPeriod": {"start": today, "end": today}, "limit": 1, "offset": 0}
     try:
         status, _ = _request_json(
             "POST",
-            "https://seller-analytics-api.wildberries.ru/api/v2/nm-report/detail",
+            "https://seller-analytics-api.wildberries.ru/api/analytics/v3/sales-funnel/products",
             timeout_seconds=timeout_seconds,
             headers={"Authorization": token},
             json_body=body,

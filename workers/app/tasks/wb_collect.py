@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from app.utils.celery_helpers import shared_task
@@ -125,8 +125,8 @@ def wb_sales_backfill_days(days: int = 14, account_id: str = WB_ACCOUNT_ID) -> d
     if wb is None:
         return {"status": "skipped", "reason": "missing WB tokens"}
 
-    def fetch(day_cursor: datetime) -> list[dict[str, Any]]:
-        return wb.sales_for_day(day_cursor.date())
+    def fetch(day_cursor: date) -> list[dict[str, Any]]:
+        return wb.sales_for_day(day_cursor)
 
     return collect_backfill(
         task_name="tasks.wb_collect.wb_sales_backfill_days",
@@ -171,8 +171,8 @@ def wb_orders_backfill_days(days: int = 14, account_id: str = WB_ACCOUNT_ID) -> 
     if wb is None:
         return {"status": "skipped", "reason": "missing WB tokens"}
 
-    def fetch(day_cursor: datetime) -> list[dict[str, Any]]:
-        return wb.orders_for_day(day_cursor.date())
+    def fetch(day_cursor: date) -> list[dict[str, Any]]:
+        return wb.orders_for_day(day_cursor)
 
     return collect_backfill(
         task_name="tasks.wb_collect.wb_orders_backfill_days",

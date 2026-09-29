@@ -157,9 +157,12 @@ class FakeWbApi:
             {
                 "nmId": 111,
                 "chrtId": 222,
-                "sku": "wb-sku-111",
-                "warehouseId": 1,
-                "quantityFull": 7,
+                "warehouseId": -999999,
+                "warehouseName": "Склад WB",
+                "regionName": "Склад WB",
+                "quantity": 7,
+                "inWayToClient": 1,
+                "inWayFromClient": 0,
             }
         ]
 
