@@ -22,3 +22,7 @@ Thumbs.db
 tests/
 docs/
 dashboards/
+backups/
+infra/nginx/certs/
+frontend/test-results/
+frontend/playwright-report/

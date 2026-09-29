@@ -27,9 +27,15 @@ services:
       - /tmp
       - /var/cache/nginx
       - /var/run
+      - /etc/nginx/conf.d
+    environment:
+      - BACKEND_TLS_HOST_PORT=${BACKEND_TLS_HOST_PORT:-18443}
+      - TLS_SERVER_NAME=${TLS_SERVER_NAME:-localhost}
+      - NGINX_ENVSUBST_FILTER=^(BACKEND_TLS_HOST_PORT|TLS_SERVER_NAME)$$
     volumes:
       - ../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ../nginx/certs:/etc/nginx/certs
+      - ../nginx/templates:/etc/nginx/templates:ro
+      - ../nginx/certs:/etc/nginx/certs:ro
     healthcheck:
       test:
         [
@@ -53,12 +59,13 @@ services:
     environment:
       - TZ=${TZ:-Europe/Warsaw}
       - CLICKHOUSE_DB=${CH_DB:-mp_analytics}
-      - CLICKHOUSE_USER=${BOOTSTRAP_CH_ADMIN_USER:-default}
-      - CLICKHOUSE_PASSWORD=${BOOTSTRAP_CH_ADMIN_PASSWORD:-}
+      - CLICKHOUSE_USER=${BOOTSTRAP_CH_ADMIN_USER:?BOOTSTRAP_CH_ADMIN_USER must be set}
+      - CLICKHOUSE_PASSWORD=${BOOTSTRAP_CH_ADMIN_PASSWORD:?BOOTSTRAP_CH_ADMIN_PASSWORD must be set}
       - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
     volumes:
       - ch_data:/var/lib/clickhouse
       - ./clickhouse/initdb:/docker-entrypoint-initdb.d:ro
+      - ./clickhouse/config.d/backups.xml:/etc/clickhouse-server/config.d/backups.xml:ro
       # optional configs:
       # - ./clickhouse/config.xml:/etc/clickhouse-server/config.d/config.xml:ro
       # - ./clickhouse/users.xml:/etc/clickhouse-server/users.d/users.xml:ro
@@ -81,14 +88,19 @@ services:
   redis:
     image: redis@sha256:ee64a64eaab618d88051c3ade8f6352d11531fcf79d9a4818b9b183d8c1d18ba
     restart: unless-stopped
+    environment:
+      - REDIS_USERNAME=${REDIS_USERNAME:-bormostats}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
     volumes:
       - redis_data:/data
-    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-}"]
+      - ./redis/start.sh:/usr/local/bin/bormostats-redis-start.sh:ro
+    entrypoint: ["sh", "/usr/local/bin/bormostats-redis-start.sh"]
     mem_limit: ${REDIS_MEMORY_LIMIT:-512m}
     mem_reservation: ${REDIS_MEMORY_RESERVATION:-128m}
     cpus: ${REDIS_CPU_LIMIT:-0.5}
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-}", "ping"]
+      # REDISCLI_AUTH keeps the password out of the command line
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli --user \"$$REDIS_USERNAME\" --no-auth-warning ping | grep -q PONG"]
       interval: 10s
       timeout: 3s
       retries: 12
@@ -102,11 +114,17 @@ services:
       dockerfile: backend/Dockerfile
     env_file:
       - ../../.env
+    environment:
+      - REDIS_USERNAME=${REDIS_USERNAME:-bormostats}
+      - EXPORT_DIR=/exports
+    volumes:
+      - exports:/exports
     depends_on:
       clickhouse:
         condition: service_healthy
       redis:
         condition: service_healthy
+    stop_grace_period: 30s
     mem_limit: ${BACKEND_MEMORY_LIMIT:-512m}
     mem_reservation: ${BACKEND_MEMORY_RESERVATION:-128m}
     cpus: ${BACKEND_CPU_LIMIT:-1.0}
@@ -116,13 +134,26 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=5).read()",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=5).read()",
         ]
       interval: 15s
       timeout: 5s
       retries: 12
       start_period: 20s
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    command:
+      [
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--proxy-headers",
+        "--forwarded-allow-ips",
+        "*",
+        "--timeout-graceful-shutdown",
+        "20",
+      ]
     networks:
       - private
 
@@ -137,6 +168,13 @@ services:
       - CELERY_METRICS_ROLE=worker
       - CELERY_METRICS_PORT=9101
       - WORKER_PROMETHEUS_MULTIPROC_DIR=/tmp/bormostats-prometheus/worker
+      - REDIS_USERNAME=${REDIS_USERNAME:-bormostats}
+      - EXPORT_DIR=/exports
+    volumes:
+      - exports:/exports
+    # Celery finishes running tasks on SIGTERM (warm shutdown); acks_late re-queues
+    # anything that is still unfinished when the grace period ends.
+    stop_grace_period: 120s
     depends_on:
       clickhouse:
         condition: service_healthy
@@ -159,7 +197,16 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
-    command: ["celery", "-A", "app.celery_app:celery_app", "worker", "--loglevel=INFO", "--concurrency=4"]
+    command:
+      [
+        "celery",
+        "-A",
+        "app.celery_app:celery_app",
+        "worker",
+        "--loglevel=INFO",
+        "--concurrency=${WORKER_CONCURRENCY:-4}",
+        "--queues=${WORKER_QUEUES:-etl,wb,ozon,competitor,automation,marketplace_actions,webhooks}",
+      ]
     networks:
       - ops
       - private
@@ -174,6 +221,8 @@ services:
     environment:
       - CELERY_METRICS_ROLE=beat
       - CELERY_METRICS_PORT=9102
+      - REDIS_USERNAME=${REDIS_USERNAME:-bormostats}
+    stop_grace_period: 30s
     depends_on:
       clickhouse:
         condition: service_healthy
@@ -235,6 +284,7 @@ volumes:
   ch_data:
   redis_data:
   metabase_data:
+  exports:
 
 networks:
   edge:

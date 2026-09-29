@@ -1,0 +1,6 @@
+<clickhouse>
+    <!-- Allows BACKUP/RESTORE ... File('/var/lib/clickhouse/backups/...') used by scripts/backup.sh -->
+    <backups>
+        <allowed_path>/var/lib/clickhouse/backups/</allowed_path>
+    </backups>
+</clickhouse>
