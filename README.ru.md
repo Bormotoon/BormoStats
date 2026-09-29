@@ -379,7 +379,7 @@ sudo make install-systemd
 
 | Переменная | Описание | По умолчанию |
 |---|---|---|
-| `OZON_PERF_API_KEY` | API ключ Ozon Performance (для рекламы) | — |
+| `OZON_PERF_CLIENT_ID` / `OZON_PERF_CLIENT_SECRET` | OAuth-клиент Ozon Performance API (для рекламы; создаётся в рекламном кабинете) | — |
 | `TG_BOT_TOKEN` | Токен Telegram бота для уведомлений | — |
 | `TG_CHAT_ID` | ID чата Telegram для уведомлений | — |
 | `CH_RO_USER` / `CH_RO_PASSWORD` | Пользователь ClickHouse только для чтения (Metabase) | — |

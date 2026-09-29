@@ -23,7 +23,7 @@
 - credentials:
   - `OZON_CLIENT_ID`
   - `OZON_API_KEY`
-  - optional `OZON_PERF_API_KEY`
+  - optional `OZON_PERF_CLIENT_ID` / `OZON_PERF_CLIENT_SECRET` (Performance API)
 - rotation procedure:
   1. issue replacement credentials in Ozon
   2. update the environment secret store / `.env`

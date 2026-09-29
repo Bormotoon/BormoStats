@@ -3,6 +3,44 @@
 All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/); database migrations are listed per release.
 
+## [Unreleased]
+
+Collectors moved to the current marketplace APIs; several methods they used were switched off
+and every run was logged as `skipped` instead of failing.
+
+### Breaking changes
+
+- **Ozon ads use the Performance API.** `OZON_PERF_API_KEY` is gone: create an API client in the
+  Ozon ad cabinet and set `OZON_PERF_CLIENT_ID` / `OZON_PERF_CLIENT_SECRET`. The previous
+  `/v1/advertising/statistics` call never existed in the Seller API.
+- **Ozon `ozon_product_id` is the SKU** in postings, stocks and finance (postings and accruals
+  carry no `product_id`, so it was stored as `0`).
+- Ozon HTTP 404/405 now fail the task. Only 403 (missing role or subscription) is logged as a
+  capability skip, so a switched-off method is visible in alerts.
+
+### Changed
+
+- Ozon finance: `/v3/finance/transaction/list` (switched off 2026-09-08) → `/v1/finance/accrual/by-day`
+  with `last_id` pagination per Moscow day, labels from `/v1/finance/accrual/types`. One row per
+  `accrual_id` with the signed `total_amount`; the nested breakdown stays in the payload. Every
+  run re-reads the last 3 days. For days collected this way the staging transform drops legacy
+  transaction rows, so re-collecting old periods does not double count.
+- Ozon postings: `/v3/posting/fbs/list` and `/v2/posting/fbo/list` (switched off 2026-08-31) →
+  `/v4/posting/fbs/list` and `/v3/posting/fbo/list` with cursor pagination; price is read from the
+  money object, payout from `financial_data`, warehouse from `delivery_method` / `analytics_data`.
+- Ozon stocks: `/v1/product/info/stocks` → `/v4/product/info/stocks` (FBS, rFBS, FBP) plus
+  `/v1/analytics/stocks` for FBO stocks per Ozon warehouse.
+- WB stocks: `/api/v1/supplier/stocks` (switched off 2026-06-23) →
+  `/api/analytics/v1/stocks-report/wb-warehouses` with `WB_TOKEN_ANALYTICS`.
+- WB funnel: `/api/v2/nm-report/detail` → `/api/analytics/v3/sales-funnel/products`, one request
+  per day.
+- `make check-tokens` probes the new Ozon postings, finance and Performance API token methods.
+
+### Migrations
+
+- `0027_ozon_finance_accruals`: `raw_ozon_finance_ops.source` (`transaction_list_v3` for existing
+  rows, `accrual_by_day` for new ones).
+
 ## [1.1.0] — 2026-09-29
 
 Remediation of the September 2026 audit (`AUDIT_REPORT.md`); details per finding in

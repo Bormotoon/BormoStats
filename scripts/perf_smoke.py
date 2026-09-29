@@ -16,6 +16,7 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 import clickhouse_connect
 import httpx
@@ -191,6 +192,7 @@ class FakeWbApi:
 class FakeOzonApi:
     def __init__(self, recent_ts: datetime) -> None:
         self.recent_ts = recent_ts
+        self.accrual_day = recent_ts.astimezone(ZoneInfo("Europe/Moscow")).date()
 
     def postings_since(
         self,
@@ -210,48 +212,49 @@ class FakeOzonApi:
                 "in_process_at": self.recent_ts.isoformat().replace("+00:00", "Z"),
                 "shipment_date": self.recent_ts.isoformat().replace("+00:00", "Z"),
                 "delivering_date": self.recent_ts.isoformat().replace("+00:00", "Z"),
-                "warehouse_id": 2,
+                "delivery_method": {"id": 5, "warehouse_id": 2},
                 "products": [
                     {
-                        "product_id": 100500,
+                        "sku": 100500,
                         "offer_id": "offer-1",
                         "name": "Ozon product",
                         "quantity": 1,
-                        "price": "200.0",
-                        "payout": "150.0",
+                        "price": {"amount": "200.0000", "currency": "RUB"},
                     }
                 ],
+                "financial_data": {
+                    "products": [{"product_id": 100500, "price": 200.0, "payout": 150.0}]
+                },
             }
         ]
 
-    def finance_operations(
-        self,
-        *,
-        from_ts: datetime,
-        to_ts: datetime,
-        limit: int,
-    ) -> list[dict[str, object]]:
-        assert limit == 1000
-        if from_ts > self.recent_ts or to_ts < self.recent_ts:
+    def finance_accrual_types(self) -> dict[int, str]:
+        return {10: "ServiceFee"}
+
+    def finance_accruals_for_day(self, day: date) -> list[dict[str, object]]:
+        if day != self.accrual_day:
             return []
         return [
             {
-                "transaction_id": "fin-1",
-                "created_at": self.recent_ts.isoformat().replace("+00:00", "Z"),
-                "operation_type": "service_fee",
-                "accruals_for_sale": "12.5",
-                "currency": "RUB",
+                "accrual_id": 9001,
+                "date": day.isoformat(),
+                "accrued_category": "NON_ITEM",
+                "unit_number": "ad-contract-1",
+                "non_item_fee": {"type_id": 10, "accrued": {"amount": "-12.5", "currency": "RUB"}},
+                "total_amount": {"amount": "-12.5", "currency": "RUB"},
             }
         ]
 
     def stocks(self) -> list[dict[str, object]]:
         return [
             {
-                "product_id": 100500,
+                "product_id": 7001,
                 "offer_id": "offer-1",
                 "stocks": [
                     {
-                        "warehouse_id": 2,
+                        "sku": 100500,
+                        "type": "fbs",
+                        "warehouse_ids": [2],
                         "present": 9,
                         "reserved": 2,
                     }
@@ -259,20 +262,33 @@ class FakeOzonApi:
             }
         ]
 
-    def ads_daily(self, target_day: date) -> list[dict[str, object]]:
-        if target_day != self.recent_ts.date():
+    def fbo_stocks(self, skus: list[int]) -> list[dict[str, object]]:
+        assert skus == [100500]
+        return []
+
+
+class FakeOzonPerformance:
+    def __init__(self, recent_ts: datetime) -> None:
+        self.recent_ts = recent_ts
+
+    def daily_stats(self, from_day: date, to_day: date) -> list[dict[str, object]]:
+        if not from_day <= self.recent_ts.date() <= to_day:
             return []
         return [
             {
-                "day": target_day.isoformat(),
-                "campaign_id": "camp-1",
-                "impressions": 1000,
-                "clicks": 50,
-                "cost": 25.0,
-                "orders": 3,
-                "revenue": 300.0,
+                "id": "camp-1",
+                "title": "Campaign",
+                "date": self.recent_ts.date().isoformat(),
+                "views": "1000",
+                "clicks": "50",
+                "moneySpent": "25,00",
+                "orders": "3",
+                "ordersMoney": "300,00",
             }
         ]
+
+    def close(self) -> None:
+        pass
 
 
 def _run_command(*args: str) -> subprocess.CompletedProcess[str]:
@@ -356,7 +372,8 @@ def _runtime_env_values(env: IntegrationEnv) -> dict[str, str]:
         "WB_TOKEN_ANALYTICS": "integration-wb-analytics-token",
         "OZON_CLIENT_ID": "integration-ozon-client-id",
         "OZON_API_KEY": "integration-ozon-api-key",
-        "OZON_PERF_API_KEY": "integration-ozon-perf-key",
+        "OZON_PERF_CLIENT_ID": "integration-ozon-perf-client",
+        "OZON_PERF_CLIENT_SECRET": "integration-ozon-perf-secret",
         "OZON_POSTINGS_SCHEMAS": "fbs,fbo",
     }
 
@@ -381,6 +398,9 @@ def _ingest_sample_marketplace_data(monkeypatch: pytest.MonkeyPatch) -> date:
     recent_ts = datetime.now(UTC).replace(microsecond=0) - timedelta(days=1)
     monkeypatch.setattr(wb_collect, "_wb_client", lambda: FakeWbApi(recent_ts))
     monkeypatch.setattr(ozon_collect, "_ozon_client", lambda: FakeOzonApi(recent_ts))
+    monkeypatch.setattr(
+        ozon_collect, "_ozon_performance_client", lambda: FakeOzonPerformance(recent_ts)
+    )
 
     assert wb_collect.wb_sales_incremental()["status"] == "success"
     assert wb_collect.wb_orders_incremental()["status"] == "success"

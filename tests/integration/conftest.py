@@ -168,7 +168,8 @@ def _runtime_env_values(env: IntegrationEnv) -> dict[str, str]:
         "WB_TOKEN_ANALYTICS": "integration-wb-analytics-token",
         "OZON_CLIENT_ID": "integration-ozon-client-id",
         "OZON_API_KEY": "integration-ozon-api-key",
-        "OZON_PERF_API_KEY": "integration-ozon-perf-key",
+        "OZON_PERF_CLIENT_ID": "integration-ozon-perf-client",
+        "OZON_PERF_CLIENT_SECRET": "integration-ozon-perf-secret",
         "OZON_POSTINGS_SCHEMAS": "fbs,fbo",
     }
 

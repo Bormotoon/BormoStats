@@ -372,7 +372,7 @@ Require the platform master key (`ADMIN_API_KEY`) in `X-API-Key`.
 
 | Variable | Description | Default |
 |---|---|---|
-| `OZON_PERF_API_KEY` | Ozon Performance API key (for ads) | — |
+| `OZON_PERF_CLIENT_ID` / `OZON_PERF_CLIENT_SECRET` | Ozon Performance API OAuth client (for ads; issued in the ad cabinet) | — |
 | `TG_BOT_TOKEN` | Telegram bot token for alerts | — |
 | `TG_CHAT_ID` | Telegram chat ID for alerts | — |
 | `CH_RO_USER` / `CH_RO_PASSWORD` | Read-only ClickHouse user for Metabase | — |

@@ -38,8 +38,8 @@
 - Ozon:
   - `ozon_postings_incremental`: every 20 min
   - `ozon_stocks_snapshot`: every 30 min
-  - `ozon_finance_incremental`: every 6 hours
-  - `ozon_ads_daily`: every 6 hours (requires `OZON_PERF_API_KEY`)
+  - `ozon_finance_incremental`: every 6 hours (`/v1/finance/accrual/by-day`, one request chain per Moscow day, last 3 days re-read)
+  - `ozon_ads_daily`: every 6 hours (Performance API, requires `OZON_PERF_CLIENT_ID` / `OZON_PERF_CLIENT_SECRET`)
 - ELT and marts:
   - `transform_all_recent`: every 30 min
   - `build_marts_recent`: hourly

@@ -183,17 +183,11 @@ def _check_ozon_seller(timeout_seconds: float) -> CheckResult:
     now = datetime.now(UTC)
     since = (now - timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
     to = now.strftime("%Y-%m-%dT%H:%M:%SZ")
-    body = {
-        "dir": "ASC",
-        "filter": {"since": since, "to": to},
-        "limit": 1,
-        "offset": 0,
-        "with": {"analytics_data": False, "financial_data": False},
-    }
+    body = {"filter": {"since": since, "to": to}, "limit": 1, "sort_dir": "ASC"}
     try:
         status, _ = _request_json(
             "POST",
-            "https://api-seller.ozon.ru/v3/posting/fbs/list",
+            "https://api-seller.ozon.ru/v4/posting/fbs/list",
             timeout_seconds=timeout_seconds,
             headers={"Client-Id": client_id, "Api-Key": api_key},
             json_body=body,
@@ -203,23 +197,42 @@ def _check_ozon_seller(timeout_seconds: float) -> CheckResult:
         return CheckResult("ozon_seller", False, _as_error_detail(exc))
 
 
-def _check_ozon_perf(timeout_seconds: float) -> CheckResult:
+def _check_ozon_finance(timeout_seconds: float) -> CheckResult:
     client_id = os.getenv("OZON_CLIENT_ID", "")
-    perf_api_key = os.getenv("OZON_PERF_API_KEY", "")
-    if not perf_api_key.strip():
-        return CheckResult("ozon_perf", True, "not configured; skipped", warning=True)
-
+    api_key = os.getenv("OZON_API_KEY", "")
     day = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
-    body = {"date_from": day, "date_to": day, "group_by": "DATE"}
     try:
         status, _ = _request_json(
             "POST",
-            "https://api-seller.ozon.ru/v1/advertising/statistics",
+            "https://api-seller.ozon.ru/v1/finance/accrual/by-day",
             timeout_seconds=timeout_seconds,
-            headers={"Client-Id": client_id, "Api-Key": perf_api_key},
-            json_body=body,
+            headers={"Client-Id": client_id, "Api-Key": api_key},
+            json_body={"date": day, "last_id": ""},
         )
-        return CheckResult("ozon_perf", True, f"status={status}")
+        return CheckResult("ozon_finance", True, f"status={status}")
+    except Exception as exc:
+        return CheckResult("ozon_finance", False, _as_error_detail(exc), warning=True)
+
+
+def _check_ozon_perf(timeout_seconds: float) -> CheckResult:
+    client_id = os.getenv("OZON_PERF_CLIENT_ID", "")
+    client_secret = os.getenv("OZON_PERF_CLIENT_SECRET", "")
+    if not client_id.strip() or not client_secret.strip():
+        return CheckResult("ozon_perf", True, "not configured; skipped", warning=True)
+
+    try:
+        status, _ = _request_json(
+            "POST",
+            "https://api-performance.ozon.ru/api/client/token",
+            timeout_seconds=timeout_seconds,
+            headers={"Accept": "application/json"},
+            json_body={
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "grant_type": "client_credentials",
+            },
+        )
+        return CheckResult("ozon_perf", True, f"token status={status}")
     except Exception as exc:
         return CheckResult("ozon_perf", False, _as_error_detail(exc), warning=True)
 
@@ -248,6 +261,7 @@ def main() -> int:
         _check_wb_statistics(args.timeout_seconds),
         _check_wb_analytics(args.timeout_seconds),
         _check_ozon_seller(args.timeout_seconds),
+        _check_ozon_finance(args.timeout_seconds),
         _check_ozon_perf(args.timeout_seconds),
     ]
 

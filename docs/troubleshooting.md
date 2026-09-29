@@ -65,10 +65,13 @@ Detailed recovery procedures live in `docs/runbooks.md`.
 ## Ozon capability / premium issues
 
 - Check `sys_task_runs.meta_json` for entries with:
-  - `{"capability":"ads","reason":"missing_perf_api_key"}`
+  - `{"capability":"ads","reason":"missing_performance_credentials"}`
   - `{"capability":"finance","reason":"unavailable_or_forbidden"}`
+- `unavailable_or_forbidden` is logged only for HTTP 403 (missing role or subscription).
+  HTTP 404/405 fail the task: they mean Ozon switched the method off and the
+  collector must be moved to its replacement.
 - Ensure optional features are configured:
-  - `OZON_PERF_API_KEY` for ads
+  - `OZON_PERF_CLIENT_ID` / `OZON_PERF_CLIENT_SECRET` for ads (Performance API OAuth client)
   - `OZON_POSTINGS_SCHEMAS=fbs,fbo` only if both schemes are applicable
 
 ## Telegram alerts are not sent
