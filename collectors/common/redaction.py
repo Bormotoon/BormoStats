@@ -17,8 +17,9 @@ def redact_mapping(data: dict[str, Any], sensitive_keys: set[str] | None = None)
     keys = sensitive_keys or {"token", "api_key", "authorization", "password", "secret"}
     redacted: dict[str, Any] = {}
     for key, value in data.items():
-        key_lower = key.lower()
-        if any(s in key_lower for s in keys):
+        # header names use dashes ("Api-Key"), config names use underscores ("api_key")
+        key_normalized = key.lower().replace("-", "_")
+        if any(s in key_normalized for s in keys):
             redacted[key] = redact_token(str(value))
         else:
             redacted[key] = value
