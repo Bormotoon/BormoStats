@@ -21,7 +21,9 @@ PLACEHOLDER_VALUES = frozenset(
         "replace-with-strong-value",
     }
 )
+PLACEHOLDER_PREFIXES = ("replace-with-", "change-me", "changeme")
 INSECURE_CLICKHOUSE_USERS = frozenset({"admin", "default"})
+STRICT_ENVIRONMENTS = frozenset({"prod", "production", "stage", "staging"})
 REQUIRED_MARKETPLACE_KEYS = (
     "WB_TOKEN_STATISTICS",
     "WB_TOKEN_ANALYTICS",
@@ -39,8 +41,37 @@ def _normalized(value: str | None) -> str:
 
 
 def is_placeholder(value: str | None) -> bool:
-    normalized = _normalized(value)
-    return not normalized or normalized.casefold() in PLACEHOLDER_VALUES
+    normalized = _normalized(value).casefold()
+    return (
+        not normalized
+        or normalized in PLACEHOLDER_VALUES
+        or normalized.startswith(PLACEHOLDER_PREFIXES)
+    )
+
+
+def is_strict_environment(env: Mapping[str, str | None]) -> bool:
+    """Stage and prod must not start with blank secrets for shared infrastructure."""
+    return _normalized(env.get("APP_ENV")).casefold() in STRICT_ENVIRONMENTS
+
+
+def _collect_shared_secret_issues(env: Mapping[str, str | None]) -> list[str]:
+    if not is_strict_environment(env):
+        return []
+    issues: list[str] = []
+    if is_placeholder(env.get("REDIS_PASSWORD")):
+        issues.append("REDIS_PASSWORD must be set to a strong value in stage/prod")
+    if is_placeholder(env.get("WEBHOOK_SECRET_KEY")):
+        issues.append("WEBHOOK_SECRET_KEY must be set to a strong value in stage/prod")
+    if _normalized(env.get("PUBLIC_READ_API")).casefold() in {"1", "true", "yes", "on"}:
+        issues.append("PUBLIC_READ_API must be disabled in stage/prod")
+    if _normalized(env.get("WEBHOOK_ALLOW_PRIVATE_TARGETS")).casefold() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        issues.append("WEBHOOK_ALLOW_PRIVATE_TARGETS must be disabled in stage/prod")
+    return issues
 
 
 def _collect_clickhouse_runtime_issues(env: Mapping[str, str | None]) -> list[str]:
@@ -70,6 +101,7 @@ def _collect_clickhouse_runtime_issues(env: Mapping[str, str | None]) -> list[st
 
 def collect_backend_startup_issues(env: Mapping[str, str | None]) -> list[str]:
     issues = _collect_clickhouse_runtime_issues(env)
+    issues.extend(_collect_shared_secret_issues(env))
 
     if is_placeholder(env.get("ADMIN_API_KEY")):
         issues.append("ADMIN_API_KEY must be set to a strong non-placeholder value")
@@ -79,6 +111,7 @@ def collect_backend_startup_issues(env: Mapping[str, str | None]) -> list[str]:
 
 def collect_worker_startup_issues(env: Mapping[str, str | None]) -> list[str]:
     issues = _collect_clickhouse_runtime_issues(env)
+    issues.extend(_collect_shared_secret_issues(env))
 
     for key in REQUIRED_MARKETPLACE_KEYS:
         if is_placeholder(env.get(key)):
@@ -104,6 +137,9 @@ def collect_bootstrap_issues(env: Mapping[str, str | None]) -> list[str]:
 
     if is_placeholder(env.get("ADMIN_API_KEY")):
         issues.append("ADMIN_API_KEY must be set before bootstrap")
+
+    if is_placeholder(env.get("REDIS_PASSWORD")):
+        issues.append("REDIS_PASSWORD must be set before bootstrap")
 
     for key in REQUIRED_MARKETPLACE_KEYS:
         if is_placeholder(env.get(key)):
