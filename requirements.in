@@ -1,0 +1,17 @@
+# Direct runtime dependencies. requirements.txt is the generated lock file:
+#   make lock   (uv pip compile requirements.in -o requirements.txt)
+celery==5.6.2
+clickhouse-connect==0.13.0
+cryptography==50.0.1
+fastapi==0.135.1
+httpx==0.28.1
+prometheus_client==0.25.0
+pydantic==2.12.5
+pydantic-settings==2.14.2
+python-dotenv==1.2.2
+python-dateutil==2.9.0.post0
+PyYAML==6.0.3
+redis==7.2.1
+structlog==25.5.0
+tzdata==2025.3
+uvicorn[standard]==0.41.0
