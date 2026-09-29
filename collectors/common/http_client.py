@@ -89,6 +89,22 @@ class JsonHttpClient:
     ) -> Any:
         return self._request("POST", path, headers=headers, params=params, json_body=json)
 
+    def put(
+        self,
+        path: str,
+        headers: dict[str, str] | None = None,
+        json: dict[str, Any] | list[Any] | None = None,
+    ) -> Any:
+        return self._request("PUT", path, headers=headers, params=None, json_body=json)
+
+    def patch(
+        self,
+        path: str,
+        headers: dict[str, str] | None = None,
+        json: dict[str, Any] | list[Any] | None = None,
+    ) -> Any:
+        return self._request("PATCH", path, headers=headers, params=None, json_body=json)
+
     def _check_circuit(self) -> None:
         if self._open_until is None:
             return
@@ -173,7 +189,8 @@ class JsonHttpClient:
 
                 if 200 <= response.status_code <= 299:
                     self._record_success()
-                    return response.json()
+                    # write endpoints (e.g. WB stocks) answer 204 without a body
+                    return response.json() if response.content else None
 
                 retry_delay = self._retry_delay(response, attempt)
                 retry_reason = self._retry_reason(response)
