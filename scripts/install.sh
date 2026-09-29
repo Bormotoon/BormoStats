@@ -21,9 +21,8 @@ echo "  OK"
 # 2. Create .env if missing
 echo "[2/6] Configuring environment..."
 if [ ! -f .env ]; then
-  cp .env.example .env
-  echo "  Created .env from .env.example"
-  echo "  >> Edit .env and set your API keys, then re-run this script."
+  python3 scripts/init_env.py --env "${ENV:-dev}" || true
+  echo "  >> Edit .env and set your marketplace API keys, then re-run this script."
   exit 1
 fi
 echo "  .env found"
@@ -41,8 +40,8 @@ echo "  Done"
 echo "[4/6] Building frontend..."
 if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
   cd frontend
-  npm ci --silent 2>/dev/null
-  npm run build 2>/dev/null
+  npm ci --silent
+  npm run build
   cd "$ROOT_DIR"
   mkdir -p backend/app/ui/dist
   cp -r frontend/dist/* backend/app/ui/dist/ 2>/dev/null || true
@@ -72,5 +71,5 @@ echo ""
 echo "  Or install systemd services:"
 echo "    sudo make install-systemd"
 echo ""
-echo "  UI will be at:  http://localhost:${BACKEND_HOST_PORT:-18080}/ui/"
+echo "  UI will be at:  http://localhost:8000/ui/"
 echo ""

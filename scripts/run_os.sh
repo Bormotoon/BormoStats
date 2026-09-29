@@ -57,7 +57,7 @@ PYTHONPATH="$ROOT_DIR/workers:$ROOT_DIR" \
   CELERY_METRICS_ROLE=worker \
   CELERY_METRICS_PORT=9101 \
   WORKER_PROMETHEUS_MULTIPROC_DIR=/tmp/bormostats-prometheus/worker \
-  "$VENV_PYTHON" -m celery -A app.celery_app:celery_app worker --loglevel=INFO --concurrency=4 &
+  "$VENV_PYTHON" -m celery -A app.celery_app:celery_app worker --loglevel=INFO --concurrency="${WORKER_CONCURRENCY:-4}" --queues="${WORKER_QUEUES:-etl,wb,ozon,competitor,automation,marketplace_actions,webhooks}" &
 WORKER_PID=$!
 
 # Start Celery beat

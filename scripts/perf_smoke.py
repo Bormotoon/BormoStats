@@ -43,7 +43,7 @@ for key, value in {
     os.environ.setdefault(key, value)
 
 from app.core.config import get_settings
-from app.core.deps import _get_cached_ch_client, get_app_settings, get_ch_client
+from app.core.deps import close_ch_client, get_app_settings, get_ch_client
 from app.db.ch import build_raw_client
 from app.main import app
 from app.tasks import marts, transforms
@@ -474,7 +474,7 @@ def _perf_runtime() -> Iterator[IntegrationEnv]:
 
         with _runtime_env_scope(prepared_env):
             get_settings.cache_clear()
-            _get_cached_ch_client.cache_clear()
+            close_ch_client(app)
             get_worker_ch_client.cache_clear()
             get_redis_client.cache_clear()
             apply_migrations.apply_migrations()
@@ -482,7 +482,7 @@ def _perf_runtime() -> Iterator[IntegrationEnv]:
             yield prepared_env
     finally:
         get_settings.cache_clear()
-        _get_cached_ch_client.cache_clear()
+        close_ch_client(app)
         get_worker_ch_client.cache_clear()
         get_redis_client.cache_clear()
         _remove_container(clickhouse_name)

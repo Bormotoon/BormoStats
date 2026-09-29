@@ -16,29 +16,7 @@ compose_cmd() {
 }
 
 ensure_proxy_tls_certs() {
-  local cert_file="$NGINX_CERT_DIR/tls.crt"
-  local key_file="$NGINX_CERT_DIR/tls.key"
-  local server_name="${TLS_SERVER_NAME:-localhost}"
-  local cert_days="${TLS_CERT_DAYS:-30}"
-
-  mkdir -p "$NGINX_CERT_DIR"
-  if [[ -s "$cert_file" && -s "$key_file" ]]; then
-    return 0
-  fi
-  if ! command -v openssl >/dev/null 2>&1; then
-    echo "openssl is required to generate TLS certs for the reverse proxy."
-    return 1
-  fi
-
-  echo "Generating self-signed TLS certificate for ${server_name}..."
-  openssl req \
-    -x509 \
-    -nodes \
-    -newkey rsa:2048 \
-    -days "$cert_days" \
-    -keyout "$key_file" \
-    -out "$cert_file" \
-    -subj "/CN=${server_name}" >/dev/null 2>&1
+  NGINX_CERT_DIR="$NGINX_CERT_DIR" bash "$ROOT_DIR/scripts/gen_tls_cert.sh"
 }
 
 wait_for_service() {
@@ -115,9 +93,8 @@ check_host_port_conflict() {
 }
 
 if [[ ! -f "$ENV_FILE" ]]; then
-  cp "$ROOT_DIR/.env.example" "$ENV_FILE"
-  echo "Created $ENV_FILE from .env.example"
-  echo "Populate required secrets in $ENV_FILE and rerun bootstrap."
+  "$PYTHON_BIN" "$ROOT_DIR/scripts/init_env.py" --env "${ENV:-dev}" --output "$ENV_FILE" || true
+  echo "Populate the remaining values in $ENV_FILE and rerun bootstrap."
   exit 1
 fi
 
@@ -279,7 +256,7 @@ def check(url: str, *, insecure_tls: bool = False) -> None:
 
 backend_port = os.getenv("BACKEND_HOST_PORT", "18080")
 backend_tls_port = os.getenv("BACKEND_TLS_HOST_PORT", "18443")
-check(f"http://localhost:{backend_port}/health")
+check(f"http://localhost:{backend_port}/health", insecure_tls=True)
 check(f"https://localhost:{backend_tls_port}/ready", insecure_tls=True)
 PY
 

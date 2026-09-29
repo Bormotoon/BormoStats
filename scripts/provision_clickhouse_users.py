@@ -36,7 +36,7 @@ def provision_clickhouse_users() -> None:
         quoted_app_user = f"`{app_user}`"
         create_app_user_sql = (
             f"CREATE USER IF NOT EXISTS {quoted_app_user} "
-            "IDENTIFIED WITH plaintext_password BY %(password)s"
+            "IDENTIFIED WITH sha256_password BY %(password)s"
         )
         client.command(f"CREATE DATABASE IF NOT EXISTS {quoted_db}")
         client.command(
@@ -44,13 +44,17 @@ def provision_clickhouse_users() -> None:
             parameters={"password": app_password},
         )
         client.command(f"GRANT ALL ON {quoted_db}.* TO {quoted_app_user}")
+        # Operational metrics (disk pressure) read system.disks.
+        client.command(
+            f"GRANT SELECT(name, free_space, total_space) ON system.disks TO {quoted_app_user}"
+        )
 
         if ro_user or ro_password:
             ro_user_value = _require_identifier("APP_CH_RO_USER", ro_user)
             quoted_ro_user = f"`{ro_user_value}`"
             create_ro_user_sql = (
                 f"CREATE USER IF NOT EXISTS {quoted_ro_user} "
-                "IDENTIFIED WITH plaintext_password BY %(password)s"
+                "IDENTIFIED WITH sha256_password BY %(password)s"
             )
             client.command(
                 create_ro_user_sql,

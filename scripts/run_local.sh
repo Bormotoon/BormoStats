@@ -2,37 +2,40 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT_DIR"
+ENV_FILE="$ROOT_DIR/.env"
+COMPOSE_FILE="$ROOT_DIR/infra/docker/docker-compose.yml"
+PYTHON_BIN="python3"
+if [[ -x "$ROOT_DIR/.venv/bin/python" ]]; then
+  PYTHON_BIN="$ROOT_DIR/.venv/bin/python"
+fi
 
-# 1. Create .env from example if missing
-if [ ! -f .env ]; then
-  cp .env.example .env
-  echo "Created .env from .env.example"
-  echo ">> Edit .env and set your WB_API_KEY / OZON_API_KEY, then run this script again."
-  echo ">> Minimal required: WB_STATISTICS_API_KEY, OZON_CLIENT_ID, OZON_API_KEY"
+# 1. Create .env from the selected environment template if missing
+if [[ ! -f "$ENV_FILE" ]]; then
+  "$PYTHON_BIN" "$ROOT_DIR/scripts/init_env.py" --env "${ENV:-dev}" --output "$ENV_FILE" || true
+  echo ">> Set WB_TOKEN_STATISTICS, WB_TOKEN_ANALYTICS, OZON_CLIENT_ID and OZON_API_KEY"
+  echo ">> in $ENV_FILE, then run 'make up' again."
   exit 1
 fi
 
-set -a; source .env; set +a
+set -a
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+set +a
 
 # 2. Generate TLS certs for nginx (required for proxy)
-mkdir -p infra/nginx/certs
-if [ ! -s infra/nginx/certs/tls.crt ]; then
-  openssl req -x509 -nodes -newkey rsa:2048 \
-    -days "${TLS_CERT_DAYS:-365}" \
-    -keyout infra/nginx/certs/tls.key \
-    -out infra/nginx/certs/tls.crt \
-    -subj "/CN=${TLS_SERVER_NAME:-localhost}" 2>/dev/null
-  echo "Self-signed TLS cert generated"
-fi
+bash "$ROOT_DIR/scripts/gen_tls_cert.sh"
 
-# 3. Build and start everything
+# 3. Build and start everything (paths are absolute, so the working directory does not matter)
 echo "Starting BormoStats..."
-cd infra/docker
-docker compose --env-file ../.env up -d --build
+docker compose \
+  --project-name "${STACK_NAME:-bormostats}" \
+  --env-file "$ENV_FILE" \
+  -f "$COMPOSE_FILE" \
+  up -d --build
 
 echo ""
 echo "================================================"
 echo "  BormoStats is starting up"
-echo "  UI:  http://localhost:${BACKEND_HOST_PORT:-18080}/ui/"
+echo "  UI:  https://${TLS_SERVER_NAME:-localhost}:${BACKEND_TLS_HOST_PORT:-18443}/ui/"
+echo "  (http://localhost:${BACKEND_HOST_PORT:-18080} redirects to HTTPS)"
 echo "================================================"
