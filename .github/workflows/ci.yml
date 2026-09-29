@@ -4,6 +4,9 @@ on:
   push:
     branches: ["main"]
   pull_request:
+  schedule:
+    # Nightly re-scan so newly published advisories surface without a code change.
+    - cron: "17 3 * * *"
 
 permissions:
   contents: read
@@ -12,23 +15,25 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Third-party actions are pinned to commit SHAs (tags in comments); Dependabot
+# (github-actions ecosystem) proposes updates.
 jobs:
   lint-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.14"
 
-      - name: Install dependencies
+      - name: Install dependencies (hash-locked)
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
+          pip install --require-hashes -r requirements-dev.txt
 
       - name: Ruff
         run: ruff check .
@@ -37,17 +42,57 @@ jobs:
         run: ruff format --check .
 
       - name: MyPy
-        run: mypy backend workers collectors automation warehouse scripts
+        run: mypy backend workers collectors automation warehouse scripts common
 
-      - name: Pytest
+      - name: Migration manifest
+        run: python warehouse/apply_migrations.py verify
+
+      - name: Vulnerability waivers are current
+        run: python scripts/check_vuln_waivers.py
+
+      - name: Pytest (unit + ClickHouse/Redis integration via Docker)
         run: pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: npm audit (blocking on high/critical)
+        run: npm audit --audit-level=high
+
+      - name: Build
+        run: npm run build
+
+      - name: Browser extension tests
+        run: node --test "../browser_extension/tests/*.test.mjs"
+
+      - name: E2E smoke (Playwright)
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e
 
   docker-build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Build backend image
         run: docker build -f backend/Dockerfile .
@@ -55,29 +100,28 @@ jobs:
       - name: Build worker image
         run: docker build -f workers/Dockerfile .
 
-  supply-chain:
+      - name: Prometheus alert rule unit tests
+        run: |
+          docker run --rm --entrypoint promtool \
+            -v "$PWD/infra/monitoring/prometheus:/p" -w /p \
+            prom/prometheus@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e \
+            test rules alerts.test.yml
+
+      - name: Compose config renders from the documented template
+        run: |
+          python3 scripts/init_env.py --env dev || test $? -eq 2
+          docker compose --env-file .env -f infra/docker/docker-compose.yml config -q
+
+  # Advisory: full reports (all severities) for the Security tab and artifacts.
+  supply-chain-report:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      contents: write
+      contents: read
       security-events: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.14"
-
-      - name: Install dependency audit tool
-        run: |
-          python -m pip install --upgrade pip
-          pip install pip-audit
-
-      - name: Python dependency vulnerability scan
-        continue-on-error: true
-        run: pip-audit -r requirements.txt -r requirements-dev.txt
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Build backend image
         run: docker build -t bormostats-backend:ci -f backend/Dockerfile .
@@ -85,118 +129,150 @@ jobs:
       - name: Build worker image
         run: docker build -t bormostats-worker:ci -f workers/Dockerfile .
 
-      - name: Generate source SBOM
-        uses: anchore/sbom-action@v0
+      - name: Source SBOM
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           path: .
           format: spdx-json
           output-file: ./source-sbom.spdx.json
           artifact-name: bormostats-source-sbom
 
-      - name: Generate backend image SBOM
-        uses: anchore/sbom-action@v0
+      - name: Backend image SBOM
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           image: bormostats-backend:ci
           format: spdx-json
           output-file: ./backend-image-sbom.spdx.json
           artifact-name: bormostats-backend-image-sbom
 
-      - name: Generate worker image SBOM
-        uses: anchore/sbom-action@v0
+      - name: Worker image SBOM
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           image: bormostats-worker:ci
           format: spdx-json
           output-file: ./worker-image-sbom.spdx.json
           artifact-name: bormostats-worker-image-sbom
 
-      - name: Scan backend image
-        id: scan-backend
-        continue-on-error: true
-        uses: anchore/scan-action@v7
+      - name: Scan backend image (report)
+        id: report-backend
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
         with:
           image: bormostats-backend:ci
           fail-build: false
-          severity-cutoff: high
-          only-fixed: true
+          output-format: sarif
+          config: .grype.yaml
           cache-db: true
 
-      - name: Scan worker image
-        id: scan-worker
-        continue-on-error: true
-        uses: anchore/scan-action@v7
+      - name: Upload backend SARIF
+        uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          sarif_file: ${{ steps.report-backend.outputs.sarif }}
+          category: grype-backend
+
+      - name: Scan worker image (report)
+        id: report-worker
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
         with:
           image: bormostats-worker:ci
           fail-build: false
+          output-format: sarif
+          config: .grype.yaml
+          cache-db: true
+
+      - name: Upload worker SARIF
+        uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          sarif_file: ${{ steps.report-worker.outputs.sarif }}
+          category: grype-worker
+
+      - name: Keep SBOMs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom-bundle
+          path: "*.spdx.json"
+          retention-days: 90
+
+  # Blocking gate: fixed high/critical vulnerabilities fail the build unless a
+  # non-expired waiver exists (security/vulnerability-waivers.yml, .grype.yaml).
+  supply-chain-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
+      - name: Python dependency audit
+        run: |
+          python -m pip install --upgrade pip
+          pip install --require-hashes -r requirements-dev.txt
+          python scripts/check_vuln_waivers.py
+          pip-audit --strict -r requirements.txt -r requirements-dev.txt \
+            $(python scripts/check_vuln_waivers.py --pip-audit-args)
+
+      - name: Build backend image
+        run: docker build -t bormostats-backend:gate -f backend/Dockerfile .
+
+      - name: Build worker image
+        run: docker build -t bormostats-worker:gate -f workers/Dockerfile .
+
+      - name: Gate backend image
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          image: bormostats-backend:gate
+          fail-build: true
           severity-cutoff: high
           only-fixed: true
+          config: .grype.yaml
+          cache-db: true
+
+      - name: Gate worker image
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          image: bormostats-worker:gate
+          fail-build: true
+          severity-cutoff: high
+          only-fixed: true
+          config: .grype.yaml
           cache-db: true
 
   migration-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.14"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install --require-hashes -r requirements.txt
 
-      - name: Prepare env
+      - name: Prepare env from the documented template
         run: |
-          cp .env.example .env
-          python - <<'PY'
-          from pathlib import Path
-
-          env_path = Path(".env")
-          updates = {
-              "STACK_NAME": "bormostats-ci",
-              "CH_HTTP_HOST_PORT": "18123",
-              "BOOTSTRAP_CH_HOST": "127.0.0.1",
-              "BOOTSTRAP_CH_PORT": "18123",
-              "BOOTSTRAP_CH_ADMIN_USER": "bootstrap_ci",
-              "BOOTSTRAP_CH_ADMIN_PASSWORD": "ci-bootstrap-admin-password",
-              "CH_USER": "analytics_ci",
-              "CH_PASSWORD": "ci-clickhouse-password",
-              "ADMIN_API_KEY": "ci-admin-api-key",
-          }
-
-          lines: list[str] = []
-          seen: set[str] = set()
-          for raw_line in env_path.read_text(encoding="utf-8").splitlines():
-              stripped = raw_line.strip()
-              if not stripped or stripped.startswith("#") or "=" not in raw_line:
-                  lines.append(raw_line)
-                  continue
-              key, _, _ = raw_line.partition("=")
-              if key in updates:
-                  lines.append(f"{key}={updates[key]}")
-                  seen.add(key)
-                  continue
-              lines.append(raw_line)
-
-          for key, value in updates.items():
-              if key not in seen:
-                  lines.append(f"{key}={value}")
-
-          env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-          PY
+          python scripts/init_env.py --env dev || test $? -eq 2
+          cat >> .env <<'EOF'
+          STACK_NAME=bormostats-ci
+          CH_HTTP_HOST_PORT=18123
+          BOOTSTRAP_CH_HOST=127.0.0.1
+          BOOTSTRAP_CH_PORT=18123
+          EOF
 
       - name: Start ClickHouse and Redis
-        run: |
-          docker compose --env-file .env -f infra/docker/docker-compose.yml up -d clickhouse redis
+        run: docker compose --env-file .env -f infra/docker/docker-compose.yml up -d clickhouse redis
 
       - name: Wait for ClickHouse
         run: |
-          set -a
-          source .env
-          set +a
+          set -a; source .env; set +a
           for i in {1..60}; do
             if curl -fsS "http://${BOOTSTRAP_CH_HOST}:${BOOTSTRAP_CH_PORT}/ping" >/dev/null; then
               exit 0
@@ -208,64 +284,66 @@ jobs:
 
       - name: Provision ClickHouse users
         run: |
-          set -a
-          source .env
-          set +a
-          APP_CH_USER="$CH_USER" \
-          APP_CH_PASSWORD="$CH_PASSWORD" \
-          APP_CH_DB="$CH_DB" \
-          APP_CH_RO_USER="${CH_RO_USER:-}" \
-          APP_CH_RO_PASSWORD="${CH_RO_PASSWORD:-}" \
-          CH_HOST="${BOOTSTRAP_CH_HOST}" \
-          CH_PORT="${BOOTSTRAP_CH_PORT}" \
-          CH_USER="${BOOTSTRAP_CH_ADMIN_USER:-default}" \
-          CH_PASSWORD="${BOOTSTRAP_CH_ADMIN_PASSWORD:-}" \
+          set -a; source .env; set +a
+          APP_CH_USER="$CH_USER" APP_CH_PASSWORD="$CH_PASSWORD" APP_CH_DB="$CH_DB" \
+          APP_CH_RO_USER="${CH_RO_USER:-}" APP_CH_RO_PASSWORD="${CH_RO_PASSWORD:-}" \
+          CH_HOST="${BOOTSTRAP_CH_HOST}" CH_PORT="${BOOTSTRAP_CH_PORT}" \
+          CH_USER="${BOOTSTRAP_CH_ADMIN_USER}" CH_PASSWORD="${BOOTSTRAP_CH_ADMIN_PASSWORD}" \
           python scripts/provision_clickhouse_users.py
 
-      - name: Apply migrations
+      - name: Upgrade from the previous release schema, then apply all migrations
         run: |
-          set -a
-          source .env
-          set +a
-          CH_HOST="${BOOTSTRAP_CH_HOST}" \
-          CH_PORT="${BOOTSTRAP_CH_PORT}" \
-          python warehouse/apply_migrations.py
+          set -a; source .env; set +a
+          export CH_HOST="${BOOTSTRAP_CH_HOST}" CH_PORT="${BOOTSTRAP_CH_PORT}"
+          python warehouse/apply_migrations.py apply --target 0020_webhooks
+          python warehouse/apply_migrations.py apply
+          python warehouse/apply_migrations.py status
 
-      - name: Verify schema
+      - name: Rollback / re-apply round trip
         run: |
-          set -a
-          source .env
-          set +a
+          set -a; source .env; set +a
+          export CH_HOST="${BOOTSTRAP_CH_HOST}" CH_PORT="${BOOTSTRAP_CH_PORT}"
+          python warehouse/apply_migrations.py rollback --target 0020_webhooks
+          python warehouse/apply_migrations.py apply
+
+      - name: Verify schema contract
+        run: |
+          set -a; source .env; set +a
           python - <<'PY'
           import os
           import clickhouse_connect
 
           client = clickhouse_connect.get_client(
-              host=os.getenv("BOOTSTRAP_CH_HOST", "127.0.0.1"),
-              port=int(os.getenv("BOOTSTRAP_CH_PORT", "8123")),
-              username=os.getenv("CH_USER", "default"),
-              password=os.getenv("CH_PASSWORD", ""),
-              database=os.getenv("CH_DB", "mp_analytics"),
+              host=os.environ["BOOTSTRAP_CH_HOST"],
+              port=int(os.environ["BOOTSTRAP_CH_PORT"]),
+              username=os.environ["CH_USER"],
+              password=os.environ["CH_PASSWORD"],
+              database=os.environ["CH_DB"],
           )
           try:
+              expected = {
+                  "sys_schema_migrations": {"version", "checksum", "status", "seq"},
+                  "dim_user": {"api_key_id", "api_key_hash", "api_key_expires_at"},
+                  "dim_ad_rule": {"dry_run", "product_id", "placement"},
+                  "dim_actionable_task": {"dedupe_key"},
+                  "sys_marketplace_actions": {"idempotency_key", "status"},
+                  "webhook_logs": {"event_id", "attempt", "status"},
+                  "sys_audit_log": {"actor", "organization_id", "request_id"},
+              }
               rows = client.query(
-                  """
-                  SELECT name
-                  FROM system.tables
-                  WHERE database = %(db)s
-                    AND name IN %(names)s
-                  ORDER BY name
-                  """,
-                  parameters={
-                      "db": os.getenv("CH_DB", "mp_analytics"),
-                      "names": ("sys_schema_migrations", "sys_watermarks", "stg_sales", "mrt_sales_daily"),
-                  },
+                  "SELECT table, name FROM system.columns WHERE database = {db:String}",
+                  parameters={"db": os.environ["CH_DB"]},
               ).result_rows
-              if len(rows) != 4:
-                  raise SystemExit(f"Expected 4 key tables, got {rows}")
-              applied = client.query("SELECT count() FROM sys_schema_migrations").result_rows
-              if not applied or int(applied[0][0]) <= 0:
-                  raise SystemExit("No migration versions were recorded in sys_schema_migrations")
+              present: dict[str, set[str]] = {}
+              for table, column in rows:
+                  present.setdefault(str(table), set()).add(str(column))
+              missing = {t: cols - present.get(t, set()) for t, cols in expected.items()}
+              missing = {t: c for t, c in missing.items() if c}
+              if missing:
+                  raise SystemExit(f"Schema contract violated: {missing}")
+              leaked = client.query("SELECT count() FROM dim_user WHERE api_key != ''").result_rows
+              if leaked[0][0]:
+                  raise SystemExit("Plaintext API keys are still stored")
               print("Schema verification passed")
           finally:
               client.close()
@@ -273,5 +351,4 @@ jobs:
 
       - name: Stop services
         if: always()
-        run: |
-          docker compose --env-file .env -f infra/docker/docker-compose.yml down -v
+        run: docker compose --env-file .env -f infra/docker/docker-compose.yml down -v

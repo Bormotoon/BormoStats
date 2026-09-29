@@ -4,14 +4,33 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      actions:
+        patterns: ["*"]
 
+  # requirements.in → requirements.txt (pip-compile style lock with hashes)
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 10
+
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+    groups:
+      frontend-minor:
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: "docker"
-    directory: "/"
+    directories:
+      - "/backend"
+      - "/workers"
     schedule:
       interval: "weekly"
 
+  - package-ecosystem: "docker-compose"
+    directory: "/infra/docker"
+    schedule:
+      interval: "weekly"
