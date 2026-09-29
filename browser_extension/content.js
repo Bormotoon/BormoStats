@@ -1,4 +1,5 @@
 (function () {
+  /* global BORMOSTATS_PROTOCOL */
   const overlay = document.createElement("div");
   overlay.id = "bormostats-overlay";
   overlay.style.cssText =
@@ -6,17 +7,40 @@
     "color:#cdd6f4;border-radius:12px;padding:16px;font-family:monospace;" +
     "font-size:13px;max-width:320px;box-shadow:0 4px 24px rgba(0,0,0,0.3);" +
     "display:none;";
-  overlay.innerHTML =
-    '<div style="display:flex;justify-content:space-between;margin-bottom:8px">' +
-    '<strong style="color:#89b4fa">BormoStats</strong>' +
-    '<button id="bormostats-close" style="background:none;border:none;color:#6c7086;cursor:pointer;font-size:16px">×</button>' +
-    "</div>" +
-    '<div id="bormostats-content">Loading...</div>';
+  const header = document.createElement("div");
+  header.style.cssText = "display:flex;justify-content:space-between;margin-bottom:8px";
+  const heading = document.createElement("strong");
+  heading.style.color = "#89b4fa";
+  heading.textContent = "BormoStats";
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.setAttribute("aria-label", "Close");
+  closeBtn.style.cssText = "background:none;border:none;color:#6c7086;cursor:pointer;font-size:16px";
+  closeBtn.textContent = "×";
+  header.append(heading, closeBtn);
+  const content = document.createElement("div");
+  content.textContent = "Loading...";
+  overlay.append(header, content);
   document.body.appendChild(overlay);
 
-  document.getElementById("bormostats-close").onclick = () => {
+  closeBtn.onclick = () => {
     overlay.style.display = "none";
   };
+
+  function send(type, data) {
+    return new Promise((resolve) => {
+      chrome.runtime.sendMessage({ v: BORMOSTATS_PROTOCOL.version, type, data }, (response) => {
+        resolve(response || { ok: false, error: chrome.runtime.lastError?.message || "no response" });
+      });
+    });
+  }
+
+  function line(text, color) {
+    const el = document.createElement("div");
+    if (color) el.style.color = color;
+    el.textContent = text;
+    return el;
+  }
 
   function extractProductId() {
     const match = window.location.pathname.match(/\/catalog\/(\d+)\/detail\.aspx/);
@@ -90,36 +114,31 @@
   async function loadData() {
     const info = extractProductId();
     if (!info) return;
-    const data = await chrome.storage.sync.get(["apiUrl", "apiKey"]);
-    if (!data.apiUrl) return;
-    try {
-      const resp = await fetch(`${data.apiUrl}/${info.marketplace}/${info.product_id}`, {
-        headers: data.apiKey ? { "X-API-Key": data.apiKey } : {},
-      });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const product = await resp.json();
-      render(product);
-    } catch (e) {
-      document.getElementById("bormostats-content").innerHTML = `<span style="color:#f38ba8">Error: ${e.message}</span>`;
+    const response = await send(BORMOSTATS_PROTOCOL.types.productOverlay, info);
+    if (!response.ok) {
+      content.replaceChildren(line(`Error: ${response.error}`, "#f38ba8"));
+      return;
     }
+    render(response.result);
   }
 
+  // All API values are rendered with textContent: scraped/competitor data must
+  // never be interpreted as HTML inside the marketplace page.
   function render(product) {
-    const priceRow = product.price_history && product.price_history[0]
-      ? `<div>Price: ${product.price_history[0].price_rub} ₽` +
-        (product.price_history[0].sale_percent ? ` <span style="color:#a6e3a1">-${product.price_history[0].sale_percent}%</span>` : "") +
-        ` | Stock: ${product.price_history[0].in_stock}</div>`
-      : "";
-    const posHtml = product.search_positions && product.search_positions.length
-      ? "<div style='margin-top:6px'>" +
-        product.search_positions.slice(0, 5).map((p) => `<div>#${p.position} for "${p.query}"</div>`).join("") +
-        "</div>"
-      : "";
-    document.getElementById("bormostats-content").innerHTML =
-      `<div style="color:#89b4fa;font-weight:bold">${product.name}</div>` +
-      `<div style="color:#a6adc8;font-size:12px">${product.brand} · ${product.supplier_name}</div>` +
-      `<div>⭐ ${product.rating} (${product.review_count} reviews)</div>` +
-      priceRow + posHtml;
+    const rows = [
+      line(String(product.name ?? ""), "#89b4fa"),
+      line(`${product.brand ?? ""} · ${product.supplier_name ?? ""}`, "#a6adc8"),
+      line(`⭐ ${product.rating ?? 0} (${product.review_count ?? 0} reviews)`),
+    ];
+    const latest = product.price_history && product.price_history[0];
+    if (latest) {
+      const sale = latest.sale_percent ? ` -${latest.sale_percent}%` : "";
+      rows.push(line(`Price: ${latest.price_rub} ₽${sale} | Stock: ${latest.in_stock}`));
+    }
+    (product.search_positions || []).slice(0, 5).forEach((p) => {
+      rows.push(line(`#${p.position} for "${p.query}"`));
+    });
+    content.replaceChildren(...rows);
     overlay.style.display = "block";
   }
 
@@ -139,18 +158,17 @@
   const searchResults = extractSearchResults();
   if (keyword && searchResults.length > 0) {
     const positions = searchResults.map((r) => ({
-      account_id: "default",
       marketplace: window.location.hostname.includes("wildberries") ? "wb" : "ozon",
       keyword,
       product_id: r.product_id,
       position: r.position,
       search_ts: new Date().toISOString(),
     }));
-    chrome.runtime.sendMessage({ type: "serp_positions", data: positions });
+    send(BORMOSTATS_PROTOCOL.types.serpPositions, positions);
   }
 
   const compPrice = extractCompetitorPrice();
   if (compPrice && compPrice.price_rub) {
-    chrome.runtime.sendMessage({ type: "competitor_price", data: compPrice });
+    send(BORMOSTATS_PROTOCOL.types.competitorPrice, compPrice);
   }
 })();

@@ -9,17 +9,23 @@
     label { display: block; margin: 8px 0 4px; font-size: 12px; color: #555; }
     input { width: 100%; padding: 6px; box-sizing: border-box; }
     button { margin-top: 8px; width: 100%; padding: 8px; background: #4f46e5; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+    button.secondary { background: #e5e7eb; color: #111; }
     .status { margin-top: 8px; font-size: 12px; color: #666; }
+    .hint { font-size: 11px; color: #777; margin-top: 4px; }
   </style>
 </head>
 <body>
   <h2>BormoStats</h2>
-  <label>API URL</label>
-  <input type="text" id="apiUrl" placeholder="https://your-instance/api/v1/plugin/product">
-  <label>API Key</label>
-  <input type="password" id="apiKey" placeholder="Admin API key">
-  <button id="save">Save</button>
-  <div class="status" id="status"></div>
+  <label for="apiOrigin">Адрес BormoStats (только HTTPS)</label>
+  <input type="url" id="apiOrigin" placeholder="https://analytics.example.com">
+  <label for="apiKey">Персональный API-ключ</label>
+  <input type="password" id="apiKey" autocomplete="off" placeholder="bsk_…">
+  <p class="hint">Используйте ключ пользователя с ролью manager, а не мастер-ключ платформы. Ключ хранится локально (не синхронизируется).</p>
+  <label for="accountId">Аккаунт магазина</label>
+  <input type="text" id="accountId" placeholder="default">
+  <button id="save">Сохранить и выдать доступ</button>
+  <button id="clear" class="secondary">Очистить</button>
+  <div class="status" id="status" role="status"></div>
   <script src="popup.js"></script>
 </body>
 </html>
