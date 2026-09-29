@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bormostats"
-version = "1.0.0"
+version = "1.1.0"
 description = "Marketplace analytics for WB and Ozon"
 requires-python = ">=3.14"
 
@@ -15,6 +15,8 @@ target-version = "py314"
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "N", "RUF", "W", "SIM"]
 ignore = ["B008"]
+# User-facing texts (digests, recommendations) are in Russian.
+allowed-confusables = ["А", "В", "Е", "К", "М", "Н", "О", "Р", "С", "Т", "У", "Х", "а", "е", "о", "р", "с", "у", "х"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -33,5 +35,5 @@ namespace_packages = true
 mypy_path = ["backend", "workers"]
 
 [[tool.mypy.overrides]]
-module = ["celery", "celery.*"]
+module = ["celery", "celery.*", "kombu", "kombu.*"]
 ignore_missing_imports = true

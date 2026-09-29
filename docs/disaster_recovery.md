@@ -94,3 +94,22 @@ Validated on March 6, 2026 with a clean-volume restore drill:
 5. verify the restored sample file matches
 
 Result: restore drill passed on a clean destination volume and the sample payload was recovered intact.
+
+## Automated backups and restore drills
+
+`make backup` (`scripts/backup.sh`) creates a timestamped archive in `BACKUP_DIR` with:
+
+- ClickHouse: native `BACKUP DATABASE … TO File('/var/lib/clickhouse/backups/…')`
+  (allowed by `infra/docker/clickhouse/config.d/backups.xml`); the script copies the backup
+  out of the container and removes the temporary copy;
+- Redis: an RDB snapshot (`SAVE`) — queues and locks only, no business data;
+- Metabase: the application database volume.
+
+Archives get a `.sha256` file, are GPG-encrypted when `BACKUP_GPG_RECIPIENT` is set and
+are pruned after `BACKUP_RETENTION_DAYS`. Schedule it daily (cron/systemd timer) and copy
+the archives off the host.
+
+`make restore-check` (`scripts/restore_check.sh`) is the restore drill: it verifies the
+checksum, restores the newest backup into `<CH_DB>_restore_check`, compares row counts
+of key tables with production and drops the scratch database. Run it at least monthly
+and after ClickHouse upgrades; record the result in the release notes.

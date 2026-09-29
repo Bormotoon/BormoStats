@@ -13,6 +13,9 @@
 - [Release checklist](./release_checklist.md)
 - [Release management](./release_management.md)
 - [Credential rotation](./credential_rotation.md)
+- [Authentication, roles and tenancy](./authentication.md)
+- [Webhooks](./webhooks.md)
+- [Bid and price automation](./marketplace_actions.md)
 - [Disaster recovery](./disaster_recovery.md)
 
 ## Platform and Observability
@@ -22,11 +25,13 @@
 - [Observability](./observability.md)
 - [Prometheus setup](./prometheus.md)
 - [Metabase notes](./metabase.md)
+- [Data catalog](./data_catalog.md)
 - [Supply-chain security](./supply_chain_security.md)
 
 ## Audit
 
 - [Project status report](./project_status_report.md)
+- [Audit remediation (2026-09)](./audit_remediation.md)
 
 ## Archive
 

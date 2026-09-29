@@ -38,7 +38,7 @@
 | **Автоматический сбор данных** | Инкрементальный сбор продаж, заказов, остатков, воронок, рекламы и финансов из API Wildberries и Ozon |
 | **Аналитическое хранилище** | Трёхуровневое хранилище в ClickHouse (raw → staging → marts) |
 | **REST API** | FastAPI бэкенд с эндпоинтами для продаж, остатков, воронок, рекламы и KPI |
-| **Современный веб-интерфейс** | Встроенное React 19 SPA с Material Design 3 и двуязычным интерфейсом |
+| **Современный веб-интерфейс** | Встроенное React 19 SPA (Tailwind CSS и собственные дизайн-токены) с двуязычным интерфейсом |
 | **BI Дашборды** | Интеграция с Metabase для произвольных дашбордов и SQL-запросов |
 | **Telegram Уведомления** | YAML-правила автоматизации: высокий ACOS, низкий остаток, отсутствие продаж |
 | **Биддер** | Автоматическое управление ставками для РК WB/Ozon с правилами по CPM/позиции |
@@ -170,17 +170,19 @@
 ```bash
 git clone https://github.com/Bormotoon/BormoStats.git
 cd BormoStats
-cp .env.example .env
+make init ENV=dev        # или ENV=stage / ENV=prod
 ```
 
-Отредактируйте `.env` и укажите **как минимум** эти значения:
+`make init` копирует `.env.<env>.example` в `.env` и генерирует стойкие случайные значения для
+`CH_PASSWORD`, `BOOTSTRAP_CH_ADMIN_PASSWORD`, `REDIS_PASSWORD`, `ADMIN_API_KEY`,
+`WEBHOOK_SECRET_KEY` и `METRICS_BEARER_TOKEN`. Затем укажите ключи маркетплейсов:
 
 | Переменная | Где взять |
 |---|---|
-| `WB_STATISTICS_API_KEY` | Wildberries → Личный кабинет → Настройки → API |
+| `WB_TOKEN_STATISTICS` | Wildberries → Личный кабинет → Настройки → API (категория «Статистика») |
+| `WB_TOKEN_ANALYTICS` | Wildberries → Личный кабинет → Настройки → API (категория «Аналитика») |
 | `OZON_CLIENT_ID` | Ozon → Настройки → API |
 | `OZON_API_KEY` | Ozon → Настройки → API |
-| `ADMIN_API_KEY` | Сгенерировать: `openssl rand -hex 32` |
 
 ```bash
 make up
@@ -191,8 +193,8 @@ make up
 > 💡 Первая сборка занимает 3–5 минут. Последующие сборки используют кэширование Docker.
 
 ```bash
-# Проверка здоровья
-curl http://localhost:18080/health
+# Проверка здоровья (HTTP на 18080 перенаправляет на HTTPS 18443; сертификат самоподписанный)
+curl -k https://localhost:18443/health/live
 
 # Веб-интерфейс
 open https://localhost:18443/ui/
@@ -208,10 +210,11 @@ open http://localhost:13000
 ```bash
 git clone https://github.com/Bormotoon/BormoStats.git
 cd BormoStats
-cp .env.example .env
+make init ENV=dev
 ```
 
-Отредактируйте `.env`, затем:
+Укажите ключи маркетплейсов, направьте `CH_HOST` / `REDIS_URL` на локальные сервисы
+(очистите `REDIS_USERNAME`, если в вашем Redis нет ACL-пользователя), затем:
 
 ```bash
 make install
@@ -250,7 +253,9 @@ sudo make install-systemd
 - **Admin Actions** — Бэкфилл, трансформации, управление marts, обслуживание
 - **System** — Здоровье сервиса, готовность, Prometheus метрики
 
-> 🔐 Ключ администратора хранится **только в памяти сессии**. Его нужно вводить заново после закрытия вкладки или обновления страницы.
+> 🔐 Входите с **персональным API-ключом пользователя** (Настройки → API-ключ). Ключ хранится только в
+> sessionStorage вкладки и отправляется с каждым запросом; кнопка «Выйти» очищает его. Мастер-ключ
+> платформы (`ADMIN_API_KEY`) тоже работает, но предназначен для операторов.
 
 ### Интернационализация
 
@@ -263,7 +268,25 @@ sudo make install-systemd
 
 ## 📡 API
 
-### Публичные аналитические эндпоинты
+### Аутентификация и изоляция организаций
+
+Все эндпоинты `/api/v1/*` требуют заголовок `X-API-Key` (анонимное чтение можно включить только
+для локальной разработки через `PUBLIC_READ_API=true`). Есть два вида ключей:
+
+- **Ключи пользователей** (`bsk_<id>_<secret>`) выдаются через `POST /api/v1/users` и
+  `POST /api/v1/users/{id}/rotate-key` и показываются **один раз**; хранится только соль и scrypt-хеш.
+  Организация и роль (`owner`, `admin`, `manager`, `analyst`, `viewer`) берутся из ключа — тело или
+  параметры запроса не могут выбрать чужую организацию.
+- **Мастер-ключ платформы** (`ADMIN_API_KEY`) для операторов: служебные эндпоинты (`/admin`,
+  `/organizations`, `/costs`, `/ai`) и работа с конкретной организацией через заголовок
+  `X-Organization-Id`. Ограничьте его сетями через `ADMIN_ALLOWED_NETWORKS`.
+
+Ключи могут истекать (`api_key_ttl_days`), отзываться (`POST /users/{id}/revoke-key`) и отзываться
+массово (`POST /users/revoke-all-keys`). Каждый изменяющий запрос пишется в `sys_audit_log`
+(кто, организация, маршрут, статус, `X-Request-ID`). OpenAPI-контракт доступен аутентифицированным
+клиентам по адресу `/api/v1/openapi.json`.
+
+### Аналитические эндпоинты
 
 | Метод | Путь | Описание |
 |---|---|---|
@@ -297,7 +320,18 @@ sudo make install-systemd
 | `GET` | `/api/v1/integrations/subscriptions` | Webhook подписки |
 | `POST` | `/api/v1/integrations/subscriptions` | Создать webhook подписку |
 | `DELETE` | `/api/v1/integrations/subscriptions/{id}` | Удалить webhook подписку |
-| `GET` | `/api/v1/integrations/logs` | Логи доставки webhook |
+| `GET` | `/api/v1/integrations/logs` | Попытки доставки webhook (статус, ретраи, dead letter) |
+| `PATCH` | `/api/v1/integrations/subscriptions/{id}` | Изменить подписку |
+| `POST` | `/api/v1/integrations/subscriptions/{id}/rotate-secret` | Сменить секрет подписи |
+| `POST` | `/api/v1/integrations/subscriptions/{id}/test` | Тестовая доставка |
+| `GET` | `/api/v1/integrations/events` | Поддерживаемые типы событий |
+| `GET` | `/api/v1/bidder/actions`, `/api/v1/repricer/actions` | Журнал смоделированных и применённых изменений ставок и цен |
+| `POST` | `/api/v1/users/{id}/rotate-key`, `/revoke-key` | Ротация или отзыв ключа пользователя |
+
+Правила биддера и репрайсера создаются в режиме **dry-run**: изменения только моделируются и
+записываются в журнал. Отключение dry-run требует scope `execute:marketplace`, а реальная отправка на
+маркетплейс — ещё и глобального переключателя `MARKETPLACE_ACTIONS_ENABLED=true`. Webhooks подписываются
+(`X-BormoStats-Signature`, HMAC-SHA256 от `timestamp.body`) — см. [docs/webhooks.md](docs/webhooks.md).
 
 **Параметры запроса:**
 - `marketplace` — фильтр по маркетплейсу (`wb` или `ozon`)
@@ -309,7 +343,7 @@ sudo make install-systemd
 
 ### Admin эндпоинты
 
-Требуют заголовок `X-API-Key`.
+Требуют мастер-ключ платформы (`ADMIN_API_KEY`) в `X-API-Key`.
 
 | Метод | Путь | Описание |
 |---|---|---|
@@ -354,6 +388,15 @@ sudo make install-systemd
 | `BACKEND_TLS_HOST_PORT` | HTTPS порт бэкенда на хосте | `18443` |
 | `METABASE_HOST_PORT` | Порт Metabase на хосте | `13000` |
 | `STACK_NAME` | Имя стека Docker Compose | `bormostats` |
+| `REDIS_USERNAME` / `REDIS_PASSWORD` | ACL-пользователь Redis (пароль обязателен для Compose) | `bormostats` / — |
+| `WEBHOOK_SECRET_KEY` | Шифрование секретов webhook (обязателен в stage/prod) | — |
+| `ADMIN_ALLOWED_NETWORKS` | Сети (CIDR), из которых разрешён `ADMIN_API_KEY` | любые |
+| `METRICS_BEARER_TOKEN` | Bearer-токен для `/metrics` | — |
+| `MARKETPLACE_ACTIONS_ENABLED` | Глобальный переключатель реальных изменений ставок/цен | `false` |
+| `WB_TOKEN_MARKETPLACE` / `WB_TOKEN_PRICES` / `WB_TOKEN_PROMOTION` | Токены WB для записи (остатки / цены / ставки) | — |
+| `WORKER_CONCURRENCY` / `WORKER_QUEUES` | Размер воркера Celery и его очереди | `4` / все |
+| `CH_QUERY_TIMEOUT_SECONDS` | Лимит времени запроса ClickHouse для API | `30` |
+| `BACKUP_DIR` / `BACKUP_RETENTION_DAYS` / `BACKUP_GPG_RECIPIENT` | Настройки `make backup` | `./backups` / `14` / — |
 
 ### Порты по умолчанию
 
@@ -427,7 +470,7 @@ make docker-config
 - `tests/integration/` — Интеграционные тесты (admin API, полные сценарии)
 - `tests/fixtures/` — JSON фикстуры (например, `ozon_cancelled_posting.json`)
 
-Текущее покрытие: **54 модульных теста**.
+Покрытие: модульные тесты, отдельный набор для воркеров, интеграционные тесты на ClickHouse/Redis в Docker, E2E smoke-тесты Playwright и тесты расширения браузера.
 
 ---
 
@@ -489,7 +532,7 @@ BormoStats/
 │   ├── backfill.py             # Ручной бэкфилл данных
 │   └── provision_clickhouse_users.py
 │
-├── tests/                      # Набор тестов (54 модульных теста)
+├── tests/                      # Модульные и интеграционные тесты (Docker)
 │   ├── unit/                   # Модульные тесты
 │   ├── integration/            # Интеграционные тесты
 │   └── fixtures/               # JSON фикстуры API
@@ -549,8 +592,8 @@ BormoStats/
 ```bash
 python3 -m venv .venv
 ./.venv/bin/pip install -r requirements-dev.txt
-cp .env.example .env
-# Укажите минимум WB_STATISTICS_API_KEY и OZON_* ключи
+make init ENV=dev
+# Затем укажите WB_TOKEN_STATISTICS, WB_TOKEN_ANALYTICS и ключи OZON_*
 ```
 
 ### Перед отправкой PR
@@ -559,7 +602,7 @@ cp .env.example .env
 make lint           # Ruff линтинг
 make format-check   # Ruff проверка форматирования
 make typecheck      # MyPy строгая типизация
-make test           # pytest (54 теста)
+make test           # pytest (модульные + интеграционные на Docker)
 ```
 
 ### Политика зависимостей

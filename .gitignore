@@ -37,3 +37,7 @@ test-results/
 # Internal AI tooling (opencode skills, not for public)
 .opencode/
 opencode.json
+
+# Local backups and reports
+backups/
+playwright-report/

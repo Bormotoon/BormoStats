@@ -83,3 +83,25 @@ openssl rand -hex 32
 - ClickHouse app access uses a dedicated non-bootstrap user
 - worker and beat are isolated from the public network
 - Redis relies on private-network isolation; keep it unpublished and reassess before any topology expansion
+
+
+## User API keys
+
+- rotate: `POST /api/v1/users/{id}/rotate-key` (returns the new key once; the old key
+  stops working within `AUTH_CACHE_TTL_SECONDS`)
+- revoke one key: `POST /api/v1/users/{id}/revoke-key`
+- suspected org-wide leak: `POST /api/v1/users/revoke-all-keys`, then issue new keys
+- keys can be issued with an expiry (`api_key_ttl_days`); expired keys get HTTP 401
+
+## Webhook secrets
+
+- rotate a subscription secret: `POST /api/v1/integrations/subscriptions/{id}/rotate-secret`
+  and update the receiver with the returned secret
+- rotating `WEBHOOK_SECRET_KEY` (encryption key for stored secrets) invalidates all stored
+  secrets: rotate every subscription afterwards
+
+## Redis and metrics
+
+- `REDIS_PASSWORD` (ACL user `REDIS_USERNAME`): update `.env`, then restart redis, backend,
+  worker and beat together
+- `METRICS_BEARER_TOKEN`: update `.env` and the Prometheus `credentials_file`, restart backend

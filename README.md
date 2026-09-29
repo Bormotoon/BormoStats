@@ -170,17 +170,19 @@ Requires **Docker** & **Docker Compose v2**.
 ```bash
 git clone https://github.com/Bormotoon/BormoStats.git
 cd BormoStats
-cp .env.example .env
+make init ENV=dev        # or ENV=stage / ENV=prod
 ```
 
-Edit `.env` and set **at minimum** these values:
+`make init` copies `.env.<env>.example` to `.env` and generates strong random values for
+`CH_PASSWORD`, `BOOTSTRAP_CH_ADMIN_PASSWORD`, `REDIS_PASSWORD`, `ADMIN_API_KEY`,
+`WEBHOOK_SECRET_KEY` and `METRICS_BEARER_TOKEN`. Then set the marketplace credentials:
 
 | Variable | Where to get it |
 |---|---|
-| `WB_STATISTICS_API_KEY` | Wildberries → Личный кабинет → Настройки → API |
-| `OZON_CLIENT_ID` | Ozon → Настройки → API |
-| `OZON_API_KEY` | Ozon → Настройки → API |
-| `ADMIN_API_KEY` | Generate: `openssl rand -hex 32` |
+| `WB_TOKEN_STATISTICS` | Wildberries → Seller portal → Settings → API (category “Statistics”) |
+| `WB_TOKEN_ANALYTICS` | Wildberries → Seller portal → Settings → API (category “Analytics”) |
+| `OZON_CLIENT_ID` | Ozon → Settings → API |
+| `OZON_API_KEY` | Ozon → Settings → API |
 
 ```bash
 make up
@@ -191,8 +193,8 @@ This starts ClickHouse, Redis, Backend, Worker, Beat, Nginx (TLS), Metabase — 
 > 💡 First build takes 3–5 minutes. Subsequent builds use Docker layer caching.
 
 ```bash
-# Health check
-curl http://localhost:18080/health
+# Health check (HTTP on 18080 redirects to HTTPS on 18443; the cert is self-signed)
+curl -k https://localhost:18443/health/live
 
 # Web UI
 open https://localhost:18443/ui/
@@ -208,10 +210,11 @@ Requires **Python 3.14+**, **Node.js 22+**, **ClickHouse**, and **Redis** instal
 ```bash
 git clone https://github.com/Bormotoon/BormoStats.git
 cd BormoStats
-cp .env.example .env
+make init ENV=dev
 ```
 
-Edit `.env` as above, then:
+Fill in the marketplace credentials as above and point `CH_HOST` / `REDIS_URL` to your local
+services (clear `REDIS_USERNAME` if your Redis has no ACL user), then:
 
 ```bash
 make install
@@ -250,13 +253,33 @@ The built-in React SPA is available at `https://localhost:18443/ui/`. It feature
 - **Admin Actions** — Backfill, transform, mart management, maintenance operations
 - **System** — Service health, readiness, Prometheus metrics
 
-> 🔐 The admin key is stored **in session memory only**. It must be re-entered after closing the tab or refreshing the page.
+> 🔐 Sign in with a **personal user API key** (Settings → API key). The key is kept in the tab's
+> session storage only and is sent with every request; “Sign out” clears it. The platform master key
+> (`ADMIN_API_KEY`) also works, but should be reserved for operators.
 
 ---
 
 ## 📡 API
 
-### Public Analytics Endpoints
+### Authentication and tenancy
+
+Every `/api/v1/*` endpoint requires `X-API-Key` (anonymous reads can be re-enabled for local
+development only with `PUBLIC_READ_API=true`). Two kinds of keys exist:
+
+- **User keys** (`bsk_<id>_<secret>`) are issued by `POST /api/v1/users` and
+  `POST /api/v1/users/{id}/rotate-key` and shown **once**; only a salted scrypt hash is stored.
+  The caller's organization and role (`owner`, `admin`, `manager`, `analyst`, `viewer`) come from
+  the key — request bodies and query strings can never select another tenant.
+- **Platform master key** (`ADMIN_API_KEY`) for operators: ops endpoints (`/admin`, `/organizations`,
+  `/costs`, `/ai`) and cross-tenant work via the `X-Organization-Id` header. Restrict it with
+  `ADMIN_ALLOWED_NETWORKS`.
+
+Keys can expire (`api_key_ttl_days`), be revoked (`POST /users/{id}/revoke-key`) and revoked in bulk
+(`POST /users/revoke-all-keys`). Every mutating request is written to `sys_audit_log` with actor,
+organization, route, status and `X-Request-ID`. The OpenAPI contract is served to authenticated
+callers at `/api/v1/openapi.json`.
+
+### Analytics Endpoints
 
 | Method | Path | Description |
 |---|---|---|
@@ -288,9 +311,20 @@ The built-in React SPA is available at `https://localhost:18443/ui/`. It feature
 | `DELETE` | `/api/v1/pim/categories/{id}` | Delete category |
 | `POST` | `/api/v1/integrations/stock/update` | Push stock to WB/Ozon APIs |
 | `GET` | `/api/v1/integrations/subscriptions` | Webhook subscriptions |
-| `POST` | `/api/v1/integrations/subscriptions` | Create webhook subscription |
+| `POST` | `/api/v1/integrations/subscriptions` | Create webhook subscription (signing secret returned once) |
+| `PATCH` | `/api/v1/integrations/subscriptions/{id}` | Update webhook subscription |
+| `POST` | `/api/v1/integrations/subscriptions/{id}/rotate-secret` | Rotate signing secret |
+| `POST` | `/api/v1/integrations/subscriptions/{id}/test` | Send a test delivery |
 | `DELETE` | `/api/v1/integrations/subscriptions/{id}` | Delete webhook subscription |
-| `GET` | `/api/v1/integrations/logs` | Webhook delivery logs |
+| `GET` | `/api/v1/integrations/events` | Supported webhook event types |
+| `GET` | `/api/v1/integrations/logs` | Webhook delivery attempts (status, retries, dead letter) |
+| `GET` | `/api/v1/bidder/actions`, `/api/v1/repricer/actions` | Audit trail of simulated/applied bid and price changes |
+| `POST` | `/api/v1/users/{id}/rotate-key`, `/revoke-key` | Rotate or revoke a user API key |
+
+Bidder and repricer rules are created in **dry-run** mode: changes are only simulated and recorded.
+Disabling dry-run needs the `execute:marketplace` scope, and live writes additionally require the
+global switch `MARKETPLACE_ACTIONS_ENABLED=true`. Webhooks are signed (`X-BormoStats-Signature`,
+HMAC-SHA256 over `timestamp.body`) — see [docs/webhooks.md](docs/webhooks.md).
 
 **Query Parameters:**
 - `marketplace` — filter by marketplace (`wb` or `ozon`)
@@ -302,7 +336,7 @@ The built-in React SPA is available at `https://localhost:18443/ui/`. It feature
 
 ### Admin Endpoints
 
-Requires `X-API-Key` header.
+Require the platform master key (`ADMIN_API_KEY`) in `X-API-Key`.
 
 | Method | Path | Description |
 |---|---|---|
@@ -347,6 +381,15 @@ Requires `X-API-Key` header.
 | `BACKEND_TLS_HOST_PORT` | Backend HTTPS host port | `18443` |
 | `METABASE_HOST_PORT` | Metabase host port | `13000` |
 | `STACK_NAME` | Docker Compose stack name | `bormostats` |
+| `REDIS_USERNAME` / `REDIS_PASSWORD` | Redis ACL user (password required by Compose) | `bormostats` / — |
+| `WEBHOOK_SECRET_KEY` | Encrypts webhook signing secrets at rest (required in stage/prod) | — |
+| `ADMIN_ALLOWED_NETWORKS` | CIDRs allowed to use `ADMIN_API_KEY` | any |
+| `METRICS_BEARER_TOKEN` | Bearer token required on `/metrics` | — |
+| `MARKETPLACE_ACTIONS_ENABLED` | Global kill switch for live bid/price changes | `false` |
+| `WB_TOKEN_MARKETPLACE` / `WB_TOKEN_PRICES` / `WB_TOKEN_PROMOTION` | WB write-API tokens (stocks / prices / bids) | — |
+| `WORKER_CONCURRENCY` / `WORKER_QUEUES` | Celery worker size and consumed queues | `4` / all |
+| `CH_QUERY_TIMEOUT_SECONDS` | Server-side ClickHouse query limit for the API | `30` |
+| `BACKUP_DIR` / `BACKUP_RETENTION_DAYS` / `BACKUP_GPG_RECIPIENT` | `make backup` settings | `./backups` / `14` / — |
 
 ### Default Ports
 
@@ -420,7 +463,7 @@ make docker-config
 - `tests/integration/` — Integration tests (admin API, full scenarios)
 - `tests/fixtures/` — JSON fixtures (e.g., `ozon_cancelled_posting.json`)
 
-Current coverage: **54 unit tests**.
+Coverage: unit tests, a worker suite, Docker-based ClickHouse/Redis integration tests, Playwright E2E smoke tests and browser-extension tests.
 
 ---
 
@@ -482,7 +525,7 @@ BormoStats/
 │   ├── backfill.py             # Manual data backfill
 │   └── provision_clickhouse_users.py
 │
-├── tests/                      # Test suite (54 unit tests)
+├── tests/                      # Unit and Docker-based integration tests
 │   ├── unit/                   # Unit tests
 │   ├── integration/            # Integration tests
 │   └── fixtures/               # JSON API fixtures
@@ -542,8 +585,8 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for deta
 ```bash
 python3 -m venv .venv
 ./.venv/bin/pip install -r requirements-dev.txt
-cp .env.example .env
-# Set at minimum WB_STATISTICS_API_KEY and OZON_* keys
+make init ENV=dev
+# Then set WB_TOKEN_STATISTICS, WB_TOKEN_ANALYTICS and OZON_* keys
 ```
 
 ### Before Submitting a PR
@@ -552,7 +595,7 @@ cp .env.example .env
 make lint           # Ruff linting
 make format-check   # Ruff format check
 make typecheck      # MyPy strict typing
-make test           # pytest (54 tests)
+make test           # pytest (unit + Docker-based integration)
 ```
 
 ### Dependency Policy
