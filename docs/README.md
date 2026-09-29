@@ -26,6 +26,7 @@
 - [Prometheus setup](./prometheus.md)
 - [Metabase notes](./metabase.md)
 - [Data catalog](./data_catalog.md)
+- [History store (git-like archive)](./history.md)
 - [Supply-chain security](./supply_chain_security.md)
 
 ## Audit

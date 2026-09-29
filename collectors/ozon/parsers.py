@@ -345,3 +345,34 @@ def parse_finance_accruals(
             }
         )
     return rows
+
+
+def build_ozon_products(
+    product_ids: list[int],
+    info: list[dict[str, Any]],
+    attributes: list[dict[str, Any]] | None,
+    prices: list[dict[str, Any]] | None,
+) -> dict[str, dict[str, Any]]:
+    """One document per product from the three catalogue methods.
+
+    ``attributes``/``prices`` set to ``None`` mean that source was not read this run; the
+    section is left out so the history store carries the previous one over.
+    """
+
+    def by_id(items: list[dict[str, Any]], field: str) -> dict[str, dict[str, Any]]:
+        return {str(item[field]): item for item in items if item.get(field) is not None}
+
+    info_by_id = by_id(info, "id")
+    attributes_by_id = by_id(attributes or [], "id")
+    prices_by_id = by_id(prices or [], "product_id")
+
+    documents: dict[str, dict[str, Any]] = {}
+    for product_id in product_ids:
+        key = str(product_id)
+        document: dict[str, Any] = {"info": info_by_id.get(key)}
+        if attributes is not None:
+            document["attributes"] = attributes_by_id.get(key)
+        if prices is not None:
+            document["price"] = prices_by_id.get(key)
+        documents[key] = document
+    return documents

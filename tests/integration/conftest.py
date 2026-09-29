@@ -57,6 +57,10 @@ TRUNCATE_TABLES = (
     "mrt_stock_daily",
     "mrt_funnel_daily",
     "mrt_ads_daily",
+    "hist_objects",
+    "hist_commits",
+    "hist_refs",
+    "hist_changes",
 )
 
 

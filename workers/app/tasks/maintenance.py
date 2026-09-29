@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any
 
 import structlog
 from app.utils.celery_helpers import shared_task
 from app.utils.data_quality import collect_data_quality_metrics, evaluate_data_quality
+from app.utils.history_archive import backfill_done
+from app.utils.history_store import history_enabled
 from app.utils.metrics import observe_data_quality
 from app.utils.runtime import get_ch_client, log_task_run, new_run_context
 
@@ -35,7 +38,7 @@ def run_automation_rules() -> dict[str, object]:
 
 
 @shared_task(name="tasks.maintenance.prune_old_raw")
-def prune_old_raw(days: int = 120) -> dict[str, int]:
+def prune_old_raw(days: int = 120) -> dict[str, Any]:
     keep_days = max(30, min(days, 3650))
     client = get_ch_client()
     tables = [
@@ -49,12 +52,22 @@ def prune_old_raw(days: int = 120) -> dict[str, int]:
         ("raw_ozon_ads_daily", "day"),
         ("raw_ozon_finance_ops", "operation_ts"),
     ]
+    pruned = 0
+    unarchived: list[str] = []
     for table, column in tables:
+        # the history store keeps every version of each row, but only once the rows that
+        # predate it were imported; until then pruning would destroy the only copy
+        if history_enabled() and not backfill_done(client, table):
+            unarchived.append(table)
+            continue
+        pruned += 1
         client.command(
             f"ALTER TABLE {table} DELETE WHERE {column} < now() - toIntervalDay(%(days)s)",
             parameters={"days": keep_days},
         )
-    return {"retention_days": keep_days, "tables": len(tables)}
+    if unarchived:
+        LOGGER.warning("prune_old_raw skipped tables not yet archived: %s", unarchived)
+    return {"retention_days": keep_days, "tables": pruned, "skipped_unarchived": unarchived}
 
 
 @shared_task(name="tasks.maintenance.run_data_quality_checks")

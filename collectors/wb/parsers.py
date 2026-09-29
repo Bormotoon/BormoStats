@@ -203,3 +203,31 @@ def parse_funnel(
             }
         )
     return rows
+
+
+def build_wb_products(
+    cards: list[dict[str, Any]], prices: list[dict[str, Any]] | None
+) -> dict[str, dict[str, Any]]:
+    """One document per card: the Content API card plus its Prices API entry.
+
+    ``prices=None`` means the price source was not read this run; the ``price`` section is
+    then left out so the history store carries the previous one over instead of recording
+    a removal. With prices read, a card the list does not mention gets ``price: None``.
+    """
+    price_by_nm: dict[str, dict[str, Any]] = {}
+    for entry in prices or []:
+        nm_id = entry.get("nmID")
+        if nm_id is not None:
+            price_by_nm[str(nm_id)] = entry
+
+    documents: dict[str, dict[str, Any]] = {}
+    for card in cards:
+        nm_id = card.get("nmID")
+        if nm_id is None:
+            continue
+        key = str(nm_id)
+        document: dict[str, Any] = {"card": card}
+        if prices is not None:
+            document["price"] = price_by_nm.get(key)
+        documents[key] = document
+    return documents

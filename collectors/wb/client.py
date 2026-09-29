@@ -122,3 +122,81 @@ class WbApiClient:
                 break
             offset += endpoints.FUNNEL_PAGE_LIMIT
         return records
+
+
+class WbCatalogClient:
+    """Product cards (Content API) and seller prices (Prices API) for the history store."""
+
+    def __init__(self, content_token: str, prices_token: str = "") -> None:
+        self.content_token = content_token
+        self.prices_token = prices_token
+        self.content = JsonHttpClient(endpoints.CONTENT_BASE_URL, marketplace="wb")
+        self.prices_http = JsonHttpClient(endpoints.PRICES_BASE_URL, marketplace="wb")
+
+    def __enter__(self) -> WbCatalogClient:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
+
+    def __del__(self) -> None:
+        with suppress(Exception):
+            self.close()
+
+    def close(self) -> None:
+        self.content.close()
+        self.prices_http.close()
+
+    def cards(self) -> list[dict[str, Any]]:
+        """Every product card, following the ``updatedAt``/``nmID`` cursor to the end."""
+        limit = endpoints.CARDS_PAGE_LIMIT
+        cursor: dict[str, Any] = {"limit": limit}
+        collected: list[dict[str, Any]] = []
+        seen_cursors: set[tuple[Any, Any]] = set()
+        for _ in range(endpoints.CARDS_MAX_PAGES):
+            payload = self.content.post(
+                endpoints.CARDS_LIST_PATH,
+                headers={"Authorization": self.content_token},
+                json={"settings": {"cursor": cursor, "filter": {"withPhoto": -1}}},
+            )
+            if not isinstance(payload, dict):
+                break
+            cards = payload.get("cards")
+            page = (
+                [card for card in cards if isinstance(card, dict)]
+                if isinstance(cards, list)
+                else []
+            )
+            collected.extend(page)
+            meta = payload.get("cursor")
+            meta = meta if isinstance(meta, dict) else {}
+            total = meta.get("total")
+            if not page or (isinstance(total, int) and total < limit):
+                return collected
+            marker = (meta.get("updatedAt"), meta.get("nmID"))
+            if marker in seen_cursors or marker == (None, None):
+                raise RuntimeError("wb cards list returned the same cursor twice")
+            seen_cursors.add(marker)
+            cursor = {"limit": limit, "updatedAt": marker[0], "nmID": marker[1]}
+        raise RuntimeError(f"wb cards list exceeded {endpoints.CARDS_MAX_PAGES} pages")
+
+    def prices(self) -> list[dict[str, Any]]:
+        """Seller prices and discounts per card (``listGoods``), paged by offset."""
+        limit = endpoints.PRICES_PAGE_LIMIT
+        collected: list[dict[str, Any]] = []
+        offset = 0
+        while True:
+            payload = self.prices_http.get(
+                endpoints.PRICES_LIST_PATH,
+                headers={"Authorization": self.prices_token},
+                params={"limit": limit, "offset": offset},
+            )
+            data = payload.get("data") if isinstance(payload, dict) else None
+            goods = data.get("listGoods") if isinstance(data, dict) else None
+            if not isinstance(goods, list):
+                break
+            collected.extend(item for item in goods if isinstance(item, dict))
+            if len(goods) < limit:
+                break
+            offset += limit
+        return collected

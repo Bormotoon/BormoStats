@@ -6,6 +6,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from app.utils.history_archive import archive_rows
 from app.utils.locking import LockNotAcquiredError, lock_scope
 from app.utils.metrics import observe_empty_payload, observe_rows
 from app.utils.runtime import get_ch_client, get_redis_client, log_task_run, new_run_context
@@ -22,6 +23,10 @@ def insert_rows(client: Any, table: str, columns: list[str], rows: list[dict[str
     data = _extract_columns(columns, rows)
     client.insert(table=table, data=data, column_names=columns)
     observe_rows(table=table, rows=len(rows))
+    # every ingested version is kept in the history store even though the raw table
+    # collapses revisions and is pruned; a failure here fails the task, and the retry
+    # is safe because both writes are idempotent
+    archive_rows(client, table, rows, run_id=str(rows[0].get("run_id") or ""), columns=columns)
     return len(rows)
 
 

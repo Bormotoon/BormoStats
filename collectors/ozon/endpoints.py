@@ -34,6 +34,15 @@ PERFORMANCE_BASE_URL = "https://api-performance.ozon.ru"
 PERFORMANCE_TOKEN_PATH = "/api/client/token"
 PERFORMANCE_DAILY_STATS_PATH = "/api/client/statistics/daily/json"
 
+# Catalogue (history store)
+PRODUCT_LIST_PATH = "/v3/product/list"  # last_id pagination
+PRODUCT_LIST_PAGE_LIMIT = 1000
+PRODUCT_INFO_LIST_PATH = "/v3/product/info/list"  # up to 1000 ids per call
+PRODUCT_ATTRIBUTES_PATH = "/v4/product/info/attributes"  # last_id pagination
+PRODUCT_PRICES_PATH = "/v5/product/info/prices"  # cursor pagination
+PRODUCT_BATCH = 1000
+PRODUCT_MAX_PAGES = 5000
+
 # Write APIs
 PRICES_IMPORT_PATH = "/v1/product/import/prices"  # POST {"prices": [{"offer_id", "price"}]}
 STOCKS_WRITE_PATH = (

@@ -27,6 +27,9 @@
 - `mrt_*`: BI marts
   - `mrt_sales_daily`, `mrt_stock_daily`, `mrt_funnel_daily`, `mrt_ads_daily`
 
+- `hist_*`: append-only, git-like history of every product card state and every ingested version
+  of each `raw_*` row; never pruned (see [history.md](./history.md))
+
 ## Scheduling baseline
 
 - WB:
@@ -44,6 +47,9 @@
   - `transform_all_recent`: every 30 min
   - `build_marts_recent`: hourly
   - `build_marts_backfill_14d`: daily
+- History (`tasks.history.*`):
+  - `wb_catalog_snapshot`: hourly, `ozon_catalog_snapshot`: hourly (product cards, prices, attributes)
+  - `backfill_raw_archive`: daily, one-off import per raw table; `prune_old_raw` waits for it
 - Automation and maintenance:
   - `run_automation_rules`: 3 times per day
   - `prune_old_raw`: daily

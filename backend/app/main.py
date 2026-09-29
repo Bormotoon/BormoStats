@@ -23,6 +23,7 @@ from app.api.v1 import (
     extension,
     freshness,
     funnel,
+    history,
     insights,
     integrations,
     kpis,
@@ -84,6 +85,7 @@ API_ROUTERS = (
     integrations,
     freshness,
     exports,
+    history,
 )
 
 

@@ -36,8 +36,24 @@ and every run was logged as `skipped` instead of failing.
   per day.
 - `make check-tokens` probes the new Ozon postings, finance and Performance API token methods.
 
+### Added
+
+- **History store** ([docs/history.md](docs/history.md)): a git-like, append-only archive in
+  ClickHouse (`hist_objects`, `hist_commits`, `hist_refs`, `hist_changes`).
+  - Hourly snapshots of every product card (WB Content + Prices API, Ozon product info, attributes
+    and prices) commit only what changed, with field-level diffs (price, characteristics, photo
+    URLs, …) and tombstone commits when a product disappears.
+  - Every row the collectors ingest is archived by version, so revisions that `raw_*`
+    (`ReplacingMergeTree`) collapses, and rows the marketplaces later drop, are kept forever.
+  - `GET /api/v1/history/{repos,commits,commits/{id},snapshot,changes}` (log / show / checkout / log -p).
+  - `prune_old_raw` no longer deletes from a raw table until its existing rows were imported by
+    `tasks.history.backfill_raw_archive`.
+  - New settings: `WB_TOKEN_CONTENT`, `HISTORY_ENABLED`, `HISTORY_PRODUCT_IGNORE_PATHS`,
+    `HISTORY_STAT_IGNORE_PATHS`.
+
 ### Migrations
 
+- `0028_history`: the four `hist_*` tables (rollback drops them; take a backup first).
 - `0027_ozon_finance_accruals`: `raw_ozon_finance_ops.source` (`transaction_list_v3` for existing
   rows, `accrual_by_day` for new ones).
 

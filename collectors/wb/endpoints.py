@@ -22,3 +22,11 @@ ADVERT_BASE_URL = "https://advert-api.wildberries.ru"
 STOCKS_WRITE_PATH = "/api/v3/stocks/{warehouse_id}"  # PUT {"stocks": [{"chrtId", "amount"}]}
 PRICES_UPLOAD_PATH = "/api/v2/upload/task"  # POST {"data": [{"nmID", "price"}]}
 BIDS_PATH = "/api/advert/v1/bids"  # PATCH {"bids": [{"advert_id", "nm_bids": [...]}]}
+
+# Catalogue (history store): product cards and seller prices
+CONTENT_BASE_URL = "https://content-api.wildberries.ru"
+CARDS_LIST_PATH = "/content/v2/get/cards/list"  # POST, cursor pagination (updatedAt + nmID)
+CARDS_PAGE_LIMIT = 100
+CARDS_MAX_PAGES = 5000  # safety bound: 500k cards
+PRICES_LIST_PATH = "/api/v2/list/goods/filter"  # GET on PRICES_BASE_URL, limit/offset
+PRICES_PAGE_LIMIT = 1000

@@ -105,6 +105,19 @@ beat_schedule = {
         "task": "tasks.insights.send_daily_digest",
         "schedule": crontab(minute="30", hour="7"),
     },
+    "history_wb_catalog": {
+        "task": "tasks.history.wb_catalog_snapshot",
+        "schedule": crontab(minute="12", hour="*/1"),
+    },
+    "history_ozon_catalog": {
+        "task": "tasks.history.ozon_catalog_snapshot",
+        "schedule": crontab(minute="27", hour="*/1"),
+    },
+    # must finish before maintenance_prune_raw (02:00) may delete anything
+    "history_backfill_raw": {
+        "task": "tasks.history.backfill_raw_archive",
+        "schedule": crontab(minute="30", hour="1"),
+    },
     "exports_prune": {
         "task": "tasks.exports.prune_exports",
         "schedule": crontab(minute="40", hour="2"),

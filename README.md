@@ -288,6 +288,11 @@ callers at `/api/v1/openapi.json`.
 | `GET` | `/api/v1/funnel/daily` | Daily funnel (views → cart → orders) |
 | `GET` | `/api/v1/ads/daily` | Daily advertising |
 | `GET` | `/api/v1/kpis` | Key performance indicators |
+| `GET` | `/api/v1/history/repos` | What the history store holds (entities, commits per repo) |
+| `GET` | `/api/v1/history/commits` | Commit log of a product or archived statistics record |
+| `GET` | `/api/v1/history/commits/{commit_id}` | One commit: recorded document and changed fields |
+| `GET` | `/api/v1/history/snapshot` | A product or record as it was at a given time |
+| `GET` | `/api/v1/history/changes` | Field-level change history (e.g. every price change) |
 | `GET` | `/api/v1/abc-xyz` | ABC/XYZ assortment analysis |
 | `GET` | `/api/v1/pnl` | Profit & loss statement |
 | `GET` | `/api/v1/organizations` | Multi-tenant organization management |
@@ -386,7 +391,9 @@ Require the platform master key (`ADMIN_API_KEY`) in `X-API-Key`.
 | `ADMIN_ALLOWED_NETWORKS` | CIDRs allowed to use `ADMIN_API_KEY` | any |
 | `METRICS_BEARER_TOKEN` | Bearer token required on `/metrics` | — |
 | `MARKETPLACE_ACTIONS_ENABLED` | Global kill switch for live bid/price changes | `false` |
-| `WB_TOKEN_MARKETPLACE` / `WB_TOKEN_PRICES` / `WB_TOKEN_PROMOTION` | WB write-API tokens (stocks / prices / bids) | — |
+| `WB_TOKEN_MARKETPLACE` / `WB_TOKEN_PRICES` / `WB_TOKEN_PROMOTION` | WB write-API tokens (stocks / prices / bids); `WB_TOKEN_PRICES` also feeds price history | — |
+| `WB_TOKEN_CONTENT` | WB Content API token for product-card history | — |
+| `HISTORY_ENABLED` | Archive every ingested row and product-card change ([docs/history.md](docs/history.md)) | `true` |
 | `WORKER_CONCURRENCY` / `WORKER_QUEUES` | Celery worker size and consumed queues | `4` / all |
 | `CH_QUERY_TIMEOUT_SECONDS` | Server-side ClickHouse query limit for the API | `30` |
 | `BACKUP_DIR` / `BACKUP_RETENTION_DAYS` / `BACKUP_GPG_RECIPIENT` | `make backup` settings | `./backups` / `14` / — |

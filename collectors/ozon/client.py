@@ -177,6 +177,104 @@ class OzonApiClient:
                 collected.extend(_dict_items(payload.get("items")))
         return collected
 
+    # -- Catalogue --
+
+    def product_ids(self) -> list[int]:
+        """Ids of every product of the seller (all visibilities), via ``last_id`` paging."""
+        ids: list[int] = []
+        last_id = ""
+        for _ in range(endpoints.PRODUCT_MAX_PAGES):
+            payload = self.http.post(
+                endpoints.PRODUCT_LIST_PATH,
+                headers=self._headers(),
+                json={
+                    "filter": {"visibility": "ALL"},
+                    "last_id": last_id,
+                    "limit": endpoints.PRODUCT_LIST_PAGE_LIMIT,
+                },
+            )
+            result = payload.get("result") if isinstance(payload, dict) else None
+            items = _dict_items(result.get("items")) if isinstance(result, dict) else []
+            for item in items:
+                with suppress(KeyError, TypeError, ValueError):
+                    ids.append(int(item["product_id"]))
+            next_id = str(result.get("last_id") or "") if isinstance(result, dict) else ""
+            if not items or not next_id:
+                return ids
+            if next_id == last_id:
+                raise RuntimeError("ozon product list returned the same last_id twice")
+            last_id = next_id
+        raise RuntimeError(f"ozon product list exceeded {endpoints.PRODUCT_MAX_PAGES} pages")
+
+    def product_info(self, product_ids: list[int]) -> list[dict[str, Any]]:
+        """Card data (name, prices, images, statuses, commissions, ...) per product."""
+        collected: list[dict[str, Any]] = []
+        batch = endpoints.PRODUCT_BATCH
+        for start in range(0, len(product_ids), batch):
+            payload = self.http.post(
+                endpoints.PRODUCT_INFO_LIST_PATH,
+                headers=self._headers(),
+                json={"product_id": [str(pid) for pid in product_ids[start : start + batch]]},
+            )
+            if isinstance(payload, dict):
+                collected.extend(_dict_items(payload.get("items")))
+        return collected
+
+    def product_attributes(self, product_ids: list[int]) -> list[dict[str, Any]]:
+        """Characteristics, complex attributes and images per product."""
+        collected: list[dict[str, Any]] = []
+        batch = endpoints.PRODUCT_BATCH
+        for start in range(0, len(product_ids), batch):
+            ids = [str(pid) for pid in product_ids[start : start + batch]]
+            last_id = ""
+            for _ in range(endpoints.PRODUCT_MAX_PAGES):
+                payload = self.http.post(
+                    endpoints.PRODUCT_ATTRIBUTES_PATH,
+                    headers=self._headers(),
+                    json={
+                        "filter": {"product_id": ids, "visibility": "ALL"},
+                        "limit": batch,
+                        "last_id": last_id,
+                        "sort_dir": "ASC",
+                    },
+                )
+                if not isinstance(payload, dict):
+                    break
+                items = _dict_items(payload.get("result"))
+                collected.extend(items)
+                next_id = str(payload.get("last_id") or "")
+                if not items or not next_id or next_id == last_id:
+                    break
+                last_id = next_id
+        return collected
+
+    def product_prices(self, product_ids: list[int]) -> list[dict[str, Any]]:
+        """Price, marketing price, commissions and price indexes per product."""
+        collected: list[dict[str, Any]] = []
+        batch = endpoints.PRODUCT_BATCH
+        for start in range(0, len(product_ids), batch):
+            ids = [str(pid) for pid in product_ids[start : start + batch]]
+            cursor = ""
+            for _ in range(endpoints.PRODUCT_MAX_PAGES):
+                payload = self.http.post(
+                    endpoints.PRODUCT_PRICES_PATH,
+                    headers=self._headers(),
+                    json={
+                        "filter": {"product_id": ids, "visibility": "ALL"},
+                        "limit": batch,
+                        "cursor": cursor,
+                    },
+                )
+                if not isinstance(payload, dict):
+                    break
+                items = _dict_items(payload.get("items"))
+                collected.extend(items)
+                next_cursor = str(payload.get("cursor") or "")
+                if not items or not next_cursor or next_cursor == cursor:
+                    break
+                cursor = next_cursor
+        return collected
+
     # -- Finance --
 
     def finance_accrual_types(self) -> dict[int, str]:

@@ -29,4 +29,7 @@ TASK_ROUTES: dict[str, dict[str, str]] = {
     "tasks.repricer.*": {"queue": "marketplace_actions"},
     "tasks.webhooks.*": {"queue": "webhooks"},
     "tasks.exports.*": {"queue": "automation"},
+    "tasks.history.wb_catalog_snapshot": {"queue": "wb"},
+    "tasks.history.ozon_catalog_snapshot": {"queue": "ozon"},
+    "tasks.history.backfill_raw_archive": {"queue": "etl"},
 }
