@@ -86,3 +86,72 @@ tests:
             exp_annotations:
               summary: ClickHouse disk pressure
               description: default free disk ratio is below 15 percent.
+
+  - interval: 1m
+    input_series:
+      - series: 'mart_freshness_seconds{table="mrt_sales_daily"}'
+        values: "9000x30"
+      - series: 'schema_drift_missing_columns{table="dim_account"}'
+        values: "1x30"
+      - series: 'task_runs_total{task_name="tasks.wb_collect.wb_sales_incremental",status="failed"}'
+        values: "0+3x30"
+      - series: 'webhook_deliveries_total{status="dead_letter"}'
+        values: "0 0 1x28"
+      - series: 'marketplace_actions_total{source="repricer",status="failed"}'
+        values: "0 0 1x28"
+      - series: 'backend_http_request_duration_seconds_count{method="GET",route="/api/v1/sales/daily",status="500"}'
+        values: "0+10x30"
+      - series: 'backend_http_request_duration_seconds_count{method="GET",route="/api/v1/sales/daily",status="200"}'
+        values: "0+10x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: MartsStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              table: mrt_sales_daily
+            exp_annotations:
+              summary: Mart is stale
+              description: "mrt_sales_daily has not been rebuilt for more than 2 hours."
+      - eval_time: 10m
+        alertname: SchemaDrift
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              table: dim_account
+            exp_annotations:
+              summary: Warehouse schema drift
+              description: "dim_account is missing 1 expected columns; check migrations."
+      - eval_time: 25m
+        alertname: TaskRetryStorm
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: Task failure/retry storm
+              description: "More than 20 failed task runs in 15 minutes across all tasks."
+      - eval_time: 10m
+        alertname: WebhookDeadLetters
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: Webhook deliveries exhausted retries
+              description: "At least one webhook delivery was moved to dead letter in the last hour."
+      - eval_time: 10m
+        alertname: MarketplaceActionFailures
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              source: repricer
+            exp_annotations:
+              summary: Marketplace bid/price change failed
+              description: "repricer failed to apply changes on the marketplace (see sys_marketplace_actions)."
+      - eval_time: 20m
+        alertname: BackendErrorRate
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: Backend 5xx rate above 5%
+              description: "More than 5% of API requests failed with 5xx over 10 minutes."

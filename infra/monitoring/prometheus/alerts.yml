@@ -63,3 +63,90 @@ groups:
         annotations:
           summary: ClickHouse disk pressure
           description: "{{ $labels.disk }} free disk ratio is below 15 percent."
+
+  - name: bormostats-data-quality
+    rules:
+      - alert: MartsStale
+        expr: max by (table) (mart_freshness_seconds) > 7200
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Mart is stale
+          description: "{{ $labels.table }} has not been rebuilt for more than 2 hours."
+
+      - alert: MartEmptyForYesterday
+        expr: max by (table) (mart_rows_yesterday{table=~"mrt_sales_daily|mrt_stock_daily"}) == 0
+        for: 2h
+        labels:
+          severity: warning
+        annotations:
+          summary: No rows for yesterday
+          description: "{{ $labels.table }} has no rows for yesterday — ingestion or transforms may be stalled."
+
+      - alert: SchemaDrift
+        expr: max by (table) (schema_drift_missing_columns) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Warehouse schema drift
+          description: "{{ $labels.table }} is missing {{ $value }} expected columns; check migrations."
+
+      - alert: DataQualityChecksFailing
+        expr: max by (check) (data_quality_failures) > 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: Data quality check failing
+          description: "{{ $labels.check }} reports {{ $value }} failures."
+
+  - name: bormostats-operations
+    rules:
+      - alert: TaskRetryStorm
+        expr: sum(increase(task_runs_total{status="failed"}[15m])) > 20
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Task failure/retry storm
+          description: "More than 20 failed task runs in 15 minutes across all tasks."
+
+      - alert: ApiRateLimiting
+        expr: sum(increase(backend_http_request_duration_seconds_count{status="429"}[10m])) > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: API clients are being rate limited
+          description: "The backend returned more than 100 HTTP 429 responses in 10 minutes."
+
+      - alert: BackendErrorRate
+        expr: >
+          sum(rate(backend_http_request_duration_seconds_count{status=~"5.."}[5m]))
+          / clamp_min(sum(rate(backend_http_request_duration_seconds_count[5m])), 1e-9) > 0.05
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: Backend 5xx rate above 5%
+          description: "More than 5% of API requests failed with 5xx over 10 minutes."
+
+      - alert: WebhookDeadLetters
+        expr: sum(increase(webhook_deliveries_total{status="dead_letter"}[1h])) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Webhook deliveries exhausted retries
+          description: "At least one webhook delivery was moved to dead letter in the last hour."
+
+      - alert: MarketplaceActionFailures
+        expr: sum by (source) (increase(marketplace_actions_total{status="failed"}[30m])) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Marketplace bid/price change failed
+          description: "{{ $labels.source }} failed to apply changes on the marketplace (see sys_marketplace_actions)."
