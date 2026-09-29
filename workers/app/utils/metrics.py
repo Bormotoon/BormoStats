@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 from prometheus_client import Counter, Gauge, Histogram
 
@@ -61,3 +62,70 @@ def observe_watermark(source: str, account_id: str, watermark_ts: datetime) -> N
 
 def observe_empty_payload(source: str) -> None:
     empty_payload_total.labels(source=source).inc()
+
+
+marketplace_actions_total = Counter(
+    "marketplace_actions_total",
+    "Bid/price changes by source and outcome (simulated, applied, failed, ...)",
+    ["source", "status"],
+)
+
+webhook_deliveries_total = Counter(
+    "webhook_deliveries_total",
+    "Webhook delivery attempts by outcome",
+    ["status"],
+)
+
+
+def observe_marketplace_action(source: str, status: str) -> None:
+    marketplace_actions_total.labels(source=source, status=status).inc()
+
+
+def observe_webhook_delivery(status: str) -> None:
+    webhook_deliveries_total.labels(status=status).inc()
+
+
+mart_freshness_seconds = Gauge(
+    "mart_freshness_seconds",
+    "Seconds since the mart table was last rebuilt",
+    ["table"],
+    multiprocess_mode="max",
+)
+mart_rows_yesterday = Gauge(
+    "mart_rows_yesterday",
+    "Rows for yesterday in the mart table (row-count drift / empty loads)",
+    ["table"],
+    multiprocess_mode="max",
+)
+data_null_rate = Gauge(
+    "data_null_rate",
+    "Share of NULL/empty values in key columns over the last 7 days",
+    ["table", "column"],
+    multiprocess_mode="max",
+)
+schema_drift_missing_columns = Gauge(
+    "schema_drift_missing_columns",
+    "Expected columns missing from the warehouse schema",
+    ["table"],
+    multiprocess_mode="max",
+)
+data_quality_failures = Gauge(
+    "data_quality_failures",
+    "Failures reported by the latest data-quality check run",
+    ["check"],
+    multiprocess_mode="max",
+)
+
+
+def observe_data_quality(metrics: Any, issues: list[Any]) -> None:
+    for table, seconds in metrics.freshness_seconds.items():
+        mart_freshness_seconds.labels(table=table).set(seconds)
+    for table, rows in metrics.rows_yesterday.items():
+        mart_rows_yesterday.labels(table=table).set(rows)
+    for (table, column), rate in metrics.null_rate.items():
+        data_null_rate.labels(table=table, column=column).set(rate)
+    for table, missing in metrics.schema_missing.items():
+        schema_drift_missing_columns.labels(table=table).set(missing)
+    data_quality_failures.clear()
+    for issue in issues:
+        data_quality_failures.labels(check=issue.check).set(issue.failures)

@@ -13,6 +13,8 @@ import clickhouse_connect
 from app.utils.metrics import observe_task
 from redis import Redis
 
+from common.redis_url import build_redis_url
+
 
 @lru_cache(maxsize=1)
 def get_ch_client() -> clickhouse_connect.driver.Client:
@@ -30,13 +32,12 @@ def get_ch_client() -> clickhouse_connect.driver.Client:
 
 @lru_cache(maxsize=1)
 def get_redis_client() -> Redis:
-    url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    password = os.getenv("REDIS_PASSWORD", "")
-    if password:
-        _, rest = url.split("://", 1)
-        host_part = rest.split("@")[-1] if "@" in rest else rest
-        url = f"redis://:{password}@{host_part}"
-    return Redis.from_url(url)
+    url = build_redis_url(
+        os.getenv("REDIS_URL", "redis://localhost:6379/0"),
+        os.getenv("REDIS_PASSWORD", ""),
+        os.getenv("REDIS_USERNAME", ""),
+    )
+    return Redis.from_url(url, socket_timeout=10, socket_connect_timeout=5)
 
 
 def new_run_context() -> tuple[str, datetime]:

@@ -1,15 +1,27 @@
 name: turnover_alert
 query: |
+  WITH
+    sales AS (
+      SELECT marketplace, account_id, product_id, sum(qty) / 14 AS avg_daily_sales
+      FROM mrt_sales_daily
+      WHERE day >= today() - 14
+      GROUP BY marketplace, account_id, product_id
+    ),
+    stock AS (
+      SELECT marketplace, account_id, product_id, sum(stock_end) AS avg_stock
+      FROM mrt_stock_daily
+      WHERE day = (SELECT max(day) FROM mrt_stock_daily)
+      GROUP BY marketplace, account_id, product_id
+    )
   SELECT
-    marketplace,
-    account_id,
-    product_id,
-    avg(stock_end) AS avg_stock,
-    avg(qty) AS avg_daily_sales,
-    if(avg(qty) > 0, avg(stock_end) / avg(qty), 999) AS turnover_days
-  FROM mrt_sales_daily
-  WHERE day >= today() - 14
-  GROUP BY marketplace, account_id, product_id
+    s.marketplace AS marketplace,
+    s.account_id AS account_id,
+    s.product_id AS product_id,
+    st.avg_stock AS avg_stock,
+    s.avg_daily_sales AS avg_daily_sales,
+    if(s.avg_daily_sales > 0, st.avg_stock / s.avg_daily_sales, 999) AS turnover_days
+  FROM sales AS s
+  INNER JOIN stock AS st USING (marketplace, account_id, product_id)
 condition: row.get("turnover_days", 999) < params.get("threshold", 10)
 params:
   threshold: 10

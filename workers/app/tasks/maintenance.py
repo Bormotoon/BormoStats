@@ -7,7 +7,8 @@ from pathlib import Path
 
 import structlog
 from app.utils.celery_helpers import shared_task
-from app.utils.data_quality import evaluate_data_quality
+from app.utils.data_quality import collect_data_quality_metrics, evaluate_data_quality
+from app.utils.metrics import observe_data_quality
 from app.utils.runtime import get_ch_client, log_task_run, new_run_context
 
 from automation.actions.telegram import TelegramAction
@@ -65,6 +66,10 @@ def run_data_quality_checks() -> dict[str, object]:
 
     try:
         issues = evaluate_data_quality(client)
+        try:
+            observe_data_quality(collect_data_quality_metrics(client), issues)
+        except Exception as exc:
+            LOGGER.warning("data_quality_metrics_failed", error=str(exc))
         report: dict[str, object] = {
             "status": "failed" if issues else "success",
             "issue_count": len(issues),

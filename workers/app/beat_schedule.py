@@ -105,4 +105,8 @@ beat_schedule = {
         "task": "tasks.insights.send_daily_digest",
         "schedule": crontab(minute="30", hour="7"),
     },
+    "exports_prune": {
+        "task": "tasks.exports.prune_exports",
+        "schedule": crontab(minute="40", hour="2"),
+    },
 }

@@ -319,3 +319,77 @@ def _check_invalid_values(client: clickhouse_connect.driver.Client) -> DataQuali
         failures=len(samples),
         samples=samples[:MAX_SAMPLE_ROWS],
     )
+
+
+# -- Continuous data-quality metrics (exported to Prometheus) ----------------------------
+
+FRESHNESS_TABLES = ("mrt_sales_daily", "mrt_stock_daily", "mrt_funnel_daily", "mrt_ads_daily")
+NULL_RATE_COLUMNS = (
+    ("mrt_sales_daily", "payout"),
+    ("mrt_stock_daily", "warehouse_id"),
+    ("stg_sales", "product_id"),
+)
+# Tables/columns the application depends on; anything missing is schema drift.
+EXPECTED_SCHEMA: dict[str, frozenset[str]] = {
+    "mrt_sales_daily": frozenset(
+        {"day", "marketplace", "account_id", "product_id", "qty", "revenue"}
+    ),
+    "mrt_stock_daily": frozenset({"day", "marketplace", "account_id", "product_id", "stock_end"}),
+    "mrt_ads_daily": frozenset(
+        {"day", "marketplace", "account_id", "campaign_id", "cost", "orders"}
+    ),
+    "dim_account": frozenset({"account_id", "marketplace", "organization_id"}),
+    "dim_actionable_task": frozenset({"task_id", "organization_id", "dedupe_key", "status"}),
+    "sys_marketplace_actions": frozenset({"idempotency_key", "status", "organization_id"}),
+}
+
+
+@dataclass(frozen=True)
+class DataQualityMetrics:
+    freshness_seconds: dict[str, float]
+    rows_yesterday: dict[str, int]
+    null_rate: dict[tuple[str, str], float]
+    schema_missing: dict[str, int]
+
+
+def collect_data_quality_metrics(
+    client: clickhouse_connect.driver.Client,
+    now: datetime | None = None,
+) -> DataQualityMetrics:
+    current = now or datetime.now(UTC)
+    freshness: dict[str, float] = {}
+    rows: dict[str, int] = {}
+    for table_name in FRESHNESS_TABLES:
+        result = client.query(
+            f"SELECT max(updated_at), countIf(day = today() - 1) FROM {table_name}"
+        ).result_rows
+        last_updated = _to_utc(result[0][0]) if result else None
+        freshness[table_name] = (
+            (current - last_updated).total_seconds() if last_updated is not None else float("inf")
+        )
+        rows[table_name] = int(result[0][1]) if result else 0
+
+    null_rate: dict[tuple[str, str], float] = {}
+    for table_name, column in NULL_RATE_COLUMNS:
+        result = client.query(
+            f"SELECT if(count() = 0, 0, countIf(isNull({column}) OR toString({column}) = '')"
+            f" / count()) FROM {table_name} WHERE day >= today() - 7"
+        ).result_rows
+        null_rate[(table_name, column)] = float(result[0][0]) if result else 0.0
+
+    columns = client.query(
+        "SELECT table, name FROM system.columns WHERE database = currentDatabase()"
+    ).result_rows
+    present: dict[str, set[str]] = {}
+    for table, column in columns:
+        present.setdefault(str(table), set()).add(str(column))
+    schema_missing = {
+        table: len(expected - present.get(table, set()))
+        for table, expected in EXPECTED_SCHEMA.items()
+    }
+    return DataQualityMetrics(
+        freshness_seconds=freshness,
+        rows_yesterday=rows,
+        null_rate=null_rate,
+        schema_missing=schema_missing,
+    )
