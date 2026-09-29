@@ -23,9 +23,7 @@ from app.models.admin import (
     TransformRecentRequest,
 )
 from app.services.sql_loader import load_sql
-from celery import Celery
-
-from common.celery_config import DEFAULT_TASK_QUEUE, TASK_ROUTES
+from app.services.task_queue import get_producer
 
 _QUERIES_DIR = Path(__file__).resolve().parents[1] / "db" / "queries"
 LOGGER = structlog.get_logger(__name__)
@@ -38,13 +36,8 @@ def _load_sql(name: str) -> str:
 class AdminService:
     def __init__(self, client: clickhouse_connect.driver.Client, settings: Settings) -> None:
         self.client = client
-        self.celery = Celery("backend-admin", broker=settings.redis_url)
-        self.celery.conf.update(
-            broker_url=settings.redis_url,
-            task_default_queue=DEFAULT_TASK_QUEUE,
-            task_routes=TASK_ROUTES,
-            task_ignore_result=True,
-        )
+        # Shared per-process producer (authenticated Redis URL, pooled connections).
+        self.celery = get_producer(settings)
 
     def watermarks(self) -> list[dict[str, Any]]:
         return query_dicts(self.client, _load_sql("admin_watermarks.sql"))
@@ -83,9 +76,11 @@ class AdminService:
             self.client.command(
                 """
                 INSERT INTO sys_audit_log
-                (event, action, path, method, remote_addr, forwarded_for, user_agent, details_json)
+                (event, action, path, method, remote_addr, forwarded_for, user_agent, details_json,
+                 actor, request_id)
                 VALUES (%(event)s, %(action)s, %(path)s, %(method)s,
-                        %(remote_addr)s, %(forwarded_for)s, %(user_agent)s, %(details_json)s)
+                        %(remote_addr)s, %(forwarded_for)s, %(user_agent)s, %(details_json)s,
+                        %(actor)s, %(request_id)s)
                 """,
                 parameters={
                     "event": event,
@@ -96,6 +91,8 @@ class AdminService:
                     "forwarded_for": audit.forwarded_for,
                     "user_agent": audit.user_agent,
                     "details_json": json.dumps(details, ensure_ascii=True),
+                    "actor": "platform-admin",
+                    "request_id": audit.request_id or "",
                 },
             )
         except Exception:
@@ -116,6 +113,7 @@ class AdminService:
             args=args,
             kwargs=kwargs,
             ignore_result=True,
+            headers={"request_id": audit.request_id} if audit.request_id else None,
         )
         payload = ActionQueueResponse(
             action=action,

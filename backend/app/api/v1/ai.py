@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from app.api.errors import API_ERROR_RESPONSES
-from app.core.config import get_settings
-from app.core.deps import require_admin_api_key
+from app.core.auth import require_platform_admin
+from app.core.deps import SettingsDependency
 from app.services.ai_service import AiService
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -26,10 +26,10 @@ class ReviewReplyRequest(BaseModel):
 @router.post("/describe")
 def generate_description(
     body: DescriptionRequest,
-    _admin: None = Depends(require_admin_api_key),
+    settings: SettingsDependency,
+    _admin: None = Depends(require_platform_admin),
 ) -> dict[str, object]:
     """Generate an SEO-optimized product description."""
-    settings = get_settings()
     svc = AiService(settings.ai_api_url, settings.ai_api_key, settings.ai_model)
     try:
         result = svc.generate_description(body.name, body.brand, body.category)
@@ -46,10 +46,10 @@ def generate_description(
 @router.post("/reply-review")
 def generate_review_reply(
     body: ReviewReplyRequest,
-    _admin: None = Depends(require_admin_api_key),
+    settings: SettingsDependency,
+    _admin: None = Depends(require_platform_admin),
 ) -> dict[str, object]:
     """Generate a reply to a customer review."""
-    settings = get_settings()
     svc = AiService(settings.ai_api_url, settings.ai_api_key, settings.ai_model)
     try:
         result = svc.generate_review_reply(body.review_text, body.rating)

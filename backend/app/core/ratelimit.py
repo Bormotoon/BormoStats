@@ -1,14 +1,25 @@
-"""Simple in-memory rate limiter using token bucket algorithm."""
+"""In-memory rate limiter: a token bucket per client IP and endpoint class.
+
+Buckets are kept per client so one noisy caller cannot exhaust the budget of
+everybody else. The proxy rewrites ``X-Forwarded-For`` to the real client address
+and uvicorn runs with ``--proxy-headers``, so ``request.client`` is the end user.
+nginx applies an additional coarse limit in front of the backend.
+"""
 
 from __future__ import annotations
 
 import time
-from functools import lru_cache
+from collections import OrderedDict
 from threading import Lock
 
 from app.core.config import Settings
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+
+_EXEMPT_PATHS = frozenset({"/", "/health", "/ready", "/metrics"})
+_ADMIN_PREFIXES = ("/api/v1/admin", "/api/v1/organizations", "/api/v1/integrations")
+MAX_TRACKED_CLIENTS = 10_000
 
 
 class TokenBucket:
@@ -31,14 +42,27 @@ class TokenBucket:
             return False
 
 
-@lru_cache(maxsize=1)
-def _get_public_bucket(rate: float, burst: int) -> TokenBucket:
-    return TokenBucket(rate=rate, burst=burst)
+class ClientBuckets:
+    """Bounded LRU of per-client token buckets."""
 
+    def __init__(self, rate: float, burst: int, max_clients: int = MAX_TRACKED_CLIENTS) -> None:
+        self.rate = rate
+        self.burst = burst
+        self.max_clients = max_clients
+        self._buckets: OrderedDict[str, TokenBucket] = OrderedDict()
+        self._lock = Lock()
 
-@lru_cache(maxsize=1)
-def _get_admin_bucket(rate: float, burst: int) -> TokenBucket:
-    return TokenBucket(rate=rate, burst=burst)
+    def consume(self, client_key: str) -> bool:
+        with self._lock:
+            bucket = self._buckets.get(client_key)
+            if bucket is None:
+                bucket = TokenBucket(self.rate, self.burst)
+                self._buckets[client_key] = bucket
+                if len(self._buckets) > self.max_clients:
+                    self._buckets.popitem(last=False)
+            else:
+                self._buckets.move_to_end(client_key)
+        return bucket.consume()
 
 
 def _parse_rate_limit(spec: str) -> tuple[float, int]:
@@ -48,26 +72,32 @@ def _parse_rate_limit(spec: str) -> tuple[float, int]:
 
 
 def setup_rate_limiter(app: FastAPI, settings: Settings) -> None:
-    public_rate, public_burst = _parse_rate_limit(settings.rate_limit_per_minute)
-    admin_rate, admin_burst = _parse_rate_limit(settings.admin_rate_limit_per_minute)
-
-    public_bucket = _get_public_bucket(public_rate, public_burst)
-    admin_bucket = _get_admin_bucket(admin_rate, admin_burst)
+    public_buckets = ClientBuckets(*_parse_rate_limit(settings.rate_limit_per_minute))
+    admin_buckets = ClientBuckets(*_parse_rate_limit(settings.admin_rate_limit_per_minute))
 
     class RateLimitMiddleware(BaseHTTPMiddleware):
         async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
             path = request.url.path
 
-            if path in ("/health", "/ready", "/metrics", "/"):
+            if path in _EXEMPT_PATHS or path.startswith(("/health/", "/ui/")):
                 return await call_next(request)
 
-            bucket = admin_bucket if path.startswith("/api/v1/admin") else public_bucket
-            bucket_key = "admin" if path.startswith("/api/v1/admin") else "public"
+            is_admin = path.startswith(_ADMIN_PREFIXES)
+            buckets = admin_buckets if is_admin else public_buckets
+            bucket_key = "admin" if is_admin else "public"
+            client_key = request.client.host if request.client else "unknown"
 
-            if not bucket.consume():
-                raise HTTPException(
+            if not buckets.consume(client_key):
+                message = f"rate limit exceeded for {bucket_key} endpoint"
+                # Exceptions raised in BaseHTTPMiddleware bypass the app's exception
+                # handlers, so the standard error envelope is built here.
+                return JSONResponse(
                     status_code=429,
-                    detail=f"rate limit exceeded for {bucket_key} endpoint",
+                    content={
+                        "detail": message,
+                        "error": {"code": "rate_limited", "message": message, "details": []},
+                    },
+                    headers={"Retry-After": "60"},
                 )
 
             return await call_next(request)

@@ -2,25 +2,26 @@
 
 from __future__ import annotations
 
-import clickhouse_connect
 from app.api.errors import API_ERROR_RESPONSES
-from app.core.deps import get_ch_client
-from fastapi import APIRouter, Depends, HTTPException
+from app.core.auth import ViewerAuth
+from app.core.deps import ChClientDependency
+from fastapi import APIRouter, HTTPException, Path
 
 router = APIRouter(prefix="/plugin", tags=["plugin"], responses=API_ERROR_RESPONSES)
 
 
 @router.get("/product/{marketplace}/{product_id}")
 def product_overlay(
-    marketplace: str,
-    product_id: int,
-    client: clickhouse_connect.driver.Client = Depends(get_ch_client),
+    client: ChClientDependency,
+    auth: ViewerAuth,
+    marketplace: str = Path(pattern=r"^(wb|ozon)$"),
+    product_id: int = Path(ge=1),
 ) -> dict[str, object]:
     """Return competitor product data for browser plugin overlay."""
     product = client.query(
         "SELECT name, brand, category_name, supplier_name, rating, review_count"
         " FROM raw_competitor_products FINAL"
-        " WHERE marketplace = %(marketplace)s AND product_id = %(product_id)s",
+        " WHERE marketplace = {marketplace:String} AND product_id = {product_id:UInt64}",
         parameters={"marketplace": marketplace, "product_id": product_id},
     )
     if not product.result_rows:
@@ -32,7 +33,7 @@ def product_overlay(
     prices = client.query(
         "SELECT price_rub, price_old_rub, sale_percent, in_stock, snapshot_ts"
         " FROM raw_competitor_prices"
-        " WHERE marketplace = %(marketplace)s AND product_id = %(product_id)s"
+        " WHERE marketplace = {marketplace:String} AND product_id = {product_id:UInt64}"
         " ORDER BY snapshot_ts DESC LIMIT 10",
         parameters={"marketplace": marketplace, "product_id": product_id},
     )
@@ -51,7 +52,7 @@ def product_overlay(
     positions = client.query(
         "SELECT query, position, price_rub, snapshot_ts"
         " FROM raw_competitor_search"
-        " WHERE marketplace = %(marketplace)s AND product_id = %(product_id)s"
+        " WHERE marketplace = {marketplace:String} AND product_id = {product_id:UInt64}"
         " ORDER BY snapshot_ts DESC LIMIT 20",
         parameters={"marketplace": marketplace, "product_id": product_id},
     )

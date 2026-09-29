@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from datetime import datetime
-from enum import IntEnum
 
+from app.models.enums import ClickHouseIntEnum
 from pydantic import BaseModel, Field
 
+ORGANIZATION_ID_PATTERN = r"^[A-Za-z0-9._-]{1,64}$"
 
-class OrgMemberRole(IntEnum):
+
+class OrgMemberRole(ClickHouseIntEnum):
     owner = 1
     admin = 2
     manager = 3

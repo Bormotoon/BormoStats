@@ -40,6 +40,7 @@ class AdminRequestContext:
     remote_addr: str
     forwarded_for: str | None
     user_agent: str | None
+    request_id: str | None = None
 
 
 class ActionQueueResponse(BaseModel):

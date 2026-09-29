@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from app.api.errors import API_ERROR_RESPONSES
+from app.core.auth import require_platform_admin
 from app.core.deps import (
     AdminRequestContextDependency,
     ChClientDependency,
     SettingsDependency,
-    require_admin_api_key,
 )
 from app.models.admin import (
     ActionQueueResponse,
@@ -21,7 +22,12 @@ from app.models.admin import (
 from app.services.admin_service import AdminService
 from fastapi import APIRouter, Depends, Query
 
-router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin_api_key)])
+router = APIRouter(
+    prefix="/admin",
+    tags=["admin"],
+    responses=API_ERROR_RESPONSES,
+    dependencies=[Depends(require_platform_admin)],
+)
 
 
 @router.get("/watermarks")
