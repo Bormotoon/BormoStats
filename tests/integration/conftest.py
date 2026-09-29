@@ -9,7 +9,6 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from types import SimpleNamespace
 from uuid import uuid4
 
 import clickhouse_connect
@@ -269,12 +268,14 @@ def integration_env() -> IntegrationEnv:
 @pytest.fixture()
 def integration_runtime(integration_env: IntegrationEnv) -> IntegrationEnv:
     from app.core.config import get_settings
-    from app.core.deps import _get_cached_ch_client
+    from app.core.deps import close_ch_client
+    from app.main import app, reset_readiness_cache
     from app.utils.runtime import get_ch_client, get_redis_client
 
     with _runtime_env_scope(integration_env):
         get_settings.cache_clear()
-        _get_cached_ch_client.cache_clear()
+        close_ch_client(app)
+        reset_readiness_cache()
         get_ch_client.cache_clear()
         get_redis_client.cache_clear()
 
@@ -291,27 +292,28 @@ def integration_runtime(integration_env: IntegrationEnv) -> IntegrationEnv:
         yield integration_env
 
         get_settings.cache_clear()
-        _get_cached_ch_client.cache_clear()
+        close_ch_client(app)
+        reset_readiness_cache()
         get_ch_client.cache_clear()
         get_redis_client.cache_clear()
 
 
 @pytest.fixture()
 def api_client(integration_runtime: IntegrationEnv) -> TestClient:
+    from app.core.config import get_settings
     from app.core.deps import get_app_settings, get_ch_client
     from app.main import app
 
     ch_client = integration_runtime.ch_client()
-    settings = SimpleNamespace(
-        redis_url=integration_runtime.redis_url,
-        admin_api_key=integration_runtime.admin_api_key,
-    )
+    settings = get_settings()
     app.dependency_overrides[get_ch_client] = lambda: ch_client
     app.dependency_overrides[get_app_settings] = lambda: settings
+    app.state.ch_client = ch_client  # used by the audit middleware
 
     try:
-        with TestClient(app) as client:
+        with TestClient(app, headers={"X-API-Key": integration_runtime.admin_api_key}) as client:
             yield client
     finally:
         app.dependency_overrides.clear()
+        app.state.ch_client = None
         ch_client.close()

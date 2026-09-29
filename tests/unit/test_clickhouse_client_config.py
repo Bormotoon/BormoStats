@@ -4,6 +4,7 @@ import importlib.util
 import os
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -44,24 +45,36 @@ def _load_worker_module(module_name: str, path: Path) -> Any:
     return module
 
 
-def test_backend_cached_client_disables_session_autogeneration(monkeypatch) -> None:
+def test_backend_client_uses_timeouts_and_is_instrumented(monkeypatch) -> None:
     calls: list[dict[str, object]] = []
+
+    class FakeClient:
+        def query(self, *args: object, **kwargs: object) -> str:
+            return "query-result"
+
+        def command(self, *args: object, **kwargs: object) -> str:
+            return "command-result"
+
+        def insert(self, *args: object, **kwargs: object) -> str:
+            return "insert-result"
 
     def fake_build_raw_client(**kwargs: object) -> object:
         calls.append(dict(kwargs))
-        return object()
+        return FakeClient()
 
-    backend_deps._get_cached_ch_client.cache_clear()
     monkeypatch.setattr(backend_deps, "build_raw_client", fake_build_raw_client)
-
-    backend_deps._get_cached_ch_client(
-        "localhost",
-        8123,
-        "analytics_app",
-        "secret",
-        "mp_analytics",
-        16,
+    settings = SimpleNamespace(
+        ch_host="localhost",
+        ch_port=8123,
+        ch_user="analytics_app",
+        ch_password="secret",
+        ch_db="mp_analytics",
+        ch_pool_maxsize=16,
+        ch_connect_timeout_seconds=5,
+        ch_query_timeout_seconds=30,
     )
+
+    client = backend_deps.create_ch_client(settings)
 
     assert calls == [
         {
@@ -71,8 +84,30 @@ def test_backend_cached_client_disables_session_autogeneration(monkeypatch) -> N
             "password": "secret",
             "database": "mp_analytics",
             "pool_maxsize": 16,
+            "connect_timeout": 5,
+            "query_timeout": 30,
         }
     ]
+    assert client.query("SELECT 1") == "query-result"
+    samples = backend_deps.CLICKHOUSE_QUERY_SECONDS.collect()[0].samples
+    assert any(s.labels.get("operation") == "query" for s in samples)
+
+
+def test_backend_client_lifecycle_is_owned_by_app(monkeypatch) -> None:
+    closed: list[bool] = []
+
+    class FakeClient:
+        def close(self) -> None:
+            closed.append(True)
+
+    monkeypatch.setattr(backend_deps, "create_ch_client", lambda settings: FakeClient())
+    app = SimpleNamespace(state=SimpleNamespace())
+
+    first = backend_deps.open_ch_client(app, object())
+    assert backend_deps.open_ch_client(app, object()) is first
+    backend_deps.close_ch_client(app)
+    assert closed == [True]
+    assert app.state.ch_client is None
 
 
 def test_build_client_disables_session_autogeneration(monkeypatch) -> None:
@@ -99,6 +134,8 @@ def test_build_client_disables_session_autogeneration(monkeypatch) -> None:
             "ch_password": "secret",
             "ch_db": "mp_analytics",
             "ch_pool_maxsize": 24,
+            "ch_connect_timeout_seconds": 3,
+            "ch_query_timeout_seconds": 20,
         },
     )()
 
@@ -106,6 +143,9 @@ def test_build_client_disables_session_autogeneration(monkeypatch) -> None:
 
     assert pool_calls == [{"maxsize": 24}]
     assert client_calls[0]["autogenerate_session_id"] is False
+    assert client_calls[0]["connect_timeout"] == 3
+    assert client_calls[0]["send_receive_timeout"] == 25
+    assert client_calls[0]["settings"] == {"max_execution_time": 20}
     assert client_calls[0]["pool_mgr"] is not None
 
 

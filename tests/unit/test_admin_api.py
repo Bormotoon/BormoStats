@@ -24,7 +24,7 @@ os.environ.setdefault("CH_DB", "mp_analytics")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 
 import app.api.v1.admin as admin_api  # noqa: E402
-import app.core.deps as deps_module  # noqa: E402
+import app.core.auth as auth_module  # noqa: E402
 import app.services.admin_service as admin_service_module  # noqa: E402
 from app.core.deps import get_app_settings, get_ch_client  # noqa: E402
 from app.main import app  # noqa: E402
@@ -116,6 +116,7 @@ def test_admin_service_logs_queued_backfill(monkeypatch: pytest.MonkeyPatch) -> 
             args: list[int] | None = None,
             kwargs: dict[str, object] | None = None,
             ignore_result: bool = False,
+            headers: dict[str, object] | None = None,
         ) -> FakeAsyncResult:
             sent_tasks.append((task_name, args or [], kwargs or {}, ignore_result))
             return FakeAsyncResult()
@@ -128,8 +129,9 @@ def test_admin_service_logs_queued_backfill(monkeypatch: pytest.MonkeyPatch) -> 
             audit_entries.append((str(args[0]) if args else "", dict(kwargs)))
 
     service = AdminService(
-        client=None, settings=SimpleNamespace(redis_url="redis://localhost:6379/0")
-    )  # type: ignore[arg-type]
+        client=None,  # type: ignore[arg-type]
+        settings=SimpleNamespace(authenticated_redis_url="redis://localhost:6379/0"),  # type: ignore[arg-type]
+    )
     service.celery = FakeCelery()  # type: ignore[assignment]
     monkeypatch.setattr(admin_service_module, "LOGGER", FakeLogger())
 
@@ -165,7 +167,7 @@ def test_admin_invalid_key_returns_sanitized_response(
         def warning(self, event: str, **kwargs: object) -> None:
             log_entries.append((event, dict(kwargs)))
 
-    monkeypatch.setattr(deps_module, "LOGGER", FakeLogger())
+    monkeypatch.setattr(auth_module, "LOGGER", FakeLogger())
 
     response = client.get("/api/v1/admin/watermarks", headers={"X-API-Key": "wrong-key"})
 
@@ -201,7 +203,7 @@ def test_admin_disabled_returns_sanitized_response(
         def warning(self, event: str, **kwargs: object) -> None:
             log_entries.append((event, dict(kwargs)))
 
-    monkeypatch.setattr(deps_module, "LOGGER", FakeLogger())
+    monkeypatch.setattr(auth_module, "LOGGER", FakeLogger())
     app.dependency_overrides[get_ch_client] = lambda: object()
     app.dependency_overrides[get_app_settings] = lambda: SimpleNamespace(admin_api_key="")
     try:

@@ -24,14 +24,16 @@ os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 import app.api.v1.sales as sales_api  # noqa: E402
 import app.main as main_module  # noqa: E402
 from app.core.deps import get_ch_client  # noqa: E402
-from app.main import app  # noqa: E402
+from app.main import app, reset_readiness_cache  # noqa: E402
+
+ADMIN_HEADERS = {"X-API-Key": "test-admin-key"}
 
 
 @pytest.fixture
 def client() -> TestClient:
     app.dependency_overrides[get_ch_client] = lambda: object()
     try:
-        with TestClient(app) as test_client:
+        with TestClient(app, headers=ADMIN_HEADERS) as test_client:
             yield test_client
     finally:
         app.dependency_overrides.clear()
@@ -118,7 +120,7 @@ def test_public_endpoint_sanitizes_unhandled_errors(
     monkeypatch.setattr(sales_api, "MetricsService", ExplodingMetricsService)
     app.dependency_overrides[get_ch_client] = lambda: object()
     try:
-        with TestClient(app, raise_server_exceptions=False) as test_client:
+        with TestClient(app, raise_server_exceptions=False, headers=ADMIN_HEADERS) as test_client:
             response = test_client.get("/api/v1/sales/daily")
     finally:
         app.dependency_overrides.clear()
@@ -148,17 +150,21 @@ def test_ready_endpoint_sanitizes_dependency_failures_and_logs_details(
             log_entries.append((event, dict(kwargs)))
 
     class ExplodingClient:
-        def query(self, sql: str) -> None:
+        def query(self, sql: str, **_: object) -> None:
             raise RuntimeError("clickhouse://analytics:secret@clickhouse:8123")
 
         def close(self) -> None:
             return None
 
     monkeypatch.setattr(main_module, "LOGGER", FakeLogger())
-    monkeypatch.setattr(main_module, "build_client", lambda settings: ExplodingClient())
-
-    with TestClient(app) as test_client:
-        response = test_client.get("/ready")
+    reset_readiness_cache()
+    app.state.ch_client = ExplodingClient()
+    try:
+        with TestClient(app) as test_client:
+            response = test_client.get("/ready")
+    finally:
+        app.state.ch_client = None
+        reset_readiness_cache()
 
     assert response.status_code == 503
     assert response.json() == {

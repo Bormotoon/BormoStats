@@ -45,6 +45,9 @@ def test_refresh_operational_metrics_populates_gauges(monkeypatch) -> None:
             assert section == "memory"
             return {"used_memory": 512, "maxmemory": 1024}
 
+        def close(self) -> None:
+            return None
+
     class FakeClickHouseClient:
         def query(self, sql: str):
             if sql == "SELECT 1":
@@ -56,11 +59,12 @@ def test_refresh_operational_metrics_populates_gauges(monkeypatch) -> None:
         def close(self) -> None:
             return None
 
-    monkeypatch.setattr(ops_metrics.Redis, "from_url", lambda _: FakeRedis())
+    monkeypatch.setattr(ops_metrics.Redis, "from_url", lambda *_args, **_kwargs: FakeRedis())
     monkeypatch.setattr(ops_metrics, "build_client", lambda settings: FakeClickHouseClient())
 
     settings = SimpleNamespace(
         redis_url="redis://localhost:6379/0",
+        authenticated_redis_url="redis://localhost:6379/0",
         ch_host="localhost",
         ch_port=8123,
         ch_user="analytics_app",
@@ -83,7 +87,7 @@ def test_refresh_operational_metrics_marks_failures(monkeypatch) -> None:
         def ping(self) -> bool:
             raise RuntimeError("redis down")
 
-    monkeypatch.setattr(ops_metrics.Redis, "from_url", lambda _: FailingRedis())
+    monkeypatch.setattr(ops_metrics.Redis, "from_url", lambda *_args, **_kwargs: FailingRedis())
     monkeypatch.setattr(
         ops_metrics,
         "build_client",
@@ -92,6 +96,7 @@ def test_refresh_operational_metrics_marks_failures(monkeypatch) -> None:
 
     settings = SimpleNamespace(
         redis_url="redis://localhost:6379/0",
+        authenticated_redis_url="redis://localhost:6379/0",
         ch_host="localhost",
         ch_port=8123,
         ch_user="analytics_app",
@@ -104,3 +109,21 @@ def test_refresh_operational_metrics_marks_failures(monkeypatch) -> None:
     assert 'service_readiness{service="redis"} 0.0' in payload
     assert 'service_readiness{service="clickhouse"} 0.0' in payload
     assert 'clickhouse_disk_free_ratio{disk="default"}' not in payload
+
+
+def test_missing_disk_grant_keeps_clickhouse_ready(monkeypatch) -> None:
+    _reset_metrics()
+
+    class NoDisksClient:
+        def query(self, sql: str):
+            if sql == "SELECT 1":
+                return SimpleNamespace(result_rows=[(1,)])
+            raise RuntimeError("ACCESS_DENIED system.disks")
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(ops_metrics, "build_client", lambda settings: NoDisksClient())
+    ops_metrics._refresh_clickhouse_metrics(SimpleNamespace())
+    payload = generate_latest().decode("utf-8")
+    assert 'service_readiness{service="clickhouse"} 1.0' in payload

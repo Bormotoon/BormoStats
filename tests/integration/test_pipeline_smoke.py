@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
-from pathlib import Path
 
 import pytest
 from app.tasks import maintenance, marts, ozon_collect, transforms, wb_collect
@@ -201,17 +200,19 @@ def test_clickhouse_migrations_are_idempotent(integration_runtime) -> None:
                 parameters={"database": integration_runtime.ch_db},
             ).result_rows
         }
-        before = client.query("SELECT count() FROM sys_schema_migrations").result_rows[0][0]
-        apply_count = len(list((Path("warehouse") / "migrations").glob("*.sql")))
-
         from warehouse import apply_migrations as migration_module
 
-        migration_module.apply_migrations()
-        after = client.query("SELECT count() FROM sys_schema_migrations").result_rows[0][0]
+        expected = {m.version for m in migration_module.discover_migrations()}
+        before_rows = client.query("SELECT count() FROM sys_schema_migrations").result_rows[0][0]
+        before = migration_module.load_applied_versions(client, integration_runtime.ch_db)
+
+        applied_again = migration_module.apply_migrations()
+        after_rows = client.query("SELECT count() FROM sys_schema_migrations").result_rows[0][0]
 
         assert tables == {"sys_watermarks", "stg_sales", "mrt_sales_daily"}
-        assert before == apply_count
-        assert after == before
+        assert before == expected
+        assert applied_again == []
+        assert after_rows == before_rows
     finally:
         client.close()
 
