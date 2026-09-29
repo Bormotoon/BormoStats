@@ -14,6 +14,9 @@ FROM mrt_ads_daily AS a
 WHERE a.day BETWEEN %(date_from)s AND %(date_to)s
   AND (%(marketplace)s = '' OR a.marketplace = %(marketplace)s)
   AND (%(account_id)s = '' OR a.account_id = %(account_id)s)
+  AND (a.marketplace, a.account_id) IN (
+    SELECT marketplace, account_id FROM dim_account FINAL WHERE organization_id = %(organization_id)s
+  )
 GROUP BY a.day, a.marketplace, a.account_id, a.campaign_id
 ORDER BY a.day, a.campaign_id
 LIMIT %(limit)s

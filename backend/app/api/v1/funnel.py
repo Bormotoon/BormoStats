@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import clickhouse_connect
 from app.api.errors import API_ERROR_RESPONSES
-from app.core.deps import get_ch_client
+from app.core.auth import AnalyticsReadAuth
+from app.core.deps import ChClientDependency
 from app.models.api import (
     DateRangeQueryParams,
     build_paginated_response,
@@ -19,11 +19,13 @@ router = APIRouter(prefix="/funnel", tags=["funnel"], responses=API_ERROR_RESPON
 @router.get("/daily")
 def funnel_daily(
     *,
+    auth: AnalyticsReadAuth,
     filters: DateRangeQueryParams = Depends(get_date_range_query_params),
-    client: clickhouse_connect.driver.Client = Depends(get_ch_client),
+    client: ChClientDependency,
 ) -> dict[str, object]:
     service = MetricsService(client)
     items = service.funnel_daily(
+        organization_id=auth.organization_id,
         date_from=filters.date_from,
         date_to=filters.date_to,
         marketplace=filters.marketplace,

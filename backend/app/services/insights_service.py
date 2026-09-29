@@ -1,81 +1,83 @@
+"""Actionable insight tasks, scoped to one organization."""
+
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
+from app.db.ch import utc_now
 from app.models.insights import ActionableTask, TaskUpdate
 from clickhouse_connect.driver import Client
 
-_TASK_COLS = "task_id, organization_id, trigger_type, marketplace, account_id, product_id, campaign_id, title, description, priority, status, created_at, resolved_at"
+from common.insights import TASK_COLS as _TASK_COLS
+from common.insights import TASK_INSERT
+
+_CLOSED_STATUSES = frozenset({"resolved", "dismissed"})
 
 
 class InsightsService:
-    def __init__(self, ch: Client) -> None:
+    def __init__(self, ch: Client, organization_id: str) -> None:
         self._ch = ch
+        self._org = organization_id
 
-    def list_tasks(self, organization_id: str = "default", status: str | None = None) -> list[ActionableTask]:
-        where = ["organization_id = %(oid)s"]
-        params: dict[str, object] = {"oid": organization_id}
+    def list_tasks(self, status: str | None = None, limit: int = 500) -> list[ActionableTask]:
+        where = ["organization_id = {oid:String}"]
+        params: dict[str, object] = {"oid": self._org, "lim": limit}
         if status:
-            where.append("status = %(status)s")
+            where.append("status = {status:String}")
             params["status"] = status
-        clause = " WHERE " + " AND ".join(where)
         rows = self._ch.query(
-            f"SELECT {_TASK_COLS} FROM dim_actionable_task FINAL" + clause + " ORDER BY created_at DESC",
+            f"SELECT {_TASK_COLS} FROM dim_actionable_task FINAL"
+            f" WHERE {' AND '.join(where)} ORDER BY created_at DESC LIMIT {{lim:UInt32}}",
             parameters=params,
         )
         return [_row_to_task(r) for r in rows.named_results()]
 
-    def update_task(self, task_id: str, data: TaskUpdate) -> ActionableTask | None:
+    def get_task(self, task_id: str) -> ActionableTask | None:
         rows = self._ch.query(
-            f"SELECT {_TASK_COLS} FROM dim_actionable_task FINAL WHERE task_id = {{tid:String}}",
-            parameters={"tid": task_id},
+            f"SELECT {_TASK_COLS} FROM dim_actionable_task FINAL"
+            " WHERE organization_id = {oid:String} AND task_id = {tid:String} LIMIT 1",
+            parameters={"oid": self._org, "tid": task_id},
         )
-        existing = None
         for r in rows.named_results():
-            existing = _row_to_task(r)
+            return _row_to_task(r)
+        return None
+
+    def update_task(self, task_id: str, data: TaskUpdate) -> ActionableTask | None:
+        existing = self.get_task(task_id)
         if existing is None:
             return None
-        now = datetime.utcnow()
-        resolved = now if data.status == "resolved" else existing.resolved_at
-        self._ch.command(
-            "INSERT INTO dim_actionable_task ({cols})"
-            " VALUES ({tid:String}, {oid:String}, {tt:String}, {mp:String}, {aid:String},"
-            " {pid:Nullable(String)}, {cid:Nullable(String)}, {title:String}, {desc:String},"
-            " {prio:String}, {status:String}, {created:DateTime}, {resolved:Nullable(DateTime)})".format(
-                cols=_TASK_COLS
-            ),
-            parameters={
-                "tid": existing.task_id,
-                "oid": existing.organization_id,
-                "tt": existing.trigger_type,
-                "mp": existing.marketplace,
-                "aid": existing.account_id,
-                "pid": existing.product_id,
-                "cid": existing.campaign_id,
-                "title": existing.title,
-                "desc": existing.description,
-                "prio": existing.priority,
+        now = utc_now()
+        # Re-opening a task clears resolved_at; closing it stamps the resolution time.
+        closed = data.status in _CLOSED_STATUSES
+        resolved_at = (existing.resolved_at or now) if closed else None
+        task = existing.model_copy(
+            update={
                 "status": data.status,
-                "created": existing.created_at or now,
-                "resolved": resolved,
-            },
+                "resolved_at": resolved_at,
+                "created_at": existing.created_at or now,
+            }
         )
-        return ActionableTask(
-            task_id=existing.task_id,
-            organization_id=existing.organization_id,
-            trigger_type=existing.trigger_type,
-            marketplace=existing.marketplace,
-            account_id=existing.account_id,
-            product_id=existing.product_id,
-            campaign_id=existing.campaign_id,
-            title=existing.title,
-            description=existing.description,
-            priority=existing.priority,
-            status=data.status,
-            created_at=existing.created_at or now,
-            resolved_at=resolved,
-        )
+        self._ch.command(TASK_INSERT, parameters=task_parameters(task))
+        return task
+
+
+def task_parameters(task: ActionableTask) -> dict[str, object]:
+    return {
+        "task_id": task.task_id,
+        "organization_id": task.organization_id,
+        "trigger_type": task.trigger_type,
+        "marketplace": task.marketplace,
+        "account_id": task.account_id,
+        "product_id": task.product_id,
+        "campaign_id": task.campaign_id,
+        "title": task.title,
+        "description": task.description,
+        "priority": task.priority,
+        "status": task.status,
+        "dedupe_key": task.dedupe_key,
+        "created_at": task.created_at,
+        "resolved_at": task.resolved_at,
+    }
 
 
 def _row_to_task(r: dict[str, Any]) -> ActionableTask:
@@ -91,6 +93,7 @@ def _row_to_task(r: dict[str, Any]) -> ActionableTask:
         description=r["description"],
         priority=r["priority"],
         status=r["status"],
+        dedupe_key=r.get("dedupe_key") or "",
         created_at=r.get("created_at"),
         resolved_at=r.get("resolved_at"),
     )

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import clickhouse_connect
 from app.api.errors import API_ERROR_RESPONSES
-from app.core.deps import get_ch_client
+from app.core.auth import AnalyticsReadAuth
+from app.core.deps import ChClientDependency
 from app.models.api import ListQueryParams, build_paginated_response, get_list_query_params
 from app.services.metrics_service import MetricsService
 from fastapi import APIRouter, Depends
@@ -15,11 +15,13 @@ router = APIRouter(prefix="/stocks", tags=["stocks"], responses=API_ERROR_RESPON
 @router.get("/current")
 def stocks_current(
     *,
+    auth: AnalyticsReadAuth,
     filters: ListQueryParams = Depends(get_list_query_params),
-    client: clickhouse_connect.driver.Client = Depends(get_ch_client),
+    client: ChClientDependency,
 ) -> dict[str, object]:
     service = MetricsService(client)
     items = service.stocks_current(
+        organization_id=auth.organization_id,
         marketplace=filters.marketplace,
         account_id=filters.account_id,
         limit=filters.query_limit,

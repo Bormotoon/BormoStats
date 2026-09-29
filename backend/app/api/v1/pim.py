@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated
 
 from app.api.errors import API_ERROR_RESPONSES
-from app.core.config import get_settings
-from app.core.deps import ChClientDependency, CurrentUserDependency, require_admin_key_or_org_role
-from app.models.organization import OrgMemberRole
+from app.core.auth import AdminAuth, AuthContext, CatalogWriteAuth, ViewerAuth
+from app.core.deps import ChClientDependency, SettingsDependency
 from app.models.pim import (
+    MAX_BULK_UPDATE_ITEMS,
     Brand,
     BrandCreate,
     BrandUpdate,
@@ -19,33 +19,26 @@ from app.models.pim import (
 )
 from app.services.ai_service import AiService
 from app.services.pim_service import PimService
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, HTTPException, Query, status
 
 router = APIRouter(prefix="/pim", tags=["pim"], responses=API_ERROR_RESPONSES)
 
 
-def _svc(ch: ChClientDependency) -> PimService:
-    return PimService(ch)
+def _svc(ch: ChClientDependency, auth: AuthContext) -> PimService:
+    return PimService(ch, auth.organization_id)
 
 
 # -- Brands -----------------------------------------------------------------------
 
 
 @router.get("/brands")
-def list_brands(
-    ch: ChClientDependency,
-    _auth: None = Depends(require_admin_key_or_org_role(OrgMemberRole.viewer)),
-) -> list[Brand]:
-    return _svc(ch).list_brands("default")
+def list_brands(ch: ChClientDependency, auth: ViewerAuth) -> list[Brand]:
+    return _svc(ch, auth).list_brands()
 
 
 @router.post("/brands", status_code=status.HTTP_201_CREATED)
-def create_brand(
-    body: BrandCreate,
-    ch: ChClientDependency,
-    _auth: None = Depends(require_admin_key_or_org_role(OrgMemberRole.manager)),
-) -> Brand:
-    return _svc(ch).create_brand(body)
+def create_brand(body: BrandCreate, ch: ChClientDependency, auth: CatalogWriteAuth) -> Brand:
+    return _svc(ch, auth).create_brand(body)
 
 
 @router.patch("/brands/{brand_id}")
@@ -53,22 +46,17 @@ def update_brand(
     brand_id: str,
     body: BrandUpdate,
     ch: ChClientDependency,
-    _auth: None = Depends(require_admin_key_or_org_role(OrgMemberRole.manager)),
+    auth: CatalogWriteAuth,
 ) -> Brand:
-    brand = _svc(ch).update_brand(brand_id, body)
+    brand = _svc(ch, auth).update_brand(brand_id, body)
     if brand is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="brand not found")
     return brand
 
 
 @router.delete("/brands/{brand_id}")
-def delete_brand(
-    brand_id: str,
-    ch: ChClientDependency,
-    _auth: None = Depends(require_admin_key_or_org_role(OrgMemberRole.admin)),
-) -> dict[str, bool]:
-    deleted = _svc(ch).delete_brand(brand_id)
-    if not deleted:
+def delete_brand(brand_id: str, ch: ChClientDependency, auth: AdminAuth) -> dict[str, bool]:
+    if not _svc(ch, auth).delete_brand(brand_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="brand not found")
     return {"ok": True}
 
@@ -77,20 +65,15 @@ def delete_brand(
 
 
 @router.get("/categories")
-def list_categories(
-    ch: ChClientDependency,
-    _auth: None = Depends(require_admin_key_or_org_role(OrgMemberRole.viewer)),
-) -> list[Category]:
-    return _svc(ch).list_categories("default")
+def list_categories(ch: ChClientDependency, auth: ViewerAuth) -> list[Category]:
+    return _svc(ch, auth).list_categories()
 
 
 @router.post("/categories", status_code=status.HTTP_201_CREATED)
 def create_category(
-    body: CategoryCreate,
-    ch: ChClientDependency,
-    _auth: None = Depends(require_admin_key_or_org_role(OrgMemberRole.manager)),
+    body: CategoryCreate, ch: ChClientDependency, auth: CatalogWriteAuth
 ) -> Category:
-    return _svc(ch).create_category(body)
+    return _svc(ch, auth).create_category(body)
 
 
 @router.patch("/categories/{category_id}")
@@ -98,22 +81,17 @@ def update_category(
     category_id: str,
     body: CategoryUpdate,
     ch: ChClientDependency,
-    _auth: None = Depends(require_admin_key_or_org_role(OrgMemberRole.manager)),
+    auth: CatalogWriteAuth,
 ) -> Category:
-    cat = _svc(ch).update_category(category_id, body)
+    cat = _svc(ch, auth).update_category(category_id, body)
     if cat is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="category not found")
     return cat
 
 
 @router.delete("/categories/{category_id}")
-def delete_category(
-    category_id: str,
-    ch: ChClientDependency,
-    _auth: None = Depends(require_admin_key_or_org_role(OrgMemberRole.admin)),
-) -> dict[str, bool]:
-    deleted = _svc(ch).delete_category(category_id)
-    if not deleted:
+def delete_category(category_id: str, ch: ChClientDependency, auth: AdminAuth) -> dict[str, bool]:
+    if not _svc(ch, auth).delete_category(category_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="category not found")
     return {"ok": True}
 
@@ -124,18 +102,12 @@ def delete_category(
 @router.get("/products")
 def list_products(
     ch: ChClientDependency,
-    current_user: CurrentUserDependency,
-    marketplace: str | None = Query(default=None),
-    account_id: str | None = Query(default=None),
-    q: str | None = Query(default=None, description="search in title or product_id"),
-    _auth: None = Depends(require_admin_key_or_org_role(OrgMemberRole.viewer)),
+    auth: ViewerAuth,
+    marketplace: str | None = Query(default=None, pattern=r"^(wb|ozon)$"),
+    account_id: str | None = Query(default=None, max_length=64),
+    q: str | None = Query(default=None, max_length=200, description="title substring or id"),
 ) -> list[ProductPim]:
-    return _svc(ch).list_products(
-        organization_id=current_user.organization_id,
-        marketplace=marketplace,
-        account_id=account_id,
-        q=q,
-    )
+    return _svc(ch, auth).list_products(marketplace=marketplace, account_id=account_id, q=q)
 
 
 @router.patch("/products/{marketplace}/{account_id}/{product_id}")
@@ -145,9 +117,9 @@ def update_product(
     product_id: str,
     body: ProductPimUpdate,
     ch: ChClientDependency,
-    _auth: None = Depends(require_admin_key_or_org_role(OrgMemberRole.manager)),
+    auth: CatalogWriteAuth,
 ) -> ProductPim:
-    prod = _svc(ch).update_product(marketplace, account_id, product_id, body)
+    prod = _svc(ch, auth).update_product(marketplace, account_id, product_id, body)
     if prod is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="product not found")
     return prod
@@ -156,16 +128,18 @@ def update_product(
 @router.post("/products/generate-description")
 def generate_description(
     body: ProductPimUpdate,
-    ch: ChClientDependency,
-    _auth: None = Depends(require_admin_key_or_org_role(OrgMemberRole.manager)),
+    auth: CatalogWriteAuth,
+    settings: SettingsDependency,
 ) -> dict[str, str]:
-    s = get_settings()
-    ai = AiService(s.ai_api_url, s.ai_api_key, s.ai_model)
-    desc = ai.generate_description(
-        name=body.title or "",
-        brand=body.brand_id or "",
-        category=body.category_id or "",
-    )
+    ai = AiService(settings.ai_api_url, settings.ai_api_key, settings.ai_model)
+    try:
+        desc = ai.generate_description(
+            name=body.title or "",
+            brand=body.brand_id or "",
+            category=body.category_id or "",
+        )
+    finally:
+        ai.close()
     if desc is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -176,10 +150,8 @@ def generate_description(
 
 @router.post("/products/bulk-update")
 def bulk_update_products(
-    body: list[ProductPimBulkUpdateItem],
+    body: Annotated[list[ProductPimBulkUpdateItem], Body(max_length=MAX_BULK_UPDATE_ITEMS)],
     ch: ChClientDependency,
-    current_user: CurrentUserDependency,
-    _auth: None = Depends(require_admin_key_or_org_role(OrgMemberRole.manager)),
+    auth: CatalogWriteAuth,
 ) -> dict[str, int]:
-    count = _svc(ch).bulk_update_products(current_user.organization_id, body)
-    return {"updated": count}
+    return {"updated": _svc(ch, auth).bulk_update_products(body)}

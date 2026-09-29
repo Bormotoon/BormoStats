@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from app.models.bidder import ACCOUNT_ID_PATTERN, MARKETPLACE_PATTERN
 from pydantic import BaseModel, Field
 
 
@@ -14,17 +15,22 @@ class PriceRule(BaseModel):
     max_price: float = 0
     target_margin_percent: float = 0
     is_active: bool = True
+    dry_run: bool = True
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
 
 class PriceRuleCreate(BaseModel):
-    marketplace: str = Field(min_length=2, max_length=10, pattern=r"^(wb|ozon)$")
-    account_id: str = Field(default="default", max_length=64)
+    marketplace: str = Field(min_length=2, max_length=10, pattern=MARKETPLACE_PATTERN)
+    account_id: str = Field(default="default", pattern=ACCOUNT_ID_PATTERN)
     product_id: str = Field(min_length=1, max_length=64)
     min_price: float = Field(default=0, ge=0)
     max_price: float = Field(default=0, ge=0)
     target_margin_percent: float = Field(default=0, ge=0, le=100)
+    dry_run: bool = Field(
+        default=True,
+        description="New rules only simulate price changes until explicitly switched off",
+    )
 
 
 class PriceRuleUpdate(BaseModel):
@@ -32,6 +38,7 @@ class PriceRuleUpdate(BaseModel):
     max_price: float | None = Field(default=None, ge=0)
     target_margin_percent: float | None = Field(default=None, ge=0, le=100)
     is_active: bool | None = None
+    dry_run: bool | None = None
 
 
 class BreakevenRow(BaseModel):

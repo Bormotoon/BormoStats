@@ -12,6 +12,9 @@ FROM mrt_funnel_daily AS f
 WHERE f.day BETWEEN %(date_from)s AND %(date_to)s
   AND (%(marketplace)s = '' OR f.marketplace = %(marketplace)s)
   AND (%(account_id)s = '' OR f.account_id = %(account_id)s)
+  AND (f.marketplace, f.account_id) IN (
+    SELECT marketplace, account_id FROM dim_account FINAL WHERE organization_id = %(organization_id)s
+  )
 GROUP BY f.day, f.marketplace, f.account_id, f.product_id
 ORDER BY f.day, f.product_id
 LIMIT %(limit)s

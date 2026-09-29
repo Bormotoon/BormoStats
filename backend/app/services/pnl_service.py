@@ -1,53 +1,66 @@
+"""P&L: indirect expenses and the monthly P&L mart, scoped to one organization."""
+
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
 from typing import Any
 
-from app.models.pnl import AdditionalExpense, AdditionalExpenseCreate, AdditionalExpenseUpdate, PnlRow
+from app.db.ch import PARTITION_LOCAL_FINAL, insert_values_sql, utc_now
+from app.models.pnl import (
+    AdditionalExpense,
+    AdditionalExpenseCreate,
+    AdditionalExpenseUpdate,
+    PnlRow,
+)
 from clickhouse_connect.driver import Client
 
-_EXP_COLS = "expense_id, organization_id, category, amount_rub, month, description, created_at, updated_at"
-_EXP_INSERT = (
-    "INSERT INTO dim_additional_expense ({cols})"
-    " VALUES ({eid:String}, {oid:String}, {cat:String}, {amt:Float64},"
-    " {month:Date}, {desc:String}, {created:DateTime}, {now:DateTime})"
+_EXP_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("expense_id", "String"),
+    ("organization_id", "String"),
+    ("category", "String"),
+    ("amount_rub", "Float64"),
+    ("month", "Date"),
+    ("description", "String"),
+    ("created_at", "DateTime"),
+    ("updated_at", "DateTime"),
 )
-
-_PNL_COLS = "month, organization_id, marketplace, account_id, revenue_rub, commission_rub, logistics_rub, returns_cost_rub, gross_profit_rub, ad_cost_rub, additional_expenses_rub, operating_profit_rub, ebitda_rub, net_profit_rub, margin_pct"
+_EXP_COLS = ", ".join(name for name, _ in _EXP_COLUMNS)
+_EXP_INSERT = insert_values_sql("dim_additional_expense", _EXP_COLUMNS)
+_PNL_COLS = (
+    "month, organization_id, marketplace, account_id, revenue_rub, commission_rub,"
+    " logistics_rub, returns_cost_rub, gross_profit_rub, ad_cost_rub, additional_expenses_rub,"
+    " operating_profit_rub, ebitda_rub, net_profit_rub, margin_pct"
+)
 
 
 class PnlService:
-    def __init__(self, ch: Client) -> None:
+    def __init__(self, ch: Client, organization_id: str) -> None:
         self._ch = ch
+        self._org = organization_id
 
-    def list_expenses(self, organization_id: str = "default") -> list[AdditionalExpense]:
+    def list_expenses(self) -> list[AdditionalExpense]:
         rows = self._ch.query(
             f"SELECT {_EXP_COLS} FROM dim_additional_expense FINAL"
             " WHERE organization_id = {oid:String} ORDER BY month DESC, category",
-            parameters={"oid": organization_id},
+            parameters={"oid": self._org},
         )
         return [_row_to_expense(r) for r in rows.named_results()]
 
-    def create_expense(self, data: AdditionalExpenseCreate) -> AdditionalExpense:
-        now = datetime.utcnow()
-        eid = str(uuid.uuid4())[:8]
-        self._ch.command(
-            _EXP_INSERT.format(cols=_EXP_COLS),
-            parameters={
-                "eid": eid,
-                "oid": data.organization_id,
-                "cat": data.category,
-                "amt": data.amount_rub,
-                "month": data.month + "-01",
-                "desc": data.description,
-                "created": now,
-                "now": now,
-            },
+    def get_expense(self, expense_id: str) -> AdditionalExpense | None:
+        rows = self._ch.query(
+            f"SELECT {_EXP_COLS} FROM dim_additional_expense FINAL"
+            " WHERE organization_id = {oid:String} AND expense_id = {eid:String} LIMIT 1",
+            parameters={"oid": self._org, "eid": expense_id},
         )
-        return AdditionalExpense(
-            expense_id=eid,
-            organization_id=data.organization_id,
+        for r in rows.named_results():
+            return _row_to_expense(r)
+        return None
+
+    def create_expense(self, data: AdditionalExpenseCreate) -> AdditionalExpense:
+        now = utc_now()
+        expense = AdditionalExpense(
+            expense_id=str(uuid.uuid4()),
+            organization_id=self._org,
             category=data.category,
             amount_rub=data.amount_rub,
             month=data.month,
@@ -55,60 +68,59 @@ class PnlService:
             created_at=now,
             updated_at=now,
         )
+        self._write(expense)
+        return expense
 
-    def update_expense(self, expense_id: str, data: AdditionalExpenseUpdate) -> AdditionalExpense | None:
-        rows = self._ch.query(
-            f"SELECT {_EXP_COLS} FROM dim_additional_expense FINAL WHERE expense_id = {{eid:String}}",
-            parameters={"eid": expense_id},
-        )
-        existing = None
-        for r in rows.named_results():
-            existing = _row_to_expense(r)
+    def update_expense(
+        self, expense_id: str, data: AdditionalExpenseUpdate
+    ) -> AdditionalExpense | None:
+        existing = self.get_expense(expense_id)
         if existing is None:
             return None
-        now = datetime.utcnow()
-        category = data.category if data.category is not None else existing.category
-        amount = data.amount_rub if data.amount_rub is not None else existing.amount_rub
-        month = data.month if data.month is not None else existing.month
-        desc = data.description if data.description is not None else existing.description
-        self._ch.command(
-            _EXP_INSERT.format(cols=_EXP_COLS),
-            parameters={
-                "eid": expense_id,
-                "oid": existing.organization_id,
-                "cat": category,
-                "amt": amount,
-                "month": month + "-01",
-                "desc": desc,
-                "created": existing.created_at or now,
-                "now": now,
-            },
+        now = utc_now()
+        expense = existing.model_copy(
+            update={
+                **data.model_dump(exclude_none=True),
+                "created_at": existing.created_at or now,
+                "updated_at": now,
+            }
         )
-        return AdditionalExpense(
-            expense_id=expense_id,
-            organization_id=existing.organization_id,
-            category=category,
-            amount_rub=amount,
-            month=month,
-            description=desc,
-            created_at=existing.created_at or now,
-            updated_at=now,
-        )
+        self._write(expense)
+        return expense
 
     def delete_expense(self, expense_id: str) -> bool:
+        if self.get_expense(expense_id) is None:
+            return False
         self._ch.command(
-            "ALTER TABLE dim_additional_expense DELETE WHERE expense_id = %(eid)s",
-            parameters={"eid": expense_id},
+            "ALTER TABLE dim_additional_expense DELETE"
+            " WHERE organization_id = {oid:String} AND expense_id = {eid:String}",
+            parameters={"oid": self._org, "eid": expense_id},
         )
         return True
 
-    def get_pnl(self, organization_id: str = "default") -> list[PnlRow]:
+    def get_pnl(self) -> list[PnlRow]:
         rows = self._ch.query(
             f"SELECT {_PNL_COLS} FROM mrt_pnl_monthly FINAL"
             " WHERE organization_id = {oid:String} ORDER BY month DESC, marketplace",
-            parameters={"oid": organization_id},
+            parameters={"oid": self._org},
+            settings=PARTITION_LOCAL_FINAL,
         )
         return [_row_to_pnl(r) for r in rows.named_results()]
+
+    def _write(self, expense: AdditionalExpense) -> None:
+        self._ch.command(
+            _EXP_INSERT,
+            parameters={
+                "expense_id": expense.expense_id,
+                "organization_id": expense.organization_id,
+                "category": expense.category,
+                "amount_rub": expense.amount_rub,
+                "month": f"{expense.month}-01",
+                "description": expense.description,
+                "created_at": expense.created_at,
+                "updated_at": expense.updated_at,
+            },
+        )
 
 
 def _row_to_expense(r: dict[str, Any]) -> AdditionalExpense:

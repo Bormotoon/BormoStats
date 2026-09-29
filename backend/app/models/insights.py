@@ -4,6 +4,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+TASK_STATUS_PATTERN = r"^(open|in_progress|resolved|dismissed)$"
+
 
 class ActionableTask(BaseModel):
     task_id: str
@@ -17,9 +19,10 @@ class ActionableTask(BaseModel):
     description: str = ""
     priority: str = "medium"
     status: str = "open"
+    dedupe_key: str = ""
     created_at: datetime | None = None
     resolved_at: datetime | None = None
 
 
 class TaskUpdate(BaseModel):
-    status: str = Field(pattern=r"^(open|in_progress|resolved|dismissed)$")
+    status: str = Field(pattern=TASK_STATUS_PATTERN)

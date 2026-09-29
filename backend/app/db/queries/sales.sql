@@ -11,6 +11,9 @@ FROM mrt_sales_daily
 WHERE day BETWEEN %(date_from)s AND %(date_to)s
   AND (%(marketplace)s = '' OR marketplace = %(marketplace)s)
   AND (%(account_id)s = '' OR account_id = %(account_id)s)
+  AND (marketplace, account_id) IN (
+    SELECT marketplace, account_id FROM dim_account FINAL WHERE organization_id = %(organization_id)s
+  )
 GROUP BY day, marketplace, account_id, product_id
 ORDER BY day, revenue DESC
 LIMIT %(limit)s

@@ -21,7 +21,6 @@ class AdditionalExpenseCreate(BaseModel):
     amount_rub: float = Field(ge=0)
     month: str = Field(pattern=r"^\d{4}-\d{2}$")
     description: str = Field(default="", max_length=500)
-    organization_id: str = Field(default="default", max_length=64)
 
 
 class AdditionalExpenseUpdate(BaseModel):

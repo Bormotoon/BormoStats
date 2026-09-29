@@ -1,8 +1,10 @@
+"""PIM: brands, categories and product enrichment, scoped to one organization."""
+
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
 
+from app.db.ch import insert_values_sql, utc_now
 from app.models.pim import (
     Brand,
     BrandCreate,
@@ -14,261 +16,246 @@ from app.models.pim import (
     ProductPimBulkUpdateItem,
     ProductPimUpdate,
 )
+from app.services.tenancy import ensure_account_access
 from clickhouse_connect.driver import Client
+
+_BRAND_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("brand_id", "String"),
+    ("organization_id", "String"),
+    ("name", "String"),
+    ("description", "String"),
+    ("logo_url", "String"),
+    ("created_at", "DateTime"),
+    ("updated_at", "DateTime"),
+)
+_CATEGORY_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("category_id", "String"),
+    ("organization_id", "String"),
+    ("name", "String"),
+    ("parent_id", "Nullable(String)"),
+    ("path", "String"),
+    ("created_at", "DateTime"),
+    ("updated_at", "DateTime"),
+)
+_PRODUCT_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("organization_id", "String"),
+    ("marketplace", "String"),
+    ("account_id", "String"),
+    ("product_id", "String"),
+    ("title", "String"),
+    ("description", "String"),
+    ("seo_keywords", "String"),
+    ("brand_id", "Nullable(String)"),
+    ("category_id", "Nullable(String)"),
+    ("images", "Array(String)"),
+    ("updated_at", "DateTime"),
+)
+_BRAND_COLS = ", ".join(name for name, _ in _BRAND_COLUMNS)
+_CATEGORY_COLS = ", ".join(name for name, _ in _CATEGORY_COLUMNS)
+_PRODUCT_COLS = ", ".join(name for name, _ in _PRODUCT_COLUMNS)
+_BRAND_INSERT = insert_values_sql("dim_brand", _BRAND_COLUMNS)
+_CATEGORY_INSERT = insert_values_sql("dim_category", _CATEGORY_COLUMNS)
+_PRODUCT_INSERT = insert_values_sql("dim_product_pim", _PRODUCT_COLUMNS)
+_PRODUCT_LIST_LIMIT = 500
 
 
 class PimService:
-    def __init__(self, ch: Client) -> None:
+    def __init__(self, ch: Client, organization_id: str) -> None:
         self._ch = ch
+        self._org = organization_id
 
     # -- Brands -------------------------------------------------------------------
 
-    def list_brands(self, organization_id: str) -> list[Brand]:
+    def list_brands(self) -> list[Brand]:
         rows = self._ch.query(
-            "SELECT brand_id, organization_id, name, description, logo_url, created_at, updated_at"
-            " FROM dim_brand FINAL WHERE organization_id = {oid:String} ORDER BY name",
-            parameters={"oid": organization_id},
+            f"SELECT {_BRAND_COLS} FROM dim_brand FINAL"
+            " WHERE organization_id = {oid:String} ORDER BY name",
+            parameters={"oid": self._org},
         )
         return [Brand(**r) for r in rows.named_results()]
 
     def get_brand(self, brand_id: str) -> Brand | None:
         rows = self._ch.query(
-            "SELECT brand_id, organization_id, name, description, logo_url, created_at, updated_at"
-            " FROM dim_brand FINAL WHERE brand_id = {bid:String}",
-            parameters={"bid": brand_id},
+            f"SELECT {_BRAND_COLS} FROM dim_brand FINAL"
+            " WHERE organization_id = {oid:String} AND brand_id = {bid:String} LIMIT 1",
+            parameters={"oid": self._org, "bid": brand_id},
         )
         for r in rows.named_results():
             return Brand(**r)
         return None
 
     def create_brand(self, data: BrandCreate) -> Brand:
-        brand_id = data.brand_id or str(uuid.uuid4())[:12]
-        now = datetime.utcnow()
-        self._ch.command(
-            "INSERT INTO dim_brand (brand_id, organization_id, name, description, logo_url, created_at, updated_at)"
-            " VALUES ({bid:String}, {oid:String}, {name:String}, {desc:String}, {logo:String}, {created:DateTime}, {updated:DateTime})",
-            parameters={
-                "bid": brand_id,
-                "oid": "default",
-                "name": data.name,
-                "desc": data.description,
-                "logo": data.logo_url,
-                "created": now,
-                "updated": now,
-            },
+        now = utc_now()
+        brand = Brand(
+            brand_id=data.brand_id or str(uuid.uuid4()),
+            organization_id=self._org,
+            name=data.name,
+            description=data.description,
+            logo_url=data.logo_url,
+            created_at=now,
+            updated_at=now,
         )
-        return Brand(brand_id=brand_id, organization_id="default", name=data.name, description=data.description, logo_url=data.logo_url, created_at=now, updated_at=now)
+        self._ch.command(_BRAND_INSERT, parameters=brand.model_dump())
+        return brand
 
     def update_brand(self, brand_id: str, data: BrandUpdate) -> Brand | None:
         existing = self.get_brand(brand_id)
-        if not existing:
+        if existing is None:
             return None
-        now = datetime.utcnow()
-        self._ch.command(
-            "INSERT INTO dim_brand (brand_id, organization_id, name, description, logo_url, created_at, updated_at)"
-            " VALUES ({bid:String}, {oid:String}, {name:String}, {desc:String}, {logo:String}, {created:DateTime}, {updated:DateTime})",
-            parameters={
-                "bid": brand_id,
-                "oid": existing.organization_id,
-                "name": data.name or existing.name,
-                "desc": data.description if data.description is not None else existing.description,
-                "logo": data.logo_url if data.logo_url is not None else existing.logo_url,
-                "created": existing.created_at or now,
-                "updated": now,
-            },
+        now = utc_now()
+        brand = existing.model_copy(
+            update={
+                **data.model_dump(exclude_none=True),
+                "created_at": existing.created_at or now,
+                "updated_at": now,
+            }
         )
-        return self.get_brand(brand_id)
+        self._ch.command(_BRAND_INSERT, parameters=brand.model_dump())
+        return brand
 
     def delete_brand(self, brand_id: str) -> bool:
-        existing = self.get_brand(brand_id)
-        if not existing:
+        if self.get_brand(brand_id) is None:
             return False
         self._ch.command(
-            "ALTER TABLE dim_brand DELETE WHERE brand_id = {bid:String}",
-            parameters={"bid": brand_id},
+            "ALTER TABLE dim_brand DELETE"
+            " WHERE organization_id = {oid:String} AND brand_id = {bid:String}",
+            parameters={"oid": self._org, "bid": brand_id},
         )
         return True
 
     # -- Categories ---------------------------------------------------------------
 
-    def list_categories(self, organization_id: str) -> list[Category]:
+    def list_categories(self) -> list[Category]:
         rows = self._ch.query(
-            "SELECT category_id, organization_id, name, parent_id, path, created_at, updated_at"
-            " FROM dim_category FINAL WHERE organization_id = {oid:String} ORDER BY name",
-            parameters={"oid": organization_id},
+            f"SELECT {_CATEGORY_COLS} FROM dim_category FINAL"
+            " WHERE organization_id = {oid:String} ORDER BY name",
+            parameters={"oid": self._org},
         )
         return [Category(**r) for r in rows.named_results()]
 
     def get_category(self, category_id: str) -> Category | None:
         rows = self._ch.query(
-            "SELECT category_id, organization_id, name, parent_id, path, created_at, updated_at"
-            " FROM dim_category FINAL WHERE category_id = {cid:String}",
-            parameters={"cid": category_id},
+            f"SELECT {_CATEGORY_COLS} FROM dim_category FINAL"
+            " WHERE organization_id = {oid:String} AND category_id = {cid:String} LIMIT 1",
+            parameters={"oid": self._org, "cid": category_id},
         )
         for r in rows.named_results():
             return Category(**r)
         return None
 
+    def _category_path(self, name: str, parent_id: str | None) -> str:
+        if parent_id:
+            parent = self.get_category(parent_id)
+            if parent is not None:
+                return f"{parent.path}/{name}"
+        return name
+
     def create_category(self, data: CategoryCreate) -> Category:
-        category_id = data.category_id or str(uuid.uuid4())[:12]
-        now = datetime.utcnow()
-        path = data.name
-        if data.parent_id:
-            parent = self.get_category(data.parent_id)
-            if parent:
-                path = f"{parent.path}/{data.name}"
-        self._ch.command(
-            "INSERT INTO dim_category (category_id, organization_id, name, parent_id, path, created_at, updated_at)"
-            " VALUES ({cid:String}, {oid:String}, {name:String}, {pid:Nullable(String)}, {path:String}, {created:DateTime}, {updated:DateTime})",
-            parameters={
-                "cid": category_id,
-                "oid": "default",
-                "name": data.name,
-                "pid": data.parent_id,
-                "path": path,
-                "created": now,
-                "updated": now,
-            },
+        now = utc_now()
+        category = Category(
+            category_id=data.category_id or str(uuid.uuid4()),
+            organization_id=self._org,
+            name=data.name,
+            parent_id=data.parent_id,
+            path=self._category_path(data.name, data.parent_id),
+            created_at=now,
+            updated_at=now,
         )
-        return Category(category_id=category_id, organization_id="default", name=data.name, parent_id=data.parent_id, path=path, created_at=now, updated_at=now)
+        self._ch.command(_CATEGORY_INSERT, parameters=category.model_dump())
+        return category
 
     def update_category(self, category_id: str, data: CategoryUpdate) -> Category | None:
         existing = self.get_category(category_id)
-        if not existing:
+        if existing is None:
             return None
-        now = datetime.utcnow()
+        now = utc_now()
         name = data.name or existing.name
         parent_id = data.parent_id if data.parent_id is not None else existing.parent_id
-        path = name
-        if parent_id:
-            parent = self.get_category(parent_id)
-            if parent:
-                path = f"{parent.path}/{name}"
-        self._ch.command(
-            "INSERT INTO dim_category (category_id, organization_id, name, parent_id, path, created_at, updated_at)"
-            " VALUES ({cid:String}, {oid:String}, {name:String}, {pid:Nullable(String)}, {path:String}, {created:DateTime}, {updated:DateTime})",
-            parameters={
-                "cid": category_id,
-                "oid": existing.organization_id,
+        category = existing.model_copy(
+            update={
                 "name": name,
-                "pid": parent_id,
-                "path": path,
-                "created": existing.created_at or now,
-                "updated": now,
-            },
+                "parent_id": parent_id,
+                "path": self._category_path(name, parent_id),
+                "created_at": existing.created_at or now,
+                "updated_at": now,
+            }
         )
-        return self.get_category(category_id)
+        self._ch.command(_CATEGORY_INSERT, parameters=category.model_dump())
+        return category
 
     def delete_category(self, category_id: str) -> bool:
-        existing = self.get_category(category_id)
-        if not existing:
+        if self.get_category(category_id) is None:
             return False
         self._ch.command(
-            "ALTER TABLE dim_category DELETE WHERE category_id = {cid:String}",
-            parameters={"cid": category_id},
+            "ALTER TABLE dim_category DELETE"
+            " WHERE organization_id = {oid:String} AND category_id = {cid:String}",
+            parameters={"oid": self._org, "cid": category_id},
         )
         return True
 
     # -- Product PIM --------------------------------------------------------------
 
     def list_products(
-        self, organization_id: str, marketplace: str | None = None, account_id: str | None = None, q: str | None = None
+        self,
+        marketplace: str | None = None,
+        account_id: str | None = None,
+        q: str | None = None,
     ) -> list[ProductPim]:
-        where = ["pim.organization_id = {oid:String}"]
-        params: dict[str, object] = {"oid": organization_id}
+        where = ["organization_id = {oid:String}"]
+        params: dict[str, object] = {"oid": self._org, "lim": _PRODUCT_LIST_LIMIT}
         if marketplace:
-            where.append("pim.marketplace = {mp:String}")
+            where.append("marketplace = {mp:String}")
             params["mp"] = marketplace
         if account_id:
-            where.append("pim.account_id = {aid:String}")
+            where.append("account_id = {aid:String}")
             params["aid"] = account_id
         if q:
-            where.append("(pim.title ILIKE {q:String} OR p.product_id ILIKE {q2:String})")
-            params["q"] = f"%{q}%"
-            params["q2"] = f"%{q}%"
-        clause = " AND ".join(where)
+            where.append(
+                "(positionCaseInsensitiveUTF8(title, {q:String}) > 0 OR product_id = {q:String})"
+            )
+            params["q"] = q
         rows = self._ch.query(
-            "SELECT pim.organization_id, pim.marketplace, pim.account_id, pim.product_id,"
-            " pim.title, pim.description, pim.seo_keywords, pim.brand_id, pim.category_id,"
-            " pim.images, pim.updated_at"
-            " FROM dim_product_pim FINAL pim"
-            f" WHERE {clause}"
-            " ORDER BY pim.updated_at DESC"
-            " LIMIT 500",
+            f"SELECT {_PRODUCT_COLS} FROM dim_product_pim FINAL"
+            f" WHERE {' AND '.join(where)} ORDER BY updated_at DESC LIMIT {{lim:UInt32}}",
             parameters=params,
         )
         return [ProductPim(**r) for r in rows.named_results()]
 
     def get_product(self, marketplace: str, account_id: str, product_id: str) -> ProductPim | None:
         rows = self._ch.query(
-            "SELECT organization_id, marketplace, account_id, product_id, title, description,"
-            " seo_keywords, brand_id, category_id, images, updated_at"
-            " FROM dim_product_pim FINAL"
-            " WHERE marketplace = {mp:String} AND account_id = {aid:String} AND product_id = {pid:String}",
-            parameters={"mp": marketplace, "aid": account_id, "pid": product_id},
+            f"SELECT {_PRODUCT_COLS} FROM dim_product_pim FINAL"
+            " WHERE organization_id = {oid:String} AND marketplace = {mp:String}"
+            " AND account_id = {aid:String} AND product_id = {pid:String} LIMIT 1",
+            parameters={"oid": self._org, "mp": marketplace, "aid": account_id, "pid": product_id},
         )
         for r in rows.named_results():
             return ProductPim(**r)
         return None
 
     def upsert_product(self, data: ProductPim) -> ProductPim:
-        now = datetime.utcnow()
-        self._ch.command(
-            "INSERT INTO dim_product_pim (organization_id, marketplace, account_id, product_id, title,"
-            " description, seo_keywords, brand_id, category_id, images, updated_at)"
-            " VALUES ({oid:String}, {mp:String}, {aid:String}, {pid:String}, {title:String},"
-            " {desc:String}, {seo:String}, {bid:Nullable(String)}, {cid:Nullable(String)},"
-            " {images:Array(String)}, {updated:DateTime})",
-            parameters={
-                "oid": data.organization_id,
-                "mp": data.marketplace,
-                "aid": data.account_id,
-                "pid": data.product_id,
-                "title": data.title,
-                "desc": data.description,
-                "seo": data.seo_keywords,
-                "bid": data.brand_id,
-                "cid": data.category_id,
-                "images": data.images,
-                "updated": now,
-            },
-        )
-        return ProductPim(
-            organization_id=data.organization_id,
-            marketplace=data.marketplace,
-            account_id=data.account_id,
-            product_id=data.product_id,
-            title=data.title,
-            description=data.description,
-            seo_keywords=data.seo_keywords,
-            brand_id=data.brand_id,
-            category_id=data.category_id,
-            images=data.images,
-            updated_at=now,
-        )
+        product = data.model_copy(update={"organization_id": self._org, "updated_at": utc_now()})
+        self._ch.command(_PRODUCT_INSERT, parameters=product.model_dump())
+        return product
 
-    def update_product(self, marketplace: str, account_id: str, product_id: str, data: ProductPimUpdate) -> ProductPim | None:
+    def update_product(
+        self, marketplace: str, account_id: str, product_id: str, data: ProductPimUpdate
+    ) -> ProductPim | None:
         existing = self.get_product(marketplace, account_id, product_id)
-        if not existing:
-            return None
-        merged = ProductPim(
-            organization_id=existing.organization_id,
-            marketplace=marketplace,
-            account_id=account_id,
-            product_id=product_id,
-            title=data.title if data.title is not None else existing.title,
-            description=data.description if data.description is not None else existing.description,
-            seo_keywords=data.seo_keywords if data.seo_keywords is not None else existing.seo_keywords,
-            brand_id=data.brand_id if data.brand_id is not None else existing.brand_id,
-            category_id=data.category_id if data.category_id is not None else existing.category_id,
-            images=data.images if data.images is not None else existing.images,
-            updated_at=datetime.utcnow(),
-        )
-        return self.upsert_product(merged)
+        if existing is None:
+            # Enrichment of a product the org owns but has not edited yet.
+            ensure_account_access(self._ch, self._org, marketplace, account_id)
+            existing = ProductPim(
+                organization_id=self._org,
+                marketplace=marketplace,
+                account_id=account_id,
+                product_id=product_id,
+            )
+        changes = ProductPimUpdate.model_validate(data.model_dump()).model_dump(exclude_none=True)
+        return self.upsert_product(existing.model_copy(update=changes))
 
-    def bulk_update_products(self, organization_id: str, updates: list[ProductPimBulkUpdateItem]) -> int:
-        count = 0
+    def bulk_update_products(self, updates: list[ProductPimBulkUpdateItem]) -> int:
+        for account in {(u.marketplace, u.account_id) for u in updates}:
+            ensure_account_access(self._ch, self._org, *account)
         for upd in updates:
             self.update_product(upd.marketplace, upd.account_id, upd.product_id, upd)
-            count += 1
-        return count
+        return len(updates)
