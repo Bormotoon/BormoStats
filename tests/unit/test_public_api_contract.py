@@ -75,7 +75,7 @@ def test_public_endpoint_adds_pagination_and_passes_offset(
     calls: list[dict[str, object]] = []
 
     class FakeMetricsService:
-        def __init__(self, client: object) -> None:
+        def __init__(self, client: object, cache: object = None) -> None:
             self.client = client
 
         def sales_daily(self, **kwargs: object) -> list[dict[str, object]]:
@@ -111,7 +111,7 @@ def test_public_endpoint_sanitizes_unhandled_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class ExplodingMetricsService:
-        def __init__(self, client: object) -> None:
+        def __init__(self, client: object, cache: object = None) -> None:
             self.client = client
 
         def sales_daily(self, **kwargs: object) -> list[dict[str, object]]:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from app.api.errors import API_ERROR_RESPONSES
 from app.core.auth import AnalyticsReadAuth
-from app.core.deps import ChClientDependency
+from app.core.deps import ChClientDependency, QueryCacheDependency
 from app.models.api import (
     DateRangeQueryParams,
     build_paginated_response,
@@ -22,8 +22,9 @@ def funnel_daily(
     auth: AnalyticsReadAuth,
     filters: DateRangeQueryParams = Depends(get_date_range_query_params),
     client: ChClientDependency,
+    cache: QueryCacheDependency,
 ) -> dict[str, object]:
-    service = MetricsService(client)
+    service = MetricsService(client, cache)
     items = service.funnel_daily(
         organization_id=auth.organization_id,
         date_from=filters.date_from,

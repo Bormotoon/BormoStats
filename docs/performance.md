@@ -55,6 +55,42 @@ These limits reflect the current runtime and locking model:
 - If mart volumes grow further, prefer projections/materialized views for the dashboard
   aggregates over running `OPTIMIZE … FINAL`.
 
+## Caching
+
+Two layers, both safe to lose (a cold cache only costs latency).
+
+**Analytics queries (Redis).** `MetricsService` — the `sales`, `stocks`, `funnel`, `ads` and `kpis`
+endpoints — reads through `app.services.query_cache.QueryCache`:
+
+- Key: SHA-256 of the query name and all parameters, which always include `organization_id`, so
+  tenants never share entries. Values are JSON (never pickle).
+- TTL: `QUERY_CACHE_TTL_SECONDS` (default 300; `0` disables). Every entry has a TTL because Redis
+  is also the Celery broker and runs without an eviction policy. Results larger than
+  `QUERY_CACHE_MAX_ENTRY_BYTES` (1 MiB) are served but not stored.
+- Invalidation: a generation counter (`bormostats:qcache:v1:generation`, see
+  `common/query_cache.py`). A successful mart rebuild (`tasks.marts.*`) and shop account
+  create/update or organization delete increment it; entries from an older generation are misses.
+  The entry and the generation come back in one `MGET`, so a lookup is a single round trip.
+- Failure mode: fail open. A Redis error sends the request to ClickHouse and pauses the cache for
+  30 s, so an outage costs one 250 ms timeout per backend process, not one per request.
+- Metric: `backend_query_cache_requests_total{query, result=hit|miss|bypass|error|oversize}`.
+
+When adding a new read endpoint over marts, pass `QueryCacheDependency` to its service the same
+way. Do not cache data written through the API itself (rules, costs, PIM) unless the write path
+also calls `QueryCache.invalidate()`.
+
+**Web UI assets (browser + nginx).** `app.core.static_files.CachedStaticFiles` serves `/ui`:
+
+| Files | `Cache-Control` |
+| --- | --- |
+| `assets/*-<hash>.*` (Vite bundles) | `public, max-age=31536000, immutable` |
+| `*.html` | `no-cache` (revalidated with ETag / `If-None-Match` → 304) |
+| everything else (`favicon.svg`, the legacy unbundled UI) | `public, max-age=3600` |
+
+nginx keeps `/ui/assets/` in the `ui_assets` proxy cache (tmpfs, 100 MB, 30 days inactive) and
+gzips `/ui/` responses. API responses are not cached or compressed by the proxy: they depend on
+the caller's API key.
+
 ## Pagination
 
 List endpoints fetch `limit + 1` rows to compute `has_more`/`next_offset` without a

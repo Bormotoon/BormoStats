@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from app.api.errors import API_ERROR_RESPONSES
 from app.core.auth import AnalyticsReadAuth
-from app.core.deps import ChClientDependency
+from app.core.deps import ChClientDependency, QueryCacheDependency
 from app.models.api import ListQueryParams, build_paginated_response, get_list_query_params
 from app.services.metrics_service import MetricsService
 from fastapi import APIRouter, Depends
@@ -18,8 +18,9 @@ def kpis(
     auth: AnalyticsReadAuth,
     filters: ListQueryParams = Depends(get_list_query_params),
     client: ChClientDependency,
+    cache: QueryCacheDependency,
 ) -> dict[str, object]:
-    service = MetricsService(client)
+    service = MetricsService(client, cache)
     items = service.kpis(
         organization_id=auth.organization_id,
         marketplace=filters.marketplace,

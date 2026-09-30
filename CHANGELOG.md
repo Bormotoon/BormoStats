@@ -38,6 +38,16 @@ and every run was logged as `skipped` instead of failing.
 
 ### Added
 
+- **Analytics query cache.** `sales`, `stocks`, `funnel`, `ads` and `kpis` results are cached in
+  Redis per organization and parameters for `QUERY_CACHE_TTL_SECONDS` (300 s; `0` disables).
+  A successful mart rebuild or a shop account change invalidates every entry at once. The cache
+  fails open: if Redis is unavailable, queries go to ClickHouse and the cache pauses for 30 s.
+  Metric: `backend_query_cache_requests_total{query,result}`.
+- **UI asset caching.** Content-hashed bundles under `/ui/assets/` are served with
+  `Cache-Control: public, max-age=31536000, immutable`, `index.html` with `no-cache` (revalidated
+  via ETag, so a deploy is picked up on the next load). nginx keeps hashed bundles in a proxy cache
+  and gzips UI responses; API responses are neither cached nor compressed by the proxy.
+
 - **History store** ([docs/history.md](docs/history.md)): a git-like, append-only archive in
   ClickHouse (`hist_objects`, `hist_commits`, `hist_refs`, `hist_changes`).
   - Hourly snapshots of every product card (WB Content + Prices API, Ozon product info, attributes

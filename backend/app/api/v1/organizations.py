@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from app.api.errors import API_ERROR_RESPONSES
 from app.core.auth import require_platform_admin
-from app.core.deps import ChClientDependency
+from app.core.deps import ChClientDependency, QueryCacheDependency
 from app.models.organization import (
     Organization,
     OrganizationCreate,
@@ -27,6 +27,12 @@ router = APIRouter(
 
 def _svc(ch: ChClientDependency) -> OrganizationService:
     return OrganizationService(ch)
+
+
+def _invalidate_analytics(cache: QueryCacheDependency) -> None:
+    # Analytics queries are scoped through dim_account; reassigning accounts changes them.
+    if cache is not None:
+        cache.invalidate()
 
 
 # Global account listing (all orgs)
@@ -79,10 +85,12 @@ def update_organization(
 def delete_organization(
     org_id: str,
     ch: ChClientDependency,
+    cache: QueryCacheDependency,
 ) -> dict[str, bool]:
     ok = _svc(ch).delete_organization(org_id)
     if not ok:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="organization not found")
+    _invalidate_analytics(cache)
     return {"deleted": True}
 
 
@@ -143,8 +151,11 @@ def create_shop_account(
     org_id: str,
     body: ShopAccountCreate,
     ch: ChClientDependency,
+    cache: QueryCacheDependency,
 ) -> ShopAccount:
-    return _svc(ch).create_shop_account(body, organization_id=org_id)
+    account = _svc(ch).create_shop_account(body, organization_id=org_id)
+    _invalidate_analytics(cache)
+    return account
 
 
 @router.patch("/{org_id}/accounts/{marketplace}/{account_id}")
@@ -154,8 +165,10 @@ def update_shop_account(
     account_id: str,
     body: ShopAccountUpdate,
     ch: ChClientDependency,
+    cache: QueryCacheDependency,
 ) -> ShopAccount:
     acct = _svc(ch).update_shop_account(account_id, marketplace, body, organization_id=org_id)
     if acct is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="shop account not found")
+    _invalidate_analytics(cache)
     return acct

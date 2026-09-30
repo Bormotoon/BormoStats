@@ -12,6 +12,7 @@ from typing import Any
 
 import clickhouse_connect
 from app.db.ch import query_dicts
+from app.services.query_cache import QueryCache
 from app.services.sql_loader import load_sql
 
 _QUERIES_DIR = Path(__file__).resolve().parents[1] / "db" / "queries"
@@ -22,11 +23,21 @@ def _load_sql(name: str) -> str:
 
 
 class MetricsService:
-    def __init__(self, client: clickhouse_connect.driver.Client) -> None:
+    def __init__(
+        self,
+        client: clickhouse_connect.driver.Client,
+        cache: QueryCache | None = None,
+    ) -> None:
         self.client = client
+        self.cache = cache
 
     def _run(self, query_name: str, **parameters: Any) -> list[dict[str, Any]]:
-        return query_dicts(self.client, _load_sql(query_name), parameters)
+        def compute() -> list[dict[str, Any]]:
+            return query_dicts(self.client, _load_sql(query_name), parameters)
+
+        if self.cache is None:
+            return compute()
+        return self.cache.get_or_compute(query_name, parameters, compute)
 
     def sales_daily(
         self,

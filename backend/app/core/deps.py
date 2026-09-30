@@ -16,6 +16,7 @@ import structlog
 from app.core.config import Settings, get_settings
 from app.db.ch import build_raw_client
 from app.models.admin import AdminRequestContext
+from app.services.query_cache import QueryCache
 from fastapi import Depends, FastAPI, Request
 from prometheus_client import Counter, Histogram
 
@@ -34,6 +35,7 @@ CLICKHOUSE_QUERY_ERRORS = Counter(
 )
 
 _CLIENT_LOCK = threading.Lock()
+_QUERY_CACHE_LOCK = threading.Lock()
 
 
 def get_app_settings() -> Settings:
@@ -104,6 +106,40 @@ def get_ch_client(
     return open_ch_client(request.app, settings)
 
 
+def open_query_cache(app: FastAPI, settings: Settings) -> QueryCache | None:
+    """Shared analytics query cache, or ``None`` when ``QUERY_CACHE_TTL_SECONDS`` is 0."""
+    if settings.query_cache_ttl_seconds <= 0:
+        return None
+    with _QUERY_CACHE_LOCK:
+        cache: QueryCache | None = getattr(app.state, "query_cache", None)
+        if cache is None:
+            cache = QueryCache.from_url(
+                settings.authenticated_redis_url,
+                ttl_seconds=settings.query_cache_ttl_seconds,
+                max_entry_bytes=settings.query_cache_max_entry_bytes,
+            )
+            app.state.query_cache = cache
+        return cache
+
+
+def close_query_cache(app: FastAPI) -> None:
+    with _QUERY_CACHE_LOCK:
+        cache: QueryCache | None = getattr(app.state, "query_cache", None)
+        app.state.query_cache = None
+    if cache is not None:
+        try:
+            cache.close()
+        except Exception as exc:
+            LOGGER.warning("query_cache_close_failed", error=str(exc))
+
+
+def get_query_cache(
+    request: Request,
+    settings: Settings = Depends(get_app_settings),
+) -> QueryCache | None:
+    return open_query_cache(request.app, settings)
+
+
 def get_admin_request_context(request: Request) -> AdminRequestContext:
     client_host = request.client.host if request.client is not None else "unknown"
     return AdminRequestContext(
@@ -118,6 +154,7 @@ def get_admin_request_context(request: Request) -> AdminRequestContext:
 
 ChClientDependency = Annotated[clickhouse_connect.driver.Client, Depends(get_ch_client)]
 SettingsDependency = Annotated[Settings, Depends(get_app_settings)]
+QueryCacheDependency = Annotated[QueryCache | None, Depends(get_query_cache)]
 AdminRequestContextDependency = Annotated[
     AdminRequestContext,
     Depends(get_admin_request_context),

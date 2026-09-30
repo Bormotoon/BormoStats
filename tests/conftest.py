@@ -30,6 +30,8 @@ _DEFAULTS = {
     # No background dependency polling while tests run.
     "METRICS_REFRESH_SECONDS": "0",
     "AUTH_CACHE_TTL_SECONDS": "0",
+    # Unit tests have no Redis; tests/unit/test_query_cache.py injects a fake cache.
+    "QUERY_CACHE_TTL_SECONDS": "0",
     "WB_TOKEN_STATISTICS": "test-wb-statistics-token",
     "WB_TOKEN_ANALYTICS": "test-wb-analytics-token",
     "OZON_CLIENT_ID": "test-ozon-client-id",

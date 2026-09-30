@@ -11,6 +11,8 @@ from app.utils.rebuilds import LOGGER as REBUILD_LOGGER
 from app.utils.rebuilds import rebuild_task_scope
 from app.utils.runtime import get_ch_client, get_redis_client, log_task_run, new_run_context
 
+from common.query_cache import bump_generation
+
 _MARTS_DIR = Path(__file__).resolve().parents[1] / "sql" / "marts"
 
 
@@ -57,6 +59,8 @@ def _run_marts(days: int, task_name: str) -> dict[str, str | int]:
             client.command(_load("mrt_profit_daily.sql"), parameters={"days": days})
             client.command(_load("mrt_supply_planning_daily.sql"))
             client.command(_load("mrt_ad_performance_daily.sql"), parameters={"days": ads_days})
+        # The API caches mart reads; drop them now that fresh rows are in place.
+        bump_generation(redis_client)
         log_task_run(
             client,
             task_name,

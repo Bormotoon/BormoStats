@@ -50,6 +50,16 @@ class Settings(BaseSettings):
     metrics_bearer_token: str = Field(default="", alias="METRICS_BEARER_TOKEN")
     metrics_refresh_seconds: int = Field(default=30, alias="METRICS_REFRESH_SECONDS")
     readiness_cache_seconds: float = Field(default=5.0, alias="READINESS_CACHE_SECONDS")
+    query_cache_ttl_seconds: int = Field(
+        default=300,
+        alias="QUERY_CACHE_TTL_SECONDS",
+        description="TTL of cached analytics query results in Redis; 0 disables the cache",
+    )
+    query_cache_max_entry_bytes: int = Field(
+        default=1_048_576,
+        alias="QUERY_CACHE_MAX_ENTRY_BYTES",
+        description="Results larger than this are served but not cached",
+    )
     webhook_secret_key: str = Field(default="", alias="WEBHOOK_SECRET_KEY")
     webhook_allow_private_targets: bool = Field(
         default=False,

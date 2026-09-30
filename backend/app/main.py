@@ -38,12 +38,13 @@ from app.api.v1 import (
 )
 from app.core.auth import ViewerAuth
 from app.core.config import Settings, get_settings
-from app.core.deps import close_ch_client, open_ch_client
+from app.core.deps import close_ch_client, close_query_cache, open_ch_client
 from app.core.logging import configure_logging
 from app.core.observability import ObservabilityMiddleware
 from app.core.ops_metrics import OperationalMetricsRefresher
 from app.core.ratelimit import setup_rate_limiter
 from app.core.security import constant_time_equals
+from app.core.static_files import CachedStaticFiles
 from app.models.api import ApiError, ApiErrorResponse
 from app.services.integrations_service import InvalidSubscriptionError
 from app.services.tenancy import AccountAccessError
@@ -54,7 +55,6 @@ from fastapi.responses import JSONResponse, RedirectResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from redis import Redis
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from starlette.staticfiles import StaticFiles
 
 from common.secret_box import SecretBoxError
 
@@ -101,6 +101,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     finally:
         refresher.stop()
         close_ch_client(application)
+        close_query_cache(application)
         redis_client: Redis | None = getattr(application.state, "redis_client", None)
         if redis_client is not None:
             redis_client.close()
@@ -132,7 +133,7 @@ ui_dir = Path(__file__).resolve().parent / "ui"
 ui_static = ui_dir / "dist"
 if not ui_static.is_dir():
     ui_static = ui_dir
-app.mount("/ui", StaticFiles(directory=ui_static, html=True), name="ui")
+app.mount("/ui", CachedStaticFiles(directory=ui_static, html=True), name="ui")
 
 
 def _error_payload(
