@@ -8,6 +8,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
+import httpx
 from app.utils.celery_helpers import shared_task
 from app.utils.collection import collect_snapshot, insert_rows
 from app.utils.locking import LockNotAcquiredError, lock_scope
@@ -128,13 +129,25 @@ def _postings_schemas() -> tuple[str, ...]:
     return tuple(dict.fromkeys(valid))
 
 
+def _capability_detail(exc: Exception) -> str:
+    """Status, path and a short body of the failed call, so a skip stays diagnosable."""
+    if not isinstance(exc, httpx.HTTPStatusError):
+        return str(exc)[:300]
+    request = exc.request
+    body = " ".join(exc.response.text.split())[:300]
+    return f"{exc.response.status_code} {request.method} {request.url.path}: {body}"
+
+
 def _log_capability_skip(
     ch_client: Any,
     task_name: str,
     run_id: str,
     started_at: datetime,
     source: str,
+    exc: Exception,
 ) -> None:
+    detail = _capability_detail(exc)
+    LOGGER.warning("ozon %s capability unavailable: %s", source, detail)
     log_task_run(
         ch_client,
         task_name,
@@ -142,8 +155,8 @@ def _log_capability_skip(
         started_at,
         "skipped",
         0,
-        f"ozon {source} capability unavailable",
-        meta={"capability": source, "reason": "unavailable_or_forbidden"},
+        f"ozon {source} capability unavailable: {detail}",
+        meta={"capability": source, "reason": "unavailable_or_forbidden", "error": detail},
     )
 
 
@@ -204,7 +217,7 @@ def _collect_postings(account_id: str, from_ts: datetime | None = None) -> dict[
             return {"status": "success", "rows": inserted, "watermark": now_ts.isoformat()}
         except Exception as exc:
             if is_capability_error(exc):
-                _log_capability_skip(ch_client, task_name, run_id, started_at, "postings")
+                _log_capability_skip(ch_client, task_name, run_id, started_at, "postings", exc)
                 return {"status": "skipped", "reason": "capability_unavailable"}
             log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
             raise
@@ -316,7 +329,7 @@ def _collect_finance(account_id: str, from_day: date | None = None) -> dict[str,
             }
         except Exception as exc:
             if is_capability_error(exc):
-                _log_capability_skip(ch_client, task_name, run_id, started_at, "finance")
+                _log_capability_skip(ch_client, task_name, run_id, started_at, "finance", exc)
                 return {"status": "skipped", "reason": "capability_unavailable"}
             log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
             raise
@@ -446,7 +459,7 @@ def ozon_ads_daily(
                 }
             except Exception as exc:
                 if is_capability_error(exc):
-                    _log_capability_skip(ch_client, task_name, run_id, started_at, "ads")
+                    _log_capability_skip(ch_client, task_name, run_id, started_at, "ads", exc)
                     return {"status": "skipped", "reason": "capability_unavailable"}
                 log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
                 raise
