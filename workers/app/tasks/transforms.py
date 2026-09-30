@@ -103,5 +103,5 @@ def transform_all_recent() -> dict[str, int | str]:
 
 @shared_task(name="tasks.transforms.transform_backfill_days")
 def transform_backfill_days(days: int = 14) -> dict[str, int | str]:
-    safe_days = max(1, min(days, 365))
+    safe_days = max(1, min(days, 730))
     return _run_transform(days=safe_days, task_name="tasks.transforms.transform_backfill_days")

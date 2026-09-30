@@ -232,3 +232,14 @@ def test_admin_disabled_returns_sanitized_response(
             },
         )
     ]
+
+
+def test_backfill_limits_follow_marketplace_history_depth() -> None:
+    BackfillRequest(marketplace="ozon", dataset="postings", days=730)
+    BackfillRequest(marketplace="ozon", dataset="finance", days=730)
+    BackfillRequest(marketplace="wb", dataset="funnel", days=364)
+
+    with pytest.raises(ValidationError):
+        BackfillRequest(marketplace="wb", dataset="funnel", days=365)
+    with pytest.raises(ValidationError):
+        BackfillRequest(marketplace="wb", dataset="orders", days=91)

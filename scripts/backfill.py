@@ -11,10 +11,10 @@ import httpx
 ALLOWED_BACKFILLS: dict[tuple[str, str], int] = {
     ("wb", "sales"): 90,
     ("wb", "orders"): 90,
-    ("wb", "funnel"): 90,
-    ("ozon", "postings"): 90,
-    ("ozon", "finance"): 365,
-    ("marts", "build"): 365,
+    ("wb", "funnel"): 364,
+    ("ozon", "postings"): 730,
+    ("ozon", "finance"): 730,
+    ("marts", "build"): 730,
 }
 
 

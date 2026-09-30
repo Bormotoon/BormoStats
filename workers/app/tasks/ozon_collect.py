@@ -235,7 +235,7 @@ def ozon_postings_incremental(account_id: str = OZON_ACCOUNT_ID) -> dict[str, An
 def ozon_postings_backfill_days(
     days: int = 14, account_id: str = OZON_ACCOUNT_ID
 ) -> dict[str, Any]:
-    safe_days = max(1, min(days, 90))
+    safe_days = max(1, min(days, 730))
     try:
         result = _collect_postings(
             account_id=account_id, from_ts=datetime.now(UTC) - timedelta(days=safe_days)
@@ -345,7 +345,7 @@ def ozon_finance_incremental(account_id: str = OZON_ACCOUNT_ID) -> dict[str, Any
 
 @shared_task(name="tasks.ozon_collect.ozon_finance_backfill_days")
 def ozon_finance_backfill_days(days: int = 30, account_id: str = OZON_ACCOUNT_ID) -> dict[str, Any]:
-    safe_days = max(1, min(days, 365))
+    safe_days = max(1, min(days, 730))
     try:
         result = _collect_finance(
             account_id=account_id, from_day=_ozon_today() - timedelta(days=safe_days)

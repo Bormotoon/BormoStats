@@ -13,8 +13,8 @@ BASE_URL = "https://api-seller.ozon.ru"
 POSTINGS_FBS_LIST_PATH = "/v4/posting/fbs/list"
 POSTINGS_FBO_LIST_PATH = "/v3/posting/fbo/list"
 POSTINGS_PAGE_LIMIT = 100
-# Ozon rejects posting periods longer than one year
-POSTINGS_MAX_WINDOW_DAYS = 365
+# Ozon rejects posting periods of a full year (PERIOD_IS_TOO_LONG at 365 days)
+POSTINGS_MAX_WINDOW_DAYS = 364
 
 # FBS / rFBS / FBP stocks; FBO stocks come from the analytics method below
 STOCKS_PATH = "/v4/product/info/stocks"

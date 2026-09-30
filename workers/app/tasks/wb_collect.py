@@ -267,7 +267,7 @@ def wb_funnel_roll(account_id: str = WB_ACCOUNT_ID) -> dict[str, Any]:
 
 @shared_task(name="tasks.wb_collect.wb_funnel_backfill_days")
 def wb_funnel_backfill_days(days: int = 14, account_id: str = WB_ACCOUNT_ID) -> dict[str, Any]:
-    safe_days = max(1, min(days, 365))
+    safe_days = max(1, min(days, 364))
     task_name = "tasks.wb_collect.wb_funnel_backfill_days"
     run_id, started_at = new_run_context()
     wb = _wb_client()

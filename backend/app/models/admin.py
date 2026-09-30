@@ -11,10 +11,10 @@ from pydantic import BaseModel, Field, model_validator
 BACKFILL_MAX_DAYS: dict[tuple[str, str], int] = {
     ("wb", "sales"): 90,
     ("wb", "orders"): 90,
-    ("wb", "funnel"): 90,
-    ("ozon", "postings"): 90,
-    ("ozon", "finance"): 365,
-    ("marts", "build"): 365,
+    ("wb", "funnel"): 364,
+    ("ozon", "postings"): 730,
+    ("ozon", "finance"): 730,
+    ("marts", "build"): 730,
 }
 
 
@@ -54,7 +54,7 @@ class ActionQueueResponse(BaseModel):
 class BackfillRequest(BaseModel):
     marketplace: BackfillMarketplace
     dataset: BackfillDataset
-    days: int = Field(default=14, ge=1, le=365)
+    days: int = Field(default=14, ge=1, le=730)
 
     @model_validator(mode="after")
     def validate_target(self) -> BackfillRequest:
@@ -77,7 +77,7 @@ class TransformRecentRequest(BaseModel):
 
 
 class TransformBackfillRequest(BaseModel):
-    days: int = Field(default=14, ge=1, le=365)
+    days: int = Field(default=14, ge=1, le=730)
 
 
 class BuildMartsRecentRequest(BaseModel):
@@ -85,7 +85,7 @@ class BuildMartsRecentRequest(BaseModel):
 
 
 class BuildMartsBackfillRequest(BaseModel):
-    days: int = Field(default=14, ge=1, le=365)
+    days: int = Field(default=14, ge=1, le=730)
 
 
 class RunAutomationRulesRequest(BaseModel):

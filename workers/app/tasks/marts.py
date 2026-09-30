@@ -100,5 +100,5 @@ def build_marts_recent() -> dict[str, str | int]:
 
 @shared_task(name="tasks.marts.build_marts_backfill_days")
 def build_marts_backfill_days(days: int = 14) -> dict[str, str | int]:
-    safe_days = max(1, min(days, 365))
+    safe_days = max(1, min(days, 730))
     return _run_marts(days=safe_days, task_name="tasks.marts.build_marts_backfill_days")
