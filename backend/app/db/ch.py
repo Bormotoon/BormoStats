@@ -36,7 +36,7 @@ def build_raw_client(
     connect_timeout: int = DEFAULT_CONNECT_TIMEOUT_SECONDS,
     query_timeout: int = DEFAULT_QUERY_TIMEOUT_SECONDS,
 ) -> clickhouse_connect.driver.Client:
-    return clickhouse_connect.get_client(
+    client = clickhouse_connect.get_client(
         host=host,
         port=port,
         username=username,
@@ -50,6 +50,11 @@ def build_raw_client(
         send_receive_timeout=query_timeout + 5,
         settings={"max_execution_time": query_timeout},
     )
+    # The pool above belongs to this client alone, but clickhouse-connect treats a passed-in
+    # pool as shared: close() would leave its sockets open and the manager registered
+    # forever, leaking descriptors for every short-lived client (e.g. the metrics refresher).
+    client._owns_pool_manager = True  # type: ignore[attr-defined]
+    return client
 
 
 def build_client(settings: Settings) -> clickhouse_connect.driver.Client:

@@ -120,7 +120,7 @@ def test_build_client_disables_session_autogeneration(monkeypatch) -> None:
 
     def fake_get_client(**kwargs: object) -> object:
         client_calls.append(dict(kwargs))
-        return object()
+        return SimpleNamespace()
 
     monkeypatch.setattr(backend_ch, "get_pool_manager", fake_pool_manager)
     monkeypatch.setattr(backend_ch.clickhouse_connect, "get_client", fake_get_client)

@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from prometheus_client import generate_latest
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -127,3 +128,28 @@ def test_missing_disk_grant_keeps_clickhouse_ready(monkeypatch) -> None:
     ops_metrics._refresh_clickhouse_metrics(SimpleNamespace())
     payload = generate_latest().decode("utf-8")
     assert 'service_readiness{service="clickhouse"} 1.0' in payload
+
+
+def test_closing_a_built_client_releases_its_pool(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.db.ch import build_raw_client
+    from clickhouse_connect.driver import httputil
+    from clickhouse_connect.driver.httpclient import HttpClient
+    from clickhouse_connect.driver.models import SettingDef
+
+    # skip the server handshake; only the pool bookkeeping is under test
+    def no_handshake(self: HttpClient, *_: object) -> None:
+        self.server_version = "26.2"
+        self.server_settings = {
+            "max_execution_time": SettingDef(name="max_execution_time", value="0", readonly=0)
+        }
+
+    monkeypatch.setattr(HttpClient, "_init_common_settings", no_handshake)
+    client = build_raw_client(
+        host="localhost", port=8123, username="u", password="p", database="db"
+    )
+    pool = client.http  # type: ignore[attr-defined]
+    assert pool in httputil.all_managers
+
+    client.close()
+
+    assert pool not in httputil.all_managers
