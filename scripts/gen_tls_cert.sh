@@ -17,7 +17,12 @@ if ! command -v openssl >/dev/null 2>&1; then
   exit 1
 fi
 
-SAN="DNS:${SERVER_NAME}"
+# browsers only accept an IP address as an IP SAN, never as a DNS name
+if [[ "$SERVER_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  SAN="IP:${SERVER_NAME}"
+else
+  SAN="DNS:${SERVER_NAME}"
+fi
 if [[ "$SERVER_NAME" != "localhost" ]]; then
   SAN="${SAN},DNS:localhost"
 fi

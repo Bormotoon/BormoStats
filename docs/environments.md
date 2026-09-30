@@ -59,3 +59,27 @@ published ports there, but the example templates keep environments collision-fre
 4. Verify alerts, dashboards, `/ready`, `/metrics`, and one bounded admin smoke action in `stage`.
 5. Promote the same commit and pinned image set to `prod` without rebuilding artifacts.
 6. If `prod` fails verification, roll back to the previous known-good commit/images and document the incident.
+
+## Running an environment from its own env file
+
+Several stacks can share a host (for example a stopped `dev` next to a running `prod`). Keep each
+environment's settings in its own git-ignored file, e.g. `.env.prod.local`, and point every tool
+at it:
+
+- `--env-file .env.prod.local` for `docker compose` (variable substitution in the compose file);
+- `APP_ENV_FILE=../../.env.prod.local` **inside** that file: the path, relative to
+  `infra/docker/`, of the file the backend, worker and beat containers read. Without it they fall
+  back to `.env` and start with the other environment's secrets;
+- `ENV_FILE=$PWD/.env.prod.local` for `scripts/bootstrap.sh`, `backup.sh`, `restore_check.sh`,
+  `run_local.sh` and `make` targets.
+
+```bash
+docker compose --project-name bormostats-prod --env-file .env.prod.local \
+  -f infra/docker/docker-compose.yml up -d
+ENV_FILE="$PWD/.env.prod.local" bash scripts/backup.sh
+```
+
+To serve the UI on the local network, set `TLS_SERVER_NAME` to the host's LAN address and
+`PUBLIC_BASE_URL` to `https://<address>:<BACKEND_TLS_HOST_PORT>`, then regenerate the certificate
+(`scripts/gen_tls_cert.sh` skips an existing one). The proxy publishes HTTP/HTTPS on all
+interfaces; ClickHouse, Metabase and the metrics ports stay bound to `127.0.0.1`.

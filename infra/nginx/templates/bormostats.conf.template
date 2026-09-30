@@ -19,6 +19,8 @@ server {
 
   ssl_certificate /etc/nginx/certs/tls.crt;
   ssl_certificate_key /etc/nginx/certs/tls.key;
+  # plain HTTP sent to this port (a typed http://host:<tls port>) gets a redirect, not a 400
+  error_page 497 =301 https://$host:${BACKEND_TLS_HOST_PORT}$request_uri;
   ssl_session_timeout 1d;
   ssl_session_cache shared:SSL:10m;
   ssl_session_tickets off;

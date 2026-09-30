@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="$ROOT_DIR/.env"
+ENV_FILE="${ENV_FILE:-$ROOT_DIR/.env}"
 COMPOSE_FILE="$ROOT_DIR/infra/docker/docker-compose.yml"
 NGINX_CERT_DIR="$ROOT_DIR/infra/nginx/certs"
 PYTHON_BIN="python3"
