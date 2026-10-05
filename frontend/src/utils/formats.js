@@ -28,6 +28,30 @@ export function isoDay(offsetDays = 0) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Moscow" }).format(date);
 }
 
+/** "2026-09-30" (or a timestamp starting with it) as "30.09.2026"; anything else as is. */
+export function ruDate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value ?? ""));
+  return match ? `${match[3]}.${match[2]}.${match[1]}` : String(value ?? "");
+}
+
+/** "06.09.2026 – 05.10.2026": the period a figure covers, for card and table captions. */
+export function periodLabel(dateFrom, dateTo) {
+  return `${ruDate(dateFrom)} – ${ruDate(dateTo)}`;
+}
+
+/** A snapshot time (balances) in Moscow time, as "05.10.2026, 14:00:00". */
+export function formatAsOf(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString("ru-RU", { timeZone: "Europe/Moscow" });
+}
+
+/** An axis tick: digits grouped by thousands, in roubles when `currency`. */
+export function axisNumber(value, currency = false) {
+  const text = Number(value || 0).toLocaleString("ru-RU", { maximumFractionDigits: 0 });
+  return currency ? `${text} ₽` : text;
+}
+
 /** The default period: the last 30 days including today. */
 export const DEFAULT_DATE_FROM_OFFSET = -29;
 

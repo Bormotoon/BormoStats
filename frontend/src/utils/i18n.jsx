@@ -72,10 +72,15 @@ const ru = {
   dashboard: {
     stockUnits: "Ед. остатков", stockItems: "Товаров",
     revenue: "Выручка", salesQty: "Кол-во продаж", adCost: "Расходы на рекламу",
-    period: "за период", sumQty: "выкуплено за период", sumCost: "за период",
+    period: "за период", periodFor: "за", sumQty: "выкуплено", sumCost: "за период",
     items: "позиций", uniqueProducts: "уникальных товаров",
     revenueTrend: "Динамика выручки", adSpendTrend: "Динамика расходов на рекламу",
-    topProducts: "Топ товаров по выручке", nowHint: "сейчас",
+    topProducts: "Топ-10 товаров по выручке", nowHint: "сейчас",
+  },
+  columns: {
+    rank: "№", image_url: "Фото", title: "Название", offer_id: "Артикул продавца",
+    marketplace: "Площадка", account_id: "Кабинет", product_id: "Артикул площадки",
+    day: "День", qty: "Продано, шт", revenue: "Выручка", returns_qty: "Возвраты, шт", payout: "К выплате",
   },
   login: {
     title: "Вход", email: "E-mail", password: "Пароль", submit: "Войти",
@@ -277,10 +282,15 @@ const en = {
   dashboard: {
     stockUnits: "Stock Units", stockItems: "Stock Items",
     revenue: "Revenue", salesQty: "Sales Qty", adCost: "Ad Cost",
-    period: "for period", sumQty: "sold in the period", sumCost: "for the period",
+    period: "for period", periodFor: "for", sumQty: "sold", sumCost: "for the period",
     items: "items", uniqueProducts: "unique products",
     revenueTrend: "Revenue Trend", adSpendTrend: "Ad Spend Trend",
-    topProducts: "Top Products by Revenue", nowHint: "now",
+    topProducts: "Top 10 Products by Revenue", nowHint: "now",
+  },
+  columns: {
+    rank: "#", image_url: "Photo", title: "Name", offer_id: "Seller SKU",
+    marketplace: "Marketplace", account_id: "Account", product_id: "Marketplace ID",
+    day: "Day", qty: "Sold, pcs", revenue: "Revenue", returns_qty: "Returns, pcs", payout: "Payout",
   },
   login: {
     title: "Sign in", email: "E-mail", password: "Password", submit: "Sign in",

@@ -485,6 +485,8 @@ def test_pipeline_smoke_bootstrap_ingest_transform_marts_api(
             "account_id": "default",
             "product_id": "111",
             "title": None,  # no catalogue in the smoke stack
+            "offer_id": None,
+            "image_url": None,
             "qty": 2,
             "revenue": 200.0,
             "returns_qty": 0,

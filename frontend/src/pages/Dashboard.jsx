@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useI18n } from "../utils/i18n.jsx";
 import { request, requestAll } from "../utils/api.js";
-import { sum, groupSeries, totalsBy, moneyFmt, numberFmt, isoDay, DEFAULT_DATE_FROM_OFFSET } from "../utils/formats.js";
+import { sum, groupSeries, totalsBy, moneyFmt, numberFmt, isoDay, periodLabel, formatAsOf, DEFAULT_DATE_FROM_OFFSET } from "../utils/formats.js";
 import MetricCard from "../components/MetricCard.jsx";
 import StatusChip from "../components/StatusChip.jsx";
 import DataTable from "../components/DataTable.jsx";
@@ -51,10 +51,15 @@ export default function Dashboard() {
   if (state.loading) return <Spinner />;
 
   const { sales: salesRows, ads: adsRows, stocks: stockRows, kpis: kpiRows, tasks, health, ready } = state;
+  const period = `${t("dashboard.periodFor")} ${periodLabel(
+    searchParams.get("dateFrom") || isoDay(DEFAULT_DATE_FROM_OFFSET),
+    searchParams.get("dateTo") || isoDay(0),
+  )}`;
   // one row per product over the whole period, not the best product-days
   const topProducts = totalsBy(salesRows, (r) => `${r.marketplace}|${r.account_id}|${r.product_id}`, ["qty", "revenue", "returns_qty", "payout"])
     .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 10);
+    .slice(0, 10)
+    .map((row, i) => ({ ...row, rank: i + 1, marketplace: row.marketplace === "wb" ? "WB" : "Ozon" }));
 
   const taskIcons = { turnover: Package, stagnant: WarningCircle, bad_ad: Megaphone };
   const taskColors = { turnover: "text-blue-600", stagnant: "text-orange-600", bad_ad: "text-red-600" };
@@ -91,9 +96,9 @@ export default function Dashboard() {
       <div className="grid grid-cols-4 md:grid-cols-6 gap-3">
         <MetricCard label={t("common.health")} value={<StatusChip ok={health?.status === "ok"} okText={t("common.healthy")} failText={t("common.unhealthy")} />} subvalue="FastAPI" accent={health?.status === "ok" ? "success" : "error"} />
         <MetricCard label={t("common.ready")} value={<StatusChip ok={ready?.status === "ready"} okText={t("common.readyStatus")} failText={t("common.notReady")} />} subvalue="ClickHouse+Redis" accent={ready?.status === "ready" ? "success" : "error"} />
-        <MetricCard label={t("dashboard.revenue")} value={moneyFmt(sum(salesRows, "revenue"))} subvalue={t("dashboard.period")} className="col-span-2" />
-        <MetricCard label={t("dashboard.salesQty")} value={numberFmt(sum(salesRows, "qty"))} subvalue={t("dashboard.sumQty")} />
-        <MetricCard label={t("dashboard.adCost")} value={moneyFmt(sum(adsRows, "cost"))} subvalue={t("dashboard.sumCost")} />
+        <MetricCard label={t("dashboard.revenue")} value={moneyFmt(sum(salesRows, "revenue"))} subvalue={period} className="col-span-2" />
+        <MetricCard label={t("dashboard.salesQty")} value={numberFmt(sum(salesRows, "qty"))} subvalue={`${t("dashboard.sumQty")} ${period}`} />
+        <MetricCard label={t("dashboard.adCost")} value={moneyFmt(sum(adsRows, "cost"))} subvalue={period} />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -102,30 +107,33 @@ export default function Dashboard() {
             key={`${b.marketplace}|${b.account_id}`}
             label={`${t("finance.balance")} ${b.marketplace.toUpperCase()}`}
             value={moneyFmt(b.balance)}
-            subvalue={b.for_withdraw !== null && b.for_withdraw !== undefined ? `${t("finance.forWithdraw")}: ${moneyFmt(b.for_withdraw)}` : t("dashboard.nowHint")}
+            subvalue={[
+              b.for_withdraw !== null && b.for_withdraw !== undefined ? `${t("finance.forWithdraw")}: ${moneyFmt(b.for_withdraw)}` : "",
+              `${t("finance.asOf")} ${formatAsOf(b.as_of)}`,
+            ].filter(Boolean).join(" · ")}
             accent="success"
           />
         ))}
-        <MetricCard label={t("finance.netAccrued")} value={moneyFmt(sum(state.finance, "net_accrued"))} subvalue={t("dashboard.period")} accent="success" />
+        <MetricCard label={t("finance.netAccrued")} value={moneyFmt(sum(state.finance, "net_accrued"))} subvalue={period} accent="success" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
         <MetricCard label={t("dashboard.stockUnits")} value={numberFmt(sum(state.stocks, "stock_end"))} subvalue={`${numberFmt(state.stocks.length)} ${t("dashboard.items")}`} className="lg:col-span-1" />
         <div className="lg:col-span-3">
-          <AreaChartCard title={t("dashboard.revenueTrend")} data={groupSeries(salesRows, "day", "revenue")} dataKey="value" name={t("dashboard.revenue")} />
+          <AreaChartCard title={`${t("dashboard.revenueTrend")} ${period}`} data={groupSeries(salesRows, "day", "revenue")} dataKey="value" name={t("dashboard.revenue")} currency />
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
         <div className="lg:col-span-3">
-          <AreaChartCard title={t("dashboard.adSpendTrend")} data={groupSeries(adsRows, "day", "cost")} dataKey="value" name={t("dashboard.adCost")} color="var(--color-warning)" />
+          <AreaChartCard title={`${t("dashboard.adSpendTrend")} ${period}`} data={groupSeries(adsRows, "day", "cost")} dataKey="value" name={t("dashboard.adCost")} color="var(--color-warning)" currency />
         </div>
         <MetricCard label={t("dashboard.stockItems")} value={numberFmt(new Set(state.stocks.map(r => r.product_id)).size)} subvalue={t("dashboard.uniqueProducts")} />
       </div>
 
       <section className="md3-card-elevated p-4">
-        <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">{t("dashboard.topProducts")}</h3>
-        <DataTable rows={topProducts} preferredColumns={["marketplace", "account_id", "product_id", "qty", "revenue", "returns_qty", "payout"]} />
+        <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">{t("dashboard.topProducts")} {period}</h3>
+        <DataTable rows={topProducts} preferredColumns={["rank", "image_url", "title", "offer_id", "marketplace", "product_id", "qty", "revenue", "returns_qty", "payout"]} />
       </section>
     </div>
   );

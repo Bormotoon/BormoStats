@@ -57,7 +57,7 @@ export default function KPIs() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
         <div className="lg:col-span-3">
-          <BarChartCard title={t("kpis.revenueByAccount")} data={revenueData} dataKey="value" name={t("kpis.revenue30d")} />
+          <BarChartCard title={t("kpis.revenueByAccount")} data={revenueData} dataKey="value" name={t("kpis.revenue30d")} currency />
         </div>
         <MetricCard label={t("kpis.accounts")} value={numberFmt(rows.length)} />
       </div>

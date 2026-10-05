@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useI18n } from "../utils/i18n.jsx";
 import { requestAll } from "../utils/api.js";
-import { sum, groupSeries, moneyFmt, isoDay, DEFAULT_DATE_FROM_OFFSET } from "../utils/formats.js";
+import { sum, groupSeries, moneyFmt, isoDay, formatAsOf, DEFAULT_DATE_FROM_OFFSET } from "../utils/formats.js";
 import MetricCard from "../components/MetricCard.jsx";
 import DataTable from "../components/DataTable.jsx";
 import { AreaChartCard } from "../components/Chart.jsx";
@@ -14,12 +14,6 @@ const CATEGORIES = [
   "storage", "acceptance", "penalties", "other",
 ];
 const MARKETPLACES = ["ozon", "wb"];
-
-function formatAsOf(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString("ru-RU", { timeZone: "Europe/Moscow" });
-}
 
 export default function Finance() {
   const { t } = useI18n();
@@ -113,7 +107,7 @@ export default function Finance() {
         <p className="text-xs text-[var(--color-on-surface-variant)] mt-3">{t("finance.wbNote")}</p>
       </section>
 
-      <AreaChartCard title={t("finance.netByDay")} data={groupSeries(daily, "day", "net_accrued")} dataKey="value" name={t("finance.netAccrued")} color="var(--color-success)" />
+      <AreaChartCard title={t("finance.netByDay")} data={groupSeries(daily, "day", "net_accrued")} dataKey="value" name={t("finance.netAccrued")} color="var(--color-success)" currency />
 
       <section className="md3-card-elevated p-4">
         <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">{t("finance.daily")}</h3>

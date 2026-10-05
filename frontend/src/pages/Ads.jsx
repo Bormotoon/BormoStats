@@ -57,10 +57,10 @@ export default function Ads() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
         <div className="lg:col-span-2">
-          <AreaChartCard title={t("ads.costByDay")} data={groupSeries(rows, "day", "cost")} dataKey="value" name={t("ads.cost")} color="var(--color-error)" />
+          <AreaChartCard title={t("ads.costByDay")} data={groupSeries(rows, "day", "cost")} dataKey="value" name={t("ads.cost")} color="var(--color-error)" currency />
         </div>
         <div className="lg:col-span-2">
-          <AreaChartCard title={t("ads.revenueByDay")} data={groupSeries(rows, "day", "revenue")} dataKey="value" name={t("ads.revenue")} color="var(--color-success)" />
+          <AreaChartCard title={t("ads.revenueByDay")} data={groupSeries(rows, "day", "revenue")} dataKey="value" name={t("ads.revenue")} color="var(--color-success)" currency />
         </div>
       </div>
 

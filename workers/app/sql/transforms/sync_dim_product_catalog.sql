@@ -4,6 +4,7 @@
 -- vendorCode, category = subjectName. Ozon: product_id = SKU (the id marts use), ozon_product_id =
 -- product id, brand from attribute 85; no category (cards carry only type_id; ponytail: names need
 -- /v1/description-category/tree).
+-- image_url: the card's first photo as a thumbnail (WB c246x328, Ozon primary_image).
 INSERT INTO dim_product
 (
   marketplace,
@@ -17,6 +18,7 @@ INSERT INTO dim_product
   title,
   brand,
   category,
+  image_url,
   updated_at
 )
 WITH cards AS
@@ -38,6 +40,7 @@ SELECT
   nullIf(JSONExtractString(body, 'card', 'title'), '') AS title,
   nullIf(JSONExtractString(body, 'card', 'brand'), '') AS brand,
   nullIf(JSONExtractString(body, 'card', 'subjectName'), '') AS category,
+  nullIf(JSONExtractString(body, 'card', 'photos', 1, 'c246x328'), '') AS image_url,
   now() AS updated_at
 FROM cards
 ARRAY JOIN JSONExtractArrayRaw(body, 'card', 'sizes') AS size
@@ -66,6 +69,14 @@ SELECT
     ''
   ) AS brand,
   NULL AS category,
+  nullIf(
+    if(
+      JSONLength(body, 'info', 'primary_image') > 0,
+      JSONExtractString(body, 'info', 'primary_image', 1),
+      JSONExtractString(body, 'info', 'images', 1)
+    ),
+    ''
+  ) AS image_url,
   now() AS updated_at
 FROM cards
 WHERE marketplace = 'ozon' AND JSONExtractUInt(body, 'info', 'sku') > 0

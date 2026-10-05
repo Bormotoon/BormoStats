@@ -55,14 +55,14 @@ export default function Sales() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
         <div className="lg:col-span-3">
-          <AreaChartCard title={t("sales.revenueByDay")} data={groupSeries(rows, "day", "revenue")} dataKey="value" name={t("sales.revenue")} />
+          <AreaChartCard title={t("sales.revenueByDay")} data={groupSeries(rows, "day", "revenue")} dataKey="value" name={t("sales.revenue")} currency />
         </div>
         <MetricCard label={t("sales.payout")} value={moneyFmt(sum(rows, "payout"))} subvalue={t("sales.payoutHint")} />
       </div>
 
       <section className="md3-card-elevated p-4">
         <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">{t("sales.salesDaily")}</h3>
-        <DataTable rows={rows} preferredColumns={["day", "marketplace", "account_id", "product_id", "title", "qty", "revenue", "returns_qty", "payout"]} />
+        <DataTable rows={rows} preferredColumns={["day", "marketplace", "account_id", "product_id", "title", "offer_id", "qty", "revenue", "returns_qty", "payout"]} />
       </section>
     </div>
   );

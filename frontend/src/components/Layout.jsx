@@ -4,6 +4,7 @@ import { useI18n } from "../utils/i18n.jsx";
 import AccountSwitcher from "./AccountSwitcher.jsx";
 import SettingsPanel from "./SettingsPanel.jsx";
 import FreshnessBanner from "./FreshnessBanner.jsx";
+import { getCurrentPrincipal } from "../utils/api.js";
 import {
   ChartLineUp, ShoppingCart, Warehouse, Funnel, Megaphone,
   Target, Drop, ListChecks, ShieldCheck, Monitor, CurrencyCircleDollar, Tag, ChartBar, ChartPie,
@@ -31,6 +32,9 @@ const NAV_ITEMS = [
   { id: "system", icon: Monitor },
 ];
 
+// pages served by /api/v1/admin, which only the platform master key may call
+const PLATFORM_ONLY = new Set(["watermarks", "taskRuns", "adminActions"]);
+
 function getPageFromHash() {
   const hash = window.location.hash.replace(/^#\//, "") || "dashboard";
   return hash.split("/")[0].split("?")[0];
@@ -40,7 +44,14 @@ export default function Layout({ children, onReload }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [currentPath, setCurrentPath] = useState(getPageFromHash);
+  const [platformAdmin, setPlatformAdmin] = useState(false);
   const { t, lang, setLang } = useI18n();
+
+  useEffect(() => {
+    getCurrentPrincipal()
+      .then((me) => setPlatformAdmin(me?.auth_method === "admin_key"))
+      .catch(() => setPlatformAdmin(false));
+  }, []);
 
   useEffect(() => {
     const onHashChange = () => setCurrentPath(getPageFromHash());
@@ -80,7 +91,7 @@ export default function Layout({ children, onReload }) {
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
-          {NAV_ITEMS.map((item) => {
+          {NAV_ITEMS.filter((item) => platformAdmin || !PLATFORM_ONLY.has(item.id)).map((item) => {
             const Icon = item.icon;
             const isActive = currentPath === item.id;
             return (

@@ -13,6 +13,10 @@ export default function AccountSwitcher() {
   const ref = useRef(null);
 
   const currentAccountId = searchParams.get("accountId") || ALL_ACCOUNTS_VALUE;
+  const currentMarketplace = searchParams.get("marketplace") || "";
+  // account ids repeat across marketplaces (both seeded cabinets are "default"), so an
+  // account is the pair, and picking one sets the marketplace filter too
+  const isCurrent = (acct) => acct.account_id === currentAccountId && acct.marketplace === currentMarketplace;
 
   useEffect(() => {
     request("/api/v1/accounts", { admin: true })
@@ -30,27 +34,22 @@ export default function AccountSwitcher() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  const selectAccount = (accountId) => {
+  const selectAccount = (acct) => {
     const next = new URLSearchParams(searchParams);
-    if (accountId) {
-      next.set("accountId", accountId);
+    if (acct) {
+      next.set("accountId", acct.account_id);
+      next.set("marketplace", acct.marketplace);
     } else {
       next.delete("accountId");
+      next.delete("marketplace");
     }
     setSearchParams(next);
     setOpen(false);
   };
 
   const selectedLabel = currentAccountId
-    ? accounts.find((a) => a.account_id === currentAccountId)?.title || currentAccountId
+    ? accounts.find(isCurrent)?.title || currentAccountId
     : "Все аккаунты";
-
-  const grouped = accounts.reduce((acc, acct) => {
-    const mp = acct.marketplace === "wb" ? "WB" : "Ozon";
-    if (!acc[mp]) acc[mp] = [];
-    acc[mp].push(acct);
-    return acc;
-  }, {});
 
   return (
     <div className="relative" ref={ref}>
@@ -73,7 +72,7 @@ export default function AccountSwitcher() {
             className="absolute right-0 mt-1 w-64 z-50 bg-white border border-[var(--color-outline-variant)] rounded-xl shadow-lg overflow-hidden"
           >
             <button
-              onClick={() => selectAccount(ALL_ACCOUNTS_VALUE)}
+              onClick={() => selectAccount(null)}
               className={`flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left hover:bg-[var(--color-surface-container)] transition-colors ${
                 currentAccountId === ALL_ACCOUNTS_VALUE ? "bg-[var(--color-primary-container)] text-[var(--color-on-primary-container)]" : "text-[var(--color-on-surface)]"
               }`}
@@ -85,30 +84,28 @@ export default function AccountSwitcher() {
             </button>
             <div className="border-t border-[var(--color-outline-variant)]" />
 
-            {Object.entries(grouped).map(([mp, accts]) => (
-              <div key={mp}>
-                <div className="px-4 py-1.5 text-xs font-semibold text-[var(--color-on-surface-variant)] uppercase tracking-wider">
-                  {mp}
-                </div>
-                {accts.map((acct) => (
-                  <button
-                    key={`${acct.marketplace}-${acct.account_id}`}
-                    onClick={() => selectAccount(acct.account_id)}
-                    className={`flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left hover:bg-[var(--color-surface-container)] transition-colors ${
-                      currentAccountId === acct.account_id ? "bg-[var(--color-primary-container)] text-[var(--color-on-primary-container)]" : "text-[var(--color-on-surface)]"
-                    }`}
-                  >
-                    <span className="w-5 flex justify-center">
-                      {currentAccountId === acct.account_id && <Check size={16} weight="bold" />}
-                    </span>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{acct.title}</span>
-                      <span className="text-xs text-[var(--color-on-surface-variant)]">{acct.account_id}</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            ))}
+            {accounts.map((acct) => {
+              const mpName = acct.marketplace === "wb" ? "WB" : "Ozon";
+              return (
+                <button
+                  key={`${acct.marketplace}-${acct.account_id}`}
+                  onClick={() => selectAccount(acct)}
+                  className={`flex items-center gap-3 w-full px-4 py-2.5 text-sm text-left hover:bg-[var(--color-surface-container)] transition-colors ${
+                    isCurrent(acct) ? "bg-[var(--color-primary-container)] text-[var(--color-on-primary-container)]" : "text-[var(--color-on-surface)]"
+                  }`}
+                >
+                  <span className="w-5 flex justify-center">
+                    {isCurrent(acct) && <Check size={16} weight="bold" />}
+                  </span>
+                  <div className="flex flex-col">
+                    <span className="font-medium">{acct.title}</span>
+                    {acct.title !== mpName && (
+                      <span className="text-xs text-[var(--color-on-surface-variant)]">{mpName}</span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
           </motion.div>
         )}
       </AnimatePresence>

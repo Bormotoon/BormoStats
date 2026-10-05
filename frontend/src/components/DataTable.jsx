@@ -4,6 +4,10 @@ import { isMoneyColumn } from "../utils/formats.js";
 
 export default function DataTable({ rows, preferredColumns }) {
   const { t } = useI18n();
+  const columnLabel = (col) => {
+    const label = t(`columns.${col}`);
+    return label === `columns.${col}` ? col : label;
+  };
   const columns = useMemo(() => {
     if (!rows.length) return [];
     if (preferredColumns?.length) {
@@ -32,7 +36,7 @@ export default function DataTable({ rows, preferredColumns }) {
                 key={col}
                 className="text-left px-4 py-2.5 text-[11px] font-semibold text-[var(--color-on-surface-variant)] tracking-wide uppercase sticky top-0 bg-[var(--color-surface-container)] z-10"
               >
-                {col}
+                {columnLabel(col)}
               </th>
             ))}
           </tr>
@@ -62,6 +66,10 @@ function CellValue({ column, value }) {
   }
 
   const key = column.toLowerCase();
+
+  if (key === "image_url") {
+    return <img src={value} alt="" loading="lazy" referrerPolicy="no-referrer" className="h-12 w-9 rounded object-cover" />;
+  }
 
   if (typeof value === "number") {
     if (isMoneyColumn(key)) {

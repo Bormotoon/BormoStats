@@ -1,5 +1,7 @@
 WITH names AS (
-  SELECT marketplace, account_id, product_id, anyLast(title) AS name
+  SELECT
+    marketplace, account_id, product_id,
+    anyLast(title) AS name, anyLast(offer_id) AS article, anyLast(image_url) AS image
   FROM dim_product FINAL
   WHERE title IS NOT NULL
   GROUP BY marketplace, account_id, product_id
@@ -10,6 +12,8 @@ SELECT
   account_id,
   product_id,
   any(n.name) AS title,
+  any(n.article) AS offer_id,
+  any(n.image) AS image_url,
   sum(qty) AS qty,
   sum(revenue) AS revenue,
   sum(returns_qty) AS returns_qty,

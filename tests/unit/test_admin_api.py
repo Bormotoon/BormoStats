@@ -167,7 +167,11 @@ def test_admin_invalid_key_returns_sanitized_response(
         def warning(self, event: str, **kwargs: object) -> None:
             log_entries.append((event, dict(kwargs)))
 
+    def unknown_key(*args: object, **kwargs: object) -> None:
+        raise auth_module._unauthorized("unauthorized")
+
     monkeypatch.setattr(auth_module, "LOGGER", FakeLogger())
+    monkeypatch.setattr(auth_module, "resolve_auth_context", unknown_key)
 
     response = client.get("/api/v1/admin/watermarks", headers={"X-API-Key": "wrong-key"})
 
@@ -192,6 +196,19 @@ def test_admin_invalid_key_returns_sanitized_response(
             },
         )
     ]
+
+
+def test_admin_rejects_signed_in_user_with_403(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A valid user session is forbidden, not unauthenticated: a 401 signs the web UI out."""
+    monkeypatch.setattr(auth_module, "resolve_auth_context", lambda *args, **kwargs: object())
+
+    response = client.get("/api/v1/admin/watermarks", headers={"X-API-Key": "bss_session"})
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "platform admin key required"
 
 
 def test_admin_disabled_returns_sanitized_response(

@@ -20,6 +20,21 @@ and every run was logged as `skipped` instead of failing.
 
 ### Changed
 
+- Web UI, from a user's walkthrough: a signed-in user on a platform-only page (watermarks, task
+  runs) got a 401 and was signed out, and signed out again right after signing in, since the
+  page stayed in the address bar. `/api/v1/admin/*`, `/organizations`, `/costs` and `/ai` now
+  answer a valid non-platform key or session with 403 (an unknown key is still 401), and the
+  menu hides those pages from users.
+- The account switcher filters by marketplace and account together: both seeded accounts are
+  `default`, so picking one showed both marketplaces. Migration `0032` renames the seeded
+  titles "WB default" / "Ozon default" to "WB" / "Ozon" (titles stay editable through
+  `PATCH /organizations/{org}/accounts/{marketplace}/{account}`).
+- Dashboard: every figure names its period (dates), balances show their snapshot time, charts
+  label money axes in roubles with thousands separators and dates as `dd.mm.yyyy`; the top 10
+  is numbered and shows the photo, name and seller article. Table headers are translated.
+- `dim_product.image_url` (migration `0032`) from the catalogue; the CSP allows images from the
+  WB and Ozon CDNs.
+
 - Ozon finance: `/v3/finance/transaction/list` (switched off 2026-09-08) → `/v1/finance/accrual/by-day`
   with `last_id` pagination per Moscow day, labels from `/v1/finance/accrual/types`. One row per
   `accrual_id` with the signed `total_amount`; the nested breakdown stays in the payload. Every

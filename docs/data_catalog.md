@@ -30,6 +30,8 @@ from the history store — every card, sold or not, with title, brand and catego
 `subjectName`; Ozon cards carry only `type_id`, so their category stays empty). The
 `product_id` is the id the marts use: WB `nmID`, Ozon **SKU** (`ozon_product_id` keeps the
 product id). The catalogue needs `HISTORY_ENABLED` and, for WB, `WB_TOKEN_CONTENT`.
+The catalogue also sets `image_url`, a thumbnail of the card's first photo (WB `c246x328`,
+Ozon `primary_image`); `/sales/daily` returns it with the seller's article (`offer_id`).
 
 ## Metrics
 

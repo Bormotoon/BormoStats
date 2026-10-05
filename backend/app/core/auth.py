@@ -464,8 +464,19 @@ def require_role(
     return _dependency
 
 
+def _is_known_principal(
+    request: Request, ch: clickhouse_connect.driver.Client, settings: Settings, api_key: str
+) -> bool:
+    try:
+        resolve_auth_context(request, ch, settings, api_key)
+    except HTTPException:
+        return False
+    return True
+
+
 def require_platform_admin(
     request: Request,
+    ch: Annotated[clickhouse_connect.driver.Client, Depends(get_ch_client)],
     settings: Annotated[Settings, Depends(get_app_settings)],
     x_api_key: ApiKeyHeader = "",
 ) -> None:
@@ -490,6 +501,10 @@ def require_platform_admin(
             method=request.method,
             remote_addr=_client_ip(request) or "unknown",
         )
+        if x_api_key and _is_known_principal(request, ch, settings, x_api_key):
+            # a signed-in user is not unauthenticated, only not the platform: a 401 here
+            # would sign the web UI out
+            raise _forbidden("platform admin key required")
         raise _unauthorized("unauthorized")
     remote = _client_ip(request)
     if not admin_network_allowed(remote, settings.admin_allowed_networks):

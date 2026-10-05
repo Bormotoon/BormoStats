@@ -112,8 +112,8 @@ def as_role(monkeypatch: pytest.MonkeyPatch) -> Iterator[Any]:
         (OrgMemberRole.analyst, "PATCH", "/api/v1/insights/tasks/t1", 403),
         (OrgMemberRole.viewer, "GET", "/api/v1/users", 403),
         (OrgMemberRole.admin, "GET", "/api/v1/users", 200),
-        (OrgMemberRole.owner, "GET", "/api/v1/admin/watermarks", 401),
-        (OrgMemberRole.owner, "GET", "/api/v1/organizations", 401),
+        (OrgMemberRole.owner, "GET", "/api/v1/admin/watermarks", 403),
+        (OrgMemberRole.owner, "GET", "/api/v1/organizations", 403),
     ],
 )
 def test_role_requirements(
