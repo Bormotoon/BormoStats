@@ -145,6 +145,8 @@ and every run was logged as `skipped` instead of failing.
 
 ### Migrations
 
+- `0032_product_image_account_titles`: `dim_product.image_url`; renames the seeded account
+  titles. Afterwards run a transform (the catalogue sync fills the photos).
 - `0030_finance`: `raw_ozon_finance_balance`, `raw_wb_sales_report`, `raw_marketplace_balance`,
   `mrt_finance_daily`; `mrt_pnl_monthly` gains `storage_rub`, `other_costs_rub`,
   `net_accrued_rub`, `cogs_rub`. Afterwards run the `ozon/balance` and `wb/finance` backfills
