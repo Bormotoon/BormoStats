@@ -67,7 +67,13 @@ LEFT JOIN stock AS st
   ON sa.marketplace = st.marketplace
   AND sa.account_id = st.account_id
   AND sa.product_id = st.product_id
-LEFT JOIN raw_competitor_products AS p FINAL
+LEFT JOIN (
+  SELECT marketplace, account_id, product_id, anyLast(title) AS name
+  FROM dim_product FINAL
+  WHERE title IS NOT NULL
+  GROUP BY marketplace, account_id, product_id
+) AS p
   ON sa.marketplace = p.marketplace
-  AND sa.product_id = toString(p.product_id)
+  AND sa.account_id = p.account_id
+  AND sa.product_id = p.product_id
 GROUP BY sa.marketplace, sa.account_id, sa.product_id

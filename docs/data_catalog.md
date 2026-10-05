@@ -20,6 +20,17 @@ reports; see [Time](#time) for how timestamps are stored.
 | `mrt_breakeven_daily` | day × account × product | costs, commissions, logistics | **not built yet** (no task writes it) | — |
 | `mrt_pnl_monthly` | month × organization × account | `mrt_finance_daily` + cost of goods + Ozon ads; `dim_additional_expense` as rows with an empty marketplace | every 30 min (months the window touches) | ≤ 2 h |
 
+### Product dictionary
+
+`dim_product` (account × product × WB size) names the products the marts and the API
+(`title` in `/sales/daily`, `/stocks/current`; `product_name` in profit and supply planning)
+refer to. Three syncs feed it on every transform, the last one winning on the same key:
+products seen in WB sales, products seen in Ozon postings (title only), and the catalogue
+from the history store — every card, sold or not, with title, brand and category (WB:
+`subjectName`; Ozon cards carry only `type_id`, so their category stays empty). The
+`product_id` is the id the marts use: WB `nmID`, Ozon **SKU** (`ozon_product_id` keeps the
+product id). The catalogue needs `HISTORY_ENABLED` and, for WB, `WB_TOKEN_CONTENT`.
+
 ## Metrics
 
 | Metric | Formula | Table |

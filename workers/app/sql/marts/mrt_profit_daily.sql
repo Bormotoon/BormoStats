@@ -26,8 +26,14 @@ FROM stg_sales AS s FINAL
 LEFT JOIN dim_product_cost AS c FINAL
     ON s.marketplace = c.marketplace
     AND s.product_id = toString(c.product_id)
-LEFT JOIN raw_competitor_products AS p FINAL
+LEFT JOIN (
+    SELECT marketplace, account_id, product_id, anyLast(title) AS name
+    FROM dim_product FINAL
+    WHERE title IS NOT NULL
+    GROUP BY marketplace, account_id, product_id
+) AS p
     ON s.marketplace = p.marketplace
-    AND s.product_id = toString(p.product_id)
+    AND s.account_id = p.account_id
+    AND s.product_id = p.product_id
 WHERE s.day >= toDate(now(), 'Europe/Moscow') - %(days)s
 GROUP BY s.day, s.marketplace, s.account_id, s.product_id

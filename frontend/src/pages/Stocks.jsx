@@ -71,7 +71,7 @@ export default function Stocks() {
 
       <section className="md3-card-elevated p-4">
         <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">{t("stocks.currentStocks")}</h3>
-        <DataTable rows={rows} preferredColumns={["day", "marketplace", "account_id", "product_id", "warehouse_id", "stock_end"]} />
+        <DataTable rows={rows} preferredColumns={["day", "marketplace", "account_id", "product_id", "title", "warehouse_id", "stock_end"]} />
       </section>
     </div>
   );

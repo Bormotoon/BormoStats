@@ -87,6 +87,14 @@ and every run was logged as `skipped` instead of failing.
 
 ### Fixed
 
+- **Products had no names.** Profit and supply planning took names from the empty
+  `raw_competitor_products`, and `dim_product` held no WB title at all (only cards seen in
+  sales). The dictionary is now also built from the catalogue in the history store (every card
+  with title, brand, WB category), the marts take names from it, and `/sales/daily` and
+  `/stocks/current` return `title`.
+- Ozon FBO stocks (`/v1/analytics/stocks`) are paced between SKU batches and a batch refused
+  with 429 is retried after the per-minute window; about one snapshot in ten used to fail.
+- The data quality report failed to serialize `date` samples, so the issue it found was lost.
 - **Backend descriptor leak.** Every operational-metrics refresh opened a ClickHouse pool that
   `close()` never released (clickhouse-connect treats a passed-in pool as shared), so the backend
   hit `Too many open files` within a day and turned unhealthy.

@@ -62,7 +62,7 @@ export default function Sales() {
 
       <section className="md3-card-elevated p-4">
         <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">{t("sales.salesDaily")}</h3>
-        <DataTable rows={rows} preferredColumns={["day", "marketplace", "account_id", "product_id", "qty", "revenue", "returns_qty", "payout"]} />
+        <DataTable rows={rows} preferredColumns={["day", "marketplace", "account_id", "product_id", "title", "qty", "revenue", "returns_qty", "payout"]} />
       </section>
     </div>
   );

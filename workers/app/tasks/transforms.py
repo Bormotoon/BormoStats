@@ -75,6 +75,7 @@ def _run_transform(days: int, task_name: str) -> dict[str, int | str]:
             client.command(_load("ozon_finance_to_stg.sql"), parameters={"days": ads_days})
             client.command(_load("sync_dim_product_wb.sql"), parameters={"days": max(days, 30)})
             client.command(_load("sync_dim_product_ozon.sql"), parameters={"days": max(days, 30)})
+            client.command(_load("sync_dim_product_catalog.sql"))
         log_task_run(
             client,
             task_name,

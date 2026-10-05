@@ -1,13 +1,21 @@
+WITH names AS (
+  SELECT marketplace, account_id, product_id, anyLast(title) AS name
+  FROM dim_product FINAL
+  WHERE title IS NOT NULL
+  GROUP BY marketplace, account_id, product_id
+)
 SELECT
   day,
   marketplace,
   account_id,
   product_id,
+  any(n.name) AS title,
   sum(qty) AS qty,
   sum(revenue) AS revenue,
   sum(returns_qty) AS returns_qty,
   sum(ifNull(payout, 0)) AS payout
 FROM mrt_sales_daily FINAL
+LEFT JOIN names AS n USING (marketplace, account_id, product_id)
 WHERE day BETWEEN %(date_from)s AND %(date_to)s
   AND (%(marketplace)s = '' OR marketplace = %(marketplace)s)
   AND (%(account_id)s = '' OR account_id = %(account_id)s)
