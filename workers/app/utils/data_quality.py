@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, cast
 
 import clickhouse_connect
@@ -25,7 +25,7 @@ class DataQualityIssue:
 
 
 def _json_safe(value: Any) -> Any:
-    if isinstance(value, datetime):
+    if isinstance(value, date):  # datetime included
         return value.isoformat()
     if isinstance(value, dict):
         return {str(key): _json_safe(item) for key, item in value.items()}
