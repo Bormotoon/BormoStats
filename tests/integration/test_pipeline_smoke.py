@@ -19,15 +19,16 @@ class FakeWbApi:
         return [
             {
                 "srid": "wb-sale-1",
+                "saleID": "S1001",
                 "lastChangeDate": self.recent_ts.isoformat(),
                 "date": self.recent_ts.isoformat(),
                 "nmId": 111,
                 "chrtId": 222,
                 "barcode": "wb-sku-111",
                 "quantity": 2,
-                "totalPrice": 100.0,
-                "ppvzForPay": 80.0,
-                "supplierOperName": "Продажа",
+                "totalPrice": 250.0,
+                "priceWithDisc": 100.0,
+                "forPay": 80.0,
             }
         ]
 
@@ -60,6 +61,37 @@ class FakeWbApi:
             }
         ]
 
+    def account_balance(self) -> dict[str, object]:
+        return {"currency": "RUB", "current": 12044.0, "for_withdraw": 0}
+
+    def sales_report_lines(self, date_from: date, date_to: date) -> list[dict[str, object]]:
+        day = self.recent_ts.astimezone(ozon_collect.OZON_TZ).date()
+        if not date_from <= day <= date_to:
+            return []
+
+        def line(rrd_id: int, doc: str, oper: str, **money: float) -> dict[str, object]:
+            return {
+                "rrdId": rrd_id,
+                "reportId": 77,
+                "reportType": 1,
+                "rrDate": day.isoformat(),
+                "nmId": 111,
+                "docTypeName": doc,
+                "sellerOperName": oper,
+                "quantity": 1 if doc else 0,
+                **{key: str(value) for key, value in money.items()},
+            }
+
+        return [
+            line(1, "Продажа", "Продажа", retailPriceWithDisc=100, forPay=80, acquiringFee=3),
+            line(2, "", "Логистика", deliveryService=30),
+            line(3, "", "Хранение", paidStorage=5),
+            line(4, "Возврат", "Возврат", retailPriceWithDisc=100, forPay=80, acquiringFee=3),
+        ]
+
+    def close(self) -> None:
+        pass
+
     def funnel_daily(self, from_day: date, to_day: date) -> list[dict[str, object]]:
         if from_day <= self.recent_ts.date() <= to_day:
             return [
@@ -80,6 +112,36 @@ class FakeWbApi:
                 }
             ]
         return []
+
+
+def _ozon_realization(accrual_id: int, day: date, *, sign: int) -> dict[str, object]:
+    """A POSTING accrual: the sale of one unit at 200 (commission 50), or its reversal."""
+
+    def money(value: float) -> dict[str, str]:
+        return {"amount": str(value), "currency": "RUB"}
+
+    return {
+        "accrual_id": accrual_id,
+        "date": day.isoformat(),
+        "accrued_category": "POSTING",
+        "unit_number": "ozon-posting-1",
+        "posting": {
+            "delivery_schema": "Fbo",
+            "products": [
+                {
+                    "sku": 100500,
+                    "quantity": 1,
+                    "delivery": None,
+                    "commission": {
+                        "seller_price": money(sign * 200),
+                        "sale_amount": money(sign * 200),
+                        "commission": money(sign * -50),
+                    },
+                }
+            ],
+        },
+        "total_amount": money(sign * 150),
+    }
 
 
 class FakeOzonApi:
@@ -121,6 +183,40 @@ class FakeOzonApi:
             }
         ]
 
+    def finance_balance(self, date_from: date, date_to: date) -> dict[str, object]:
+        def money(value: float) -> dict[str, object]:
+            return {"value": value, "currency_code": "RUB"}
+
+        if date_from != self.accrual_day:
+            # a day without movements carries the balance over
+            carried = money(955.0 if date_from > self.accrual_day else 1000.0)
+            return {
+                "total": {
+                    "opening_balance": carried,
+                    "closing_balance": carried,
+                    "accrued": money(0),
+                    "payments": [],
+                },
+                "cashflows": {},
+            }
+        return {
+            "total": {
+                "opening_balance": money(1000.0),
+                "closing_balance": money(955.0),
+                "accrued": money(55.0),
+                "payments": [money(-100.0)],
+            },
+            "cashflows": {
+                "sales": {"amount": money(200.0), "fee": money(-100.0)},
+                "returns": {"amount": money(0.0), "fee": money(0.0)},
+                "services": [
+                    {"name": "logistics", "amount": money(-30.0)},
+                    {"name": "product_placement_in_ozon_warehouses", "amount": money(-10.0)},
+                    {"name": "some_new_service", "amount": money(-5.0)},
+                ],
+            },
+        }
+
     def finance_accrual_types(self) -> dict[int, str]:
         return {10: "ServiceFee"}
 
@@ -135,7 +231,9 @@ class FakeOzonApi:
                 "unit_number": "ad-contract-1",
                 "non_item_fee": {"type_id": 10, "accrued": {"amount": "-12.5", "currency": "RUB"}},
                 "total_amount": {"amount": "-12.5", "currency": "RUB"},
-            }
+            },
+            _ozon_realization(9002, day, sign=1),
+            _ozon_realization(9003, day, sign=-1),
         ]
 
     def stocks(self) -> list[dict[str, object]]:
@@ -198,6 +296,9 @@ def _ingest_sample_marketplace_data(monkeypatch: pytest.MonkeyPatch) -> date:
     assert wb_collect.wb_funnel_roll()["status"] == "success"
     assert ozon_collect.ozon_postings_incremental()["status"] == "success"
     assert ozon_collect.ozon_finance_incremental()["status"] == "success"
+    assert ozon_collect.ozon_finance_balance()["status"] == "success"
+    assert wb_collect.wb_finance_report()["status"] == "success"
+    assert wb_collect.wb_balance_snapshot()["status"] == "success"
     assert ozon_collect.ozon_stocks_snapshot()["status"] == "success"
     assert (
         ozon_collect.ozon_ads_daily(target_day=recent_ts.date().isoformat())["status"] == "success"
@@ -281,24 +382,27 @@ def test_transforms_build_expected_staging_rows(
     client = integration_runtime.ch_client()
     try:
         stg_sales_rows = client.query("""
-            SELECT marketplace, product_id, qty, price_gross
+            SELECT marketplace, product_id, qty, price_gross, payout, is_return
             FROM stg_sales
-            ORDER BY marketplace, product_id
+            ORDER BY marketplace, product_id, qty
             """).result_rows
         stg_order_count = client.query("SELECT count() FROM stg_orders").result_rows[0][0]
         stg_stock_count = client.query("SELECT count() FROM stg_stocks").result_rows[0][0]
         finance_rows = client.query(
-            "SELECT operation_id, type, amount, currency FROM stg_finance_ops"
+            "SELECT operation_id, type, amount, currency FROM stg_finance_ops ORDER BY operation_id"
         ).result_rows
         product_count = client.query("SELECT count() FROM dim_product").result_rows[0][0]
 
+        # Ozon sales are the realization accruals: the sale and the return's reversal
         assert stg_sales_rows == [
-            ("ozon", "100500", 1, 200.0),
-            ("wb", "111", 2, 100.0),
+            ("ozon", "100500", -1, 200.0, -150.0, 1),
+            ("ozon", "100500", 1, 200.0, 150.0, 0),
+            ("wb", "111", 2, 100.0, 80.0, 0),
         ]
         assert stg_order_count == 2
         assert stg_stock_count == 2
-        assert finance_rows == [("9001", "ServiceFee", -12.5, "RUB")]
+        assert [row[0] for row in finance_rows] == ["9001", "9002", "9003"]
+        assert finance_rows[0] == ("9001", "ServiceFee", -12.5, "RUB")
         assert product_count == 2
     finally:
         client.close()
@@ -317,7 +421,7 @@ def test_marts_build_expected_aggregates(
     client = integration_runtime.ch_client()
     try:
         sales_rows = client.query("""
-            SELECT marketplace, product_id, qty, revenue
+            SELECT marketplace, product_id, qty, revenue, payout, returns_qty
             FROM mrt_sales_daily
             ORDER BY marketplace, product_id
             """).result_rows
@@ -333,8 +437,13 @@ def test_marts_build_expected_aggregates(
             "SELECT campaign_id, cost, revenue, acos FROM mrt_ads_daily"
         ).result_rows
 
-        assert sales_rows == [("ozon", "100500", 1, 200.0), ("wb", "111", 2, 200.0)]
-        assert stock_rows == [("ozon", "100500", 7), ("wb", "222", 7)]
+        # sold 1, returned 1: revenue counts the sale, payout is net of the reversal
+        assert sales_rows == [
+            ("ozon", "100500", 1, 200.0, 0.0, 1),
+            ("wb", "111", 2, 200.0, 80.0, 0),
+        ]
+        # WB stock is per card (nm_id), the grain of sales
+        assert stock_rows == [("ozon", "100500", 7), ("wb", "111", 7)]
         assert funnel_rows == [("111", 100, 4, 0.04)]
         assert ads_rows == [("camp-1", 25.0, 300.0, pytest.approx(25.0 / 300.0))]
     finally:
@@ -396,7 +505,7 @@ def test_pipeline_smoke_bootstrap_ingest_transform_marts_api(
             "account_id": "default",
             "revenue_30d": 200.0,
             "qty_30d": 1,
-            "returns_30d": 0,
+            "returns_30d": 1,
             "cost_30d": 25.0,
             "acos_30d": pytest.approx(25.0 / 300.0),
         }
@@ -623,3 +732,101 @@ def test_data_quality_task_logs_failures_for_bad_data(
         assert "invalid_values" in str(latest[1])
     finally:
         client.close()
+
+
+def test_finance_block_reconciles(
+    integration_runtime,
+    monkeypatch: pytest.MonkeyPatch,
+    api_client: TestClient,
+) -> None:
+    recent_day = _ingest_sample_marketplace_data(monkeypatch)
+    assert transforms.transform_backfill_days(14)["status"] == "success"
+    assert marts.build_marts_backfill_days(14)["status"] == "success"
+
+    client = integration_runtime.ch_client()
+    try:
+        rows = {
+            (row[0], row[1]): row[2:]
+            for row in client.query("""
+                SELECT marketplace, day, sales, returns, commission, acquiring, logistics,
+                       storage, other, net_accrued, payouts, closing_balance, for_withdraw
+                FROM mrt_finance_daily FINAL
+                WHERE net_accrued != 0 OR closing_balance IS NOT NULL
+                """).result_rows
+        }
+        pnl = client.query("""
+            SELECT marketplace, sum(revenue_rub), sum(net_accrued_rub), sum(gross_profit_rub)
+            FROM mrt_pnl_monthly FINAL
+            GROUP BY marketplace ORDER BY marketplace
+            """).result_rows
+    finally:
+        client.close()
+
+    ozon = next(v for k, v in rows.items() if k[0] == "ozon" and v[7] != 0)
+    # sales 200, commission -100, logistics -30, storage -10, unknown service -5 -> other
+    assert ozon[:9] == (200.0, 0.0, -100.0, 0.0, -30.0, -10.0, -5.0, 55.0, -100.0)
+    assert ozon[9] == 955.0
+
+    wb = next(v for k, v in rows.items() if k[0] == "wb" and v[7] != 0)
+    # sale 80 for pay, return -80, logistics -30, storage -5: WB's "Итого к оплате" = -35
+    assert wb[0] == 100.0 and wb[1] == -100.0
+    assert wb[4] == -30.0 and wb[5] == -5.0
+    assert wb[7] == pytest.approx(-35.0)
+    assert wb[2] + wb[3] == 0.0  # commission and acquiring cancel out with the return
+
+    wb_balance = [v for k, v in rows.items() if k[0] == "wb" and v[9] is not None]
+    assert wb_balance and wb_balance[-1][9] == 12044.0 and wb_balance[-1][10] == 0.0
+
+    assert pnl == [("ozon", 200.0, 55.0, 55.0), ("wb", 100.0, -35.0, -35.0)]
+
+    balance = api_client.get("/api/v1/finance/balance")
+    assert balance.status_code == 200
+    assert {(i["marketplace"], i["balance"]) for i in balance.json()["items"]} == {
+        ("ozon", 955.0),
+        ("wb", 12044.0),
+    }
+    daily = api_client.get(
+        "/api/v1/finance/daily",
+        params={"date_from": recent_day.isoformat(), "date_to": date.today().isoformat()},
+    )
+    assert daily.status_code == 200
+    assert sum(i["net_accrued"] for i in daily.json()["items"]) == pytest.approx(55.0 - 35.0)
+
+
+def test_every_collected_table_is_archived_and_readable_at_a_point_in_time(
+    integration_runtime,
+    monkeypatch: pytest.MonkeyPatch,
+    api_client: TestClient,
+) -> None:
+    _ingest_sample_marketplace_data(monkeypatch)
+
+    client = integration_runtime.ch_client()
+    try:
+        archived = {
+            row[0] for row in client.query("SELECT DISTINCT repo FROM hist_refs").result_rows
+        }
+        collected = {
+            row[0]
+            for row in client.query(
+                "SELECT name FROM system.tables WHERE database = currentDatabase()"
+                " AND name LIKE 'raw\\\\_%' AND name NOT LIKE 'raw\\\\_competitor%'"
+                " AND name != 'raw_serp_positions' AND total_rows > 0"
+            ).result_rows
+        }
+    finally:
+        client.close()
+
+    # every non-empty raw table of the seller's own data has a history repo
+    assert collected <= archived, collected - archived
+
+    now = api_client.get("/api/v1/history/state", params={"repo": "raw_marketplace_balance"})
+    assert now.status_code == 200
+    assert {(i["marketplace"], i["document"]["balance"]) for i in now.json()["items"]} == {
+        ("ozon", 955.0),
+        ("wb", 12044.0),
+    }
+    before = api_client.get(
+        "/api/v1/history/state",
+        params={"repo": "raw_marketplace_balance", "at": "2020-01-01T00:00:00Z"},
+    )
+    assert before.status_code == 200 and before.json()["items"] == []

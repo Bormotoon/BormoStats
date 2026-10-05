@@ -19,6 +19,9 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 
 _EXEMPT_PATHS = frozenset({"/", "/health", "/ready", "/metrics"})
 _ADMIN_PREFIXES = ("/api/v1/admin", "/api/v1/organizations", "/api/v1/integrations")
+# password guessing: sign-in attempts get their own, much smaller bucket per client
+LOGIN_PATH = "/api/v1/auth/login"
+LOGIN_RATE_LIMIT = "10/minute"
 MAX_TRACKED_CLIENTS = 10_000
 
 
@@ -74,6 +77,7 @@ def _parse_rate_limit(spec: str) -> tuple[float, int]:
 def setup_rate_limiter(app: FastAPI, settings: Settings) -> None:
     public_buckets = ClientBuckets(*_parse_rate_limit(settings.rate_limit_per_minute))
     admin_buckets = ClientBuckets(*_parse_rate_limit(settings.admin_rate_limit_per_minute))
+    login_buckets = ClientBuckets(*_parse_rate_limit(LOGIN_RATE_LIMIT))
 
     class RateLimitMiddleware(BaseHTTPMiddleware):
         async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
@@ -85,6 +89,8 @@ def setup_rate_limiter(app: FastAPI, settings: Settings) -> None:
             is_admin = path.startswith(_ADMIN_PREFIXES)
             buckets = admin_buckets if is_admin else public_buckets
             bucket_key = "admin" if is_admin else "public"
+            if path == LOGIN_PATH:
+                buckets, bucket_key = login_buckets, "login"
             client_key = request.client.host if request.client else "unknown"
 
             if not buckets.consume(client_key):

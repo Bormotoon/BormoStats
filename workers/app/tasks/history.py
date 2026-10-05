@@ -9,7 +9,12 @@ from typing import Any
 
 import httpx
 from app.utils.celery_helpers import shared_task
-from app.utils.history_archive import STAT_SPECS, backfill_done, backfill_table
+from app.utils.history_archive import (
+    STAT_SPECS,
+    backfill_done,
+    backfill_table,
+    retire_legacy_entities,
+)
 from app.utils.history_store import (
     HistoryStore,
     Observation,
@@ -191,6 +196,7 @@ def backfill_raw_archive() -> dict[str, Any]:
                     if backfill_done(ch_client, table):
                         continue
                     imported[table] = backfill_table(ch_client, table, run_id=run_id)
+                retired = retire_legacy_entities(ch_client, run_id=run_id)
                 commits = sum(item["commits"] for item in imported.values())
                 log_task_run(
                     ch_client,
@@ -200,9 +206,9 @@ def backfill_raw_archive() -> dict[str, Any]:
                     "success",
                     commits,
                     f"raw archive import: {len(imported)} table(s)",
-                    meta={"tables": imported},
+                    meta={"tables": imported, "retired": retired},
                 )
-                return {"status": "success", "tables": imported}
+                return {"status": "success", "tables": imported, "retired": retired}
             except Exception as exc:
                 log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
                 raise

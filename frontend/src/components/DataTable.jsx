@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useI18n } from "../utils/i18n.jsx";
+import { isMoneyColumn } from "../utils/formats.js";
 
 export default function DataTable({ rows, preferredColumns }) {
   const { t } = useI18n();
@@ -63,7 +64,7 @@ function CellValue({ column, value }) {
   const key = column.toLowerCase();
 
   if (typeof value === "number") {
-    if (["revenue", "cost", "payout", "amount", "orders_sum", "price"].some((t) => key.includes(t))) {
+    if (isMoneyColumn(key)) {
       return <span className="font-mono">{value.toLocaleString("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 2 })}</span>;
     }
     if (["acos", "romi", "cr_", "conversion"].some((t) => key.includes(t))) {

@@ -18,6 +18,15 @@ def _load(name: str) -> str:
     return load_sql(_TRANSFORMS_DIR, name)
 
 
+# business days are Moscow days, as in the marketplaces' reports
+MOSCOW_TODAY = "toDate(now(), 'Europe/Moscow')"
+SYNC_MUTATION = {"mutations_sync": 2}
+
+
+def _window_delete(table_name: str, day_column: str) -> str:
+    return f"ALTER TABLE {table_name} DELETE WHERE {day_column} >= {MOSCOW_TODAY} - %(days)s"
+
+
 STG_REBUILD_TABLES = (
     ("stg_sales", "day"),
     ("stg_orders", "day"),
@@ -41,18 +50,20 @@ def _run_transform(days: int, task_name: str) -> dict[str, int | str]:
             task_lock_source=task_name.rsplit(".", maxsplit=1)[-1],
         ):
             ads_days = max(days, 60)
-            client.command("SET mutations_sync = 1")
+            # a separate SET is lost between HTTP requests (no session), so every delete
+            # carries the setting itself and finishes before the rows are re-inserted
             for table_name, day_column in STG_REBUILD_TABLES:
                 client.command(
-                    f"ALTER TABLE {table_name} DELETE WHERE {day_column} >= today() - %(days)s",
+                    _window_delete(table_name, day_column),
                     parameters={"days": days},
+                    settings=SYNC_MUTATION,
                 )
             for table_name, day_column in STG_LONG_REBUILD_TABLES:
                 client.command(
-                    f"ALTER TABLE {table_name} DELETE WHERE {day_column} >= today() - %(days)s",
+                    _window_delete(table_name, day_column),
                     parameters={"days": ads_days},
+                    settings=SYNC_MUTATION,
                 )
-
             client.command(_load("wb_sales_to_stg.sql"), parameters={"days": days})
             client.command(_load("wb_orders_to_stg.sql"), parameters={"days": days})
             client.command(_load("wb_stocks_to_stg.sql"), parameters={"days": days})

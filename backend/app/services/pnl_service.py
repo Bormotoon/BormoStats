@@ -28,7 +28,8 @@ _EXP_COLS = ", ".join(name for name, _ in _EXP_COLUMNS)
 _EXP_INSERT = insert_values_sql("dim_additional_expense", _EXP_COLUMNS)
 _PNL_COLS = (
     "month, organization_id, marketplace, account_id, revenue_rub, commission_rub,"
-    " logistics_rub, returns_cost_rub, gross_profit_rub, ad_cost_rub, additional_expenses_rub,"
+    " logistics_rub, returns_cost_rub, storage_rub, other_costs_rub, net_accrued_rub, cogs_rub,"
+    " gross_profit_rub, ad_cost_rub, additional_expenses_rub,"
     " operating_profit_rub, ebitda_rub, net_profit_rub, margin_pct"
 )
 
@@ -146,6 +147,10 @@ def _row_to_pnl(r: dict[str, Any]) -> PnlRow:
         commission_rub=float(r["commission_rub"]),
         logistics_rub=float(r["logistics_rub"]),
         returns_cost_rub=float(r["returns_cost_rub"]),
+        storage_rub=float(r["storage_rub"]),
+        other_costs_rub=float(r["other_costs_rub"]),
+        net_accrued_rub=float(r["net_accrued_rub"]),
+        cogs_rub=float(r["cogs_rub"]),
         gross_profit_rub=float(r["gross_profit_rub"]),
         ad_cost_rub=float(r["ad_cost_rub"]),
         additional_expenses_rub=float(r["additional_expenses_rub"]),

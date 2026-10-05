@@ -289,6 +289,15 @@ class OzonApiClient:
                     types[int(item["id"])] = str(item.get("name") or item.get("description") or "")
         return types
 
+    def finance_balance(self, date_from: date, date_to: date) -> dict[str, Any]:
+        """Balance movement over ``[date_from, date_to]`` (one day per call for daily rows)."""
+        payload = self.http.post(
+            endpoints.FINANCE_BALANCE_PATH,
+            headers=self._headers(),
+            json={"date_from": date_from.isoformat(), "date_to": date_to.isoformat()},
+        )
+        return payload if isinstance(payload, dict) else {}
+
     def finance_accruals_for_day(self, day: date) -> list[dict[str, Any]]:
         """All accruals for one calendar day, following ``last_id`` pagination."""
         collected: list[dict[str, Any]] = []

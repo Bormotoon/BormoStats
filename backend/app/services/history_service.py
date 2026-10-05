@@ -200,6 +200,69 @@ class HistoryService:
             "document": None if head["is_deleted"] else self._document(head["object_hash"]),
         }
 
+    def state(
+        self,
+        *,
+        repo: str,
+        marketplace: str,
+        account_id: str,
+        at: datetime | None,
+        limit: int,
+        offset: int,
+    ) -> list[dict[str, Any]]:
+        """Every entity of a repo as it was at ``at``: e.g. all stocks at 15:00 on 1 March.
+
+        An entity counts if its latest commit at ``at`` is not a deletion.
+        """
+        heads = self._query(
+            f"""
+            SELECT
+              marketplace,
+              account_id,
+              entity_key,
+              argMax(object_hash, (committed_at, commit_id)) AS object_hash,
+              argMax(is_deleted, (committed_at, commit_id)) AS deleted,
+              max(committed_at) AS last_committed_at
+            FROM hist_commits
+            WHERE {_SCOPE}
+              AND repo = {{repo:String}}
+              AND ({{marketplace:String}} = '' OR marketplace = {{marketplace:String}})
+              AND ({{account_id:String}} = '' OR account_id = {{account_id:String}})
+              AND committed_at <= {{at:DateTime}}
+            GROUP BY marketplace, account_id, entity_key
+            HAVING deleted = 0
+            ORDER BY marketplace, account_id, entity_key
+            LIMIT {{limit:UInt32}} OFFSET {{offset:UInt32}}
+            """,
+            repo=repo,
+            marketplace=marketplace,
+            account_id=account_id,
+            at=_utc(at, _FAR_FUTURE),
+            limit=limit,
+            offset=offset,
+        )
+        hashes = sorted({row["object_hash"] for row in heads})
+        bodies: dict[str, str] = {}
+        if hashes:
+            bodies = {
+                str(row[0]): str(row[1])
+                for row in self.client.query(
+                    "SELECT object_hash, any(body) FROM hist_objects"
+                    " WHERE object_hash IN {hashes:Array(String)} GROUP BY object_hash",
+                    parameters={"hashes": hashes},
+                ).result_rows
+            }
+        return [
+            {
+                "marketplace": row["marketplace"],
+                "account_id": row["account_id"],
+                "entity_key": row["entity_key"],
+                "committed_at": row["last_committed_at"],
+                "document": _json_or_raw(bodies.get(row["object_hash"], "")),
+            }
+            for row in heads
+        ]
+
     def changes(
         self,
         *,

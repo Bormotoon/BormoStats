@@ -43,7 +43,22 @@ beat_schedule = {
     },
     "ozon_finance_incremental": {
         "task": "tasks.ozon_collect.ozon_finance_incremental",
-        "schedule": crontab(minute="50", hour="*/6"),
+        # Ozon sales come from the realization accruals: hourly keeps them as fresh as WB
+        # (a run reads the last 3 days, one request per day)
+        "schedule": crontab(minute="50"),
+    },
+    # finance block: the seller cabinet's balance, payouts and every charge
+    "ozon_finance_balance": {
+        "task": "tasks.ozon_collect.ozon_finance_balance",
+        "schedule": crontab(minute="52"),
+    },
+    "wb_finance_report": {
+        "task": "tasks.wb_collect.wb_finance_report",
+        "schedule": crontab(minute="17"),
+    },
+    "wb_balance_snapshot": {
+        "task": "tasks.wb_collect.wb_balance_snapshot",
+        "schedule": crontab(minute="19"),
     },
     "ozon_ads_daily": {
         "task": "tasks.ozon_collect.ozon_ads_daily",

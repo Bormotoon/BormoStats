@@ -14,6 +14,9 @@ BACKFILL_MAX_DAYS: dict[tuple[str, str], int] = {
     ("wb", "funnel"): 364,
     ("ozon", "postings"): 730,
     ("ozon", "finance"): 730,
+    ("ozon", "balance"): 730,
+    # WB keeps realization reports from 2025-01-01; the task clamps earlier days
+    ("wb", "finance"): 730,
     ("marts", "build"): 730,
 }
 
@@ -30,6 +33,7 @@ class BackfillDataset(StrEnum):
     FUNNEL = "funnel"
     POSTINGS = "postings"
     FINANCE = "finance"
+    BALANCE = "balance"
     BUILD = "build"
 
 

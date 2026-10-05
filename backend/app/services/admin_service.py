@@ -141,6 +141,8 @@ class AdminService:
             ("wb", "funnel"): "tasks.wb_collect.wb_funnel_backfill_days",
             ("ozon", "postings"): "tasks.ozon_collect.ozon_postings_backfill_days",
             ("ozon", "finance"): "tasks.ozon_collect.ozon_finance_backfill_days",
+            ("ozon", "balance"): "tasks.ozon_collect.ozon_finance_balance_backfill_days",
+            ("wb", "finance"): "tasks.wb_collect.wb_finance_report_backfill_days",
             ("marts", "build"): "tasks.marts.build_marts_backfill_days",
         }
         task_name = mapping[(payload.marketplace.value, payload.dataset.value)]

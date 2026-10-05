@@ -2,8 +2,21 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 STATISTICS_BASE_URL = "https://statistics-api.wildberries.ru"
 ANALYTICS_BASE_URL = "https://seller-analytics-api.wildberries.ru"
+
+# Finance API (category "Финансы"; the statistics token of this account carries it).
+# Every method allows one request per minute.
+FINANCE_BASE_URL = "https://finance-api.wildberries.ru"
+BALANCE_PATH = "/api/v1/account/balance"
+# realization report lines, replacing /api/v5/supplier/reportDetailByPeriod (switched off);
+# daily reports add up to the weekly ones the payouts are made from
+SALES_REPORT_DETAILED_PATH = "/api/finance/v1/sales-reports/detailed"
+SALES_REPORT_PAGE_LIMIT = 100000
+SALES_REPORT_MAX_PAGES = 50
+SALES_REPORT_EARLIEST_DAY = date(2025, 1, 1)
 
 SALES_PATH = "/api/v1/supplier/sales"
 ORDERS_PATH = "/api/v1/supplier/orders"

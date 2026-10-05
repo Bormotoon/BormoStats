@@ -36,6 +36,7 @@ from app.core.security import (
 )
 from app.db.ch import insert_values_sql
 from app.models.organization import ORGANIZATION_ID_PATTERN, OrgMemberRole
+from app.services.session_service import SESSION_PREFIX, SessionService
 from app.services.user_service import StoredUser, UserService
 from fastapi import Depends, Header, HTTPException, Request, status
 
@@ -52,6 +53,7 @@ _AUTH_CACHE_MAX_ENTRIES = 2048
 class AuthMethod(StrEnum):
     admin_key = "admin_key"
     user_key = "user_key"
+    session = "session"
     anonymous = "anonymous"
 
 
@@ -328,6 +330,37 @@ def _authenticate_user_key(
     )
 
 
+def _authenticate_session(
+    request: Request,
+    ch: clickhouse_connect.driver.Client,
+    token: str,
+) -> AuthContext:
+    """A browser session opened by e-mail and password (``POST /api/v1/auth/login``)."""
+    session = SessionService(ch).authenticate(token)
+    if session is None:
+        LOGGER.warning("auth_rejected", reason="invalid_session", path=request.url.path)
+        raise _unauthorized("session expired, sign in again")
+    user_id, expires_at = session
+    service = UserService(ch)
+    user = service.get_user(user_id, None)
+    if user is None or not user.is_active:
+        LOGGER.warning("auth_rejected", reason="inactive_user", user_id=user_id)
+        raise _unauthorized("unauthorized")
+    role = service.get_member_role(user.organization_id, user.user_id)
+    if role is None:
+        raise _forbidden("user is not a member of its organization")
+    return AuthContext(
+        principal_id=user.user_id,
+        organization_id=user.organization_id,
+        role=role,
+        auth_method=AuthMethod.session,
+        scopes=ROLE_SCOPES[role],
+        name=user.name,
+        email=user.email,
+        api_key_expires_at=expires_at,
+    )
+
+
 def resolve_auth_context(
     request: Request,
     ch: clickhouse_connect.driver.Client,
@@ -365,7 +398,10 @@ def resolve_auth_context(
     cached = _CACHE.get(digest)
     if cached is not None:
         return cached
-    ctx = _authenticate_user_key(request, ch, key)
+    if key.startswith(SESSION_PREFIX):
+        ctx = _authenticate_session(request, ch, key)
+    else:
+        ctx = _authenticate_user_key(request, ch, key)
     _CACHE.put(digest, ctx, settings.auth_cache_ttl_seconds)
     return ctx
 

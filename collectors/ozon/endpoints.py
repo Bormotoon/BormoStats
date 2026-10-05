@@ -28,6 +28,9 @@ FINANCE_ACCRUAL_TYPES_PATH = "/v1/finance/accrual/types"
 FINANCE_ACCRUAL_EARLIEST_DAY = date(2022, 1, 1)
 # safety bound for last_id pagination within a single day
 FINANCE_ACCRUAL_MAX_PAGES_PER_DAY = 500
+# the seller's balance for a period: opening/closing balance, accrued, payouts and the
+# sales/returns/services breakdown the seller cabinet shows (the day is a Moscow day)
+FINANCE_BALANCE_PATH = "/v1/finance/balance"
 
 # Performance API (ads): separate host with OAuth client-credentials tokens
 PERFORMANCE_BASE_URL = "https://api-performance.ozon.ru"

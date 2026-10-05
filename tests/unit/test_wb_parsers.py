@@ -30,6 +30,54 @@ def test_parse_sales_marks_return_rows() -> None:
     assert row["chrt_id"] == 222
 
 
+def _statistics_sale(sale_id: str, sign: int) -> dict[str, object]:
+    # the shape /api/v1/supplier/sales returns: no quantity, a return has an R… saleID
+    # and negative amounts
+    return {
+        "date": "2026-09-30T13:34:38",
+        "lastChangeDate": "2026-09-30T13:54:06",
+        "nmId": 243555797,
+        "chrtId": 1,
+        "incomeID": 31548360,
+        "totalPrice": sign * 1320,
+        "priceWithDisc": sign * 449,
+        "finishedPrice": sign * 291,
+        "forPay": sign * 276.13,
+        "saleID": sale_id,
+        "srid": "eB9.r5c51b97ddb1f4ce3b8e56fdef93cc9b7.0.0",
+    }
+
+
+def test_parse_sales_reads_the_seller_price_and_payout() -> None:
+    rows = parse_sales([_statistics_sale("S25450176202", 1)], run_id="r", account_id="a")
+
+    row = rows[0]
+    assert row["sale_id"] == "S25450176202"
+    assert row["is_return"] == 0
+    assert row["quantity"] == 1
+    assert row["price_rub"] == 449  # priceWithDisc, not forPay
+    assert row["payout_rub"] == 276.13  # forPay, not the incomeID supply number
+
+
+def test_parse_sales_keeps_a_return_apart_from_its_sale() -> None:
+    rows = parse_sales(
+        [_statistics_sale("S25450176202", 1), _statistics_sale("R622772673", -1)],
+        run_id="r",
+        account_id="a",
+    )
+
+    sale, ret = rows
+    assert (sale["srid"], sale["nm_id"], sale["chrt_id"]) == (
+        ret["srid"],
+        ret["nm_id"],
+        ret["chrt_id"],
+    )
+    assert sale["sale_id"] != ret["sale_id"]
+    assert ret["is_return"] == 1
+    assert ret["price_rub"] == 449
+    assert ret["payout_rub"] == -276.13
+
+
 def test_parse_orders_supports_alias_fields() -> None:
     records = [
         {

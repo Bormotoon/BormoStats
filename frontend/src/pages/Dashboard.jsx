@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useI18n } from "../utils/i18n.jsx";
-import { request } from "../utils/api.js";
-import { sum, groupSeries, moneyFmt, numberFmt } from "../utils/formats.js";
+import { request, requestAll } from "../utils/api.js";
+import { sum, groupSeries, totalsBy, moneyFmt, numberFmt, isoDay, DEFAULT_DATE_FROM_OFFSET } from "../utils/formats.js";
 import MetricCard from "../components/MetricCard.jsx";
 import StatusChip from "../components/StatusChip.jsx";
 import DataTable from "../components/DataTable.jsx";
@@ -13,18 +13,15 @@ import { ListChecks, WarningCircle, Package, Megaphone } from "@phosphor-icons/r
 export default function Dashboard() {
   const { t } = useI18n();
   const [searchParams] = useSearchParams();
-  const [state, setState] = useState({ loading: true, sales: [], ads: [], stocks: [], kpis: [], tasks: [], health: null, ready: null, error: "" });
+  const [state, setState] = useState({ loading: true, sales: [], ads: [], stocks: [], kpis: [], tasks: [], finance: [], balance: [], health: null, ready: null, error: "" });
 
   useEffect(() => {
     let cancelled = false;
     setState((s) => ({ ...s, loading: true, error: "" }));
 
     const get = (key, def) => searchParams.get(key) || def;
-    const d = new Date();
-    const from = new Date(d);
-    from.setUTCDate(from.getUTCDate() - 30);
-    const dateFrom = get("dateFrom", from.toISOString().slice(0, 10));
-    const dateTo = get("dateTo", d.toISOString().slice(0, 10));
+    const dateFrom = get("dateFrom", isoDay(DEFAULT_DATE_FROM_OFFSET));
+    const dateTo = get("dateTo", isoDay(0));
     const marketplace = get("marketplace", "");
     const accountId = get("accountId", "");
     const limit = get("limit", "1000");
@@ -33,16 +30,18 @@ export default function Dashboard() {
     const paramsNd = { marketplace, account_id: accountId, limit: Number(limit) };
 
     Promise.all([
-      request("/api/v1/sales/daily", { query: params }).then(r => r.items || []).catch(() => []),
-      request("/api/v1/ads/daily", { query: params }).then(r => r.items || []).catch(() => []),
-      request("/api/v1/stocks/current", { query: paramsNd }).then(r => r.items || []).catch(() => []),
+      requestAll("/api/v1/sales/daily", { query: params }).then(r => r.items || []).catch(() => []),
+      requestAll("/api/v1/ads/daily", { query: params }).then(r => r.items || []).catch(() => []),
+      requestAll("/api/v1/stocks/current", { query: paramsNd }).then(r => r.items || []).catch(() => []),
       request("/api/v1/kpis", { query: paramsNd }).then(r => r.items || []).catch(() => []),
       request("/api/v1/insights/tasks", { query: { status: "open" }, admin: true }).then(r => r || []).catch(() => []),
+      requestAll("/api/v1/finance/daily", { query: params }).then(r => r.items || []).catch(() => []),
+      requestAll("/api/v1/finance/balance", { query: paramsNd }).then(r => r.items || []).catch(() => []),
       request("/health/live").catch(() => null),
       request("/health/ready").catch(() => null),
-    ]).then(([sales, ads, stocks, kpis, tasks, health, ready]) => {
+    ]).then(([sales, ads, stocks, kpis, tasks, finance, balance, health, ready]) => {
       if (!cancelled) {
-        setState({ loading: false, sales, ads, stocks, kpis, tasks, health, ready, error: "" });
+        setState({ loading: false, sales, ads, stocks, kpis, tasks, finance, balance, health, ready, error: "" });
       }
     });
 
@@ -52,7 +51,10 @@ export default function Dashboard() {
   if (state.loading) return <Spinner />;
 
   const { sales: salesRows, ads: adsRows, stocks: stockRows, kpis: kpiRows, tasks, health, ready } = state;
-  const topProducts = [...salesRows].sort((a, b) => Number(b.revenue || 0) - Number(a.revenue || 0)).slice(0, 10);
+  // one row per product over the whole period, not the best product-days
+  const topProducts = totalsBy(salesRows, (r) => `${r.marketplace}|${r.account_id}|${r.product_id}`, ["qty", "revenue", "returns_qty", "payout"])
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 10);
 
   const taskIcons = { turnover: Package, stagnant: WarningCircle, bad_ad: Megaphone };
   const taskColors = { turnover: "text-blue-600", stagnant: "text-orange-600", bad_ad: "text-red-600" };
@@ -94,6 +96,19 @@ export default function Dashboard() {
         <MetricCard label={t("dashboard.adCost")} value={moneyFmt(sum(adsRows, "cost"))} subvalue={t("dashboard.sumCost")} />
       </div>
 
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {state.balance.map((b) => (
+          <MetricCard
+            key={`${b.marketplace}|${b.account_id}`}
+            label={`${t("finance.balance")} ${b.marketplace.toUpperCase()}`}
+            value={moneyFmt(b.balance)}
+            subvalue={b.for_withdraw !== null && b.for_withdraw !== undefined ? `${t("finance.forWithdraw")}: ${moneyFmt(b.for_withdraw)}` : t("dashboard.nowHint")}
+            accent="success"
+          />
+        ))}
+        <MetricCard label={t("finance.netAccrued")} value={moneyFmt(sum(state.finance, "net_accrued"))} subvalue={t("dashboard.period")} accent="success" />
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
         <MetricCard label={t("dashboard.stockUnits")} value={numberFmt(sum(state.stocks, "stock_end"))} subvalue={`${numberFmt(state.stocks.length)} ${t("dashboard.items")}`} className="lg:col-span-1" />
         <div className="lg:col-span-3">
@@ -110,7 +125,7 @@ export default function Dashboard() {
 
       <section className="md3-card-elevated p-4">
         <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">{t("dashboard.topProducts")}</h3>
-        <DataTable rows={topProducts} preferredColumns={["day", "marketplace", "account_id", "product_id", "qty", "revenue", "returns_qty", "payout"]} />
+        <DataTable rows={topProducts} preferredColumns={["marketplace", "account_id", "product_id", "qty", "revenue", "returns_qty", "payout"]} />
       </section>
     </div>
   );

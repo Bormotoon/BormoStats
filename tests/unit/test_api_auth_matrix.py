@@ -17,13 +17,25 @@ from fastapi.testclient import TestClient
 
 from tests.fakes import FakeClickHouse
 
-PUBLIC_PATHS = {"/health", "/health/live", "/ready", "/health/ready", "/health/dependencies"}
+PUBLIC_PATHS = {
+    "/health",
+    "/health/live",
+    "/ready",
+    "/health/ready",
+    "/health/dependencies",
+}
+# signing in is how a browser gets credentials; it is guarded by its own rate limit
+PUBLIC_API_PATHS = {"/api/v1/auth/login"}
 
 
 def _api_routes() -> list[tuple[str, str]]:
     routes: list[tuple[str, str]] = []
     for route in app.routes:
-        if isinstance(route, APIRoute) and route.path.startswith("/api/"):
+        if (
+            isinstance(route, APIRoute)
+            and route.path.startswith("/api/")
+            and route.path not in PUBLIC_API_PATHS
+        ):
             for method in sorted(route.methods - {"HEAD", "OPTIONS"}):
                 routes.append((method, re.sub(r"\{[^}]+\}", "x1", route.path)))
     return routes
@@ -48,6 +60,13 @@ def test_route_inventory_is_not_empty() -> None:
 def test_every_api_route_requires_credentials(client: TestClient, method: str, path: str) -> None:
     response = client.request(method, path, json={})
     assert response.status_code == 401, (method, path, response.text)
+
+
+def test_sign_in_with_unknown_credentials_is_rejected(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/auth/login", json={"email": "nobody@example.com", "password": "whatever1"}
+    )
+    assert response.status_code == 401
 
 
 @pytest.mark.parametrize(("method", "path"), _api_routes())

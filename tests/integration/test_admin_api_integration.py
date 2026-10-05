@@ -31,7 +31,7 @@ def test_admin_backfill_rejects_invalid_whitelist_combo_live(
     response = api_client.post(
         "/api/v1/admin/backfill",
         headers={"X-API-Key": integration_runtime.admin_api_key},
-        json={"marketplace": "wb", "dataset": "finance", "days": 14},
+        json={"marketplace": "wb", "dataset": "postings", "days": 14},
     )
 
     assert response.status_code == 422

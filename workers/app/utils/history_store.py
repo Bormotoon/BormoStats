@@ -236,6 +236,8 @@ class HistoryStore:
         ignore: Iterable[str] = (),
         tombstone_missing: bool = False,
         carry: Iterable[str] = (),
+        retire: Iterable[str] = (),
+        retire_message: str = "",
     ) -> RecordResult:
         """Commit every observation that differs from its entity's HEAD.
 
@@ -243,6 +245,8 @@ class HistoryStore:
         catalogue: live entities absent from it get a deletion commit. ``carry`` names
         top-level document sections that are copied from HEAD when an observation lacks
         them, so a section whose source failed this run does not read as a removal.
+        ``retire`` lists existing entities to close with a deletion commit carrying
+        ``retire_message`` (e.g. rows re-keyed by a migration).
         """
         result = RecordResult()
         ignore_list = tuple(ignore)
@@ -314,6 +318,26 @@ class HistoryStore:
                         )
                     )
 
+        retire_keys = list(dict.fromkeys(retire))
+        retired: set[str] = set()
+        if retire_keys:
+            heads.update(self._heads(marketplace, account_id, repo, retire_keys))
+            now = _utc(None)
+            for key in retire_keys:
+                if key not in heads:
+                    continue
+                retired.add(key)
+                pending.append(
+                    _Pending(
+                        entity_key=key,
+                        document=DELETED_DOCUMENT,
+                        text=dump(DELETED_DOCUMENT),
+                        obj=object_hash(DELETED_DOCUMENT),
+                        observed_at=now,
+                        deleted=True,
+                    )
+                )
+
         if not pending:
             return result
 
@@ -367,7 +391,11 @@ class HistoryStore:
             )
             changed: list[Change] = []
             if item.deleted:
-                message = "deleted: no longer returned by the marketplace"
+                message = (
+                    retire_message
+                    if item.entity_key in retired and retire_message
+                    else "deleted: no longer returned by the marketplace"
+                )
                 changed_paths = ["$"]
                 result.deleted += 1
             elif head is None:
@@ -387,6 +415,11 @@ class HistoryStore:
                 else:
                     changed = diff_documents(_loads(old_text), item.document)
                     changed_paths = [change.path for change in changed]
+                    if not changed_paths:
+                        # only the order of id-matched list items differs (Ozon returns
+                        # complex attributes in a different order on every call): no change
+                        result.unchanged += 1
+                        continue
                 message = f"changed {len(changed_paths)} field(s)"
                 result.modified += 1
             local_bodies[item.obj] = item.text

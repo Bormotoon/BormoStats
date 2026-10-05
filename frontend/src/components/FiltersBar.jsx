@@ -3,10 +3,10 @@ import { useSearchParams } from "react-router-dom";
 import { motion } from "motion/react";
 import { useI18n } from "../utils/i18n.jsx";
 import { Funnel as FunnelIcon, X } from "@phosphor-icons/react";
-import { isoDay } from "../utils/formats";
+import { DEFAULT_DATE_FROM_OFFSET, isoDay } from "../utils/formats";
 
 const FILTER_CONFIG = {
-  dateFrom: { type: "date", defaultValue: () => isoDay(-30) },
+  dateFrom: { type: "date", defaultValue: () => isoDay(DEFAULT_DATE_FROM_OFFSET) },
   dateTo: { type: "date", defaultValue: () => isoDay(0) },
   marketplace: {
     type: "select",
@@ -30,6 +30,7 @@ export default function FiltersBar({ pageId }) {
   const pageFilters = {
     dashboard: ["dateFrom", "dateTo", "marketplace", "accountId", "limit"],
     sales: ["dateFrom", "dateTo", "marketplace", "accountId", "limit"],
+    finance: ["dateFrom", "dateTo", "marketplace", "accountId"],
     stocks: ["marketplace", "accountId", "limit"],
     funnel: ["dateFrom", "dateTo", "marketplace", "accountId", "limit"],
     ads: ["dateFrom", "dateTo", "marketplace", "accountId", "limit"],

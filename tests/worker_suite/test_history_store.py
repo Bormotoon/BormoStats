@@ -393,3 +393,61 @@ def test_prune_is_unchanged_when_history_is_disabled(monkeypatch: pytest.MonkeyP
     report = maintenance.prune_old_raw(120)
 
     assert len(ch.commands) == report["tables"] == 9
+
+
+def test_retired_entities_get_one_deletion_commit_with_the_reason() -> None:
+    ch = MemoryClickHouse()
+    _record(_store(ch), {"old|1": _card(), "new|1": _card(title="Cup")})
+
+    result = _record(
+        _store(ch, "run-2"), {}, retire=["old|1", "never-seen"], retire_message="re-keyed"
+    )
+    assert result.deleted == 1
+    tomb = [c for c in ch.rows("hist_commits") if c["is_deleted"]]
+    assert [(c["entity_key"], c["message"]) for c in tomb] == [("old|1", "re-keyed")]
+    assert ch._refs()[("wb", "acc", "product", "new|1")]["is_deleted"] == 0
+    # retiring again changes nothing
+    assert (
+        _record(_store(ch, "run-3"), {}, retire=["old|1"], retire_message="re-keyed").commits == 0
+    )
+
+
+def test_balance_snapshots_are_archived_per_marketplace_and_only_on_change() -> None:
+    ch = MemoryClickHouse()
+
+    def snapshot(marketplace: str, hour: int, balance: float) -> dict[str, Any]:
+        return {
+            "run_id": "r",
+            "marketplace": marketplace,
+            "account_id": "acc",
+            "snapshot_ts": datetime(2026, 9, 30, hour, tzinfo=UTC),
+            "balance": balance,
+            "for_withdraw": 0.0,
+            "payload": "{}",
+        }
+
+    archive_rows(ch, "raw_marketplace_balance", [snapshot("wb", 10, 12180.09)])
+    archive_rows(ch, "raw_marketplace_balance", [snapshot("ozon", 10, 47590.23)])
+    unchanged = archive_rows(ch, "raw_marketplace_balance", [snapshot("wb", 11, 12180.09)])
+    changed = archive_rows(ch, "raw_marketplace_balance", [snapshot("wb", 12, 12044.39)])
+
+    assert unchanged is not None and unchanged.unchanged == 1
+    assert changed is not None and changed.modified == 1
+    commits = ch.rows("hist_commits")
+    assert [(c["marketplace"], c["entity_key"]) for c in commits] == [
+        ("wb", "wb"),
+        ("ozon", "ozon"),
+        ("wb", "wb"),
+    ]
+    assert commits[2]["committed_at"] == datetime(2026, 9, 30, 12, tzinfo=UTC)
+
+
+def test_reordered_id_matched_list_is_not_a_commit() -> None:
+    ch = MemoryClickHouse()
+    attrs = [{"id": 1, "values": ["a.mp4"]}, {"id": 2, "values": ["gold"]}]
+    _record(_store(ch), {"1": {"attributes": attrs}})
+
+    result = _record(_store(ch, "run-2"), {"1": {"attributes": list(reversed(attrs))}})
+
+    assert result.commits == 0 and result.unchanged == 1
+    assert len(ch.rows("hist_commits")) == 1

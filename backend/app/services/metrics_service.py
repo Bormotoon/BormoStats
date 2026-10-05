@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import clickhouse_connect
-from app.db.ch import query_dicts
+from app.db.ch import PARTITION_LOCAL_FINAL, query_dicts
 from app.services.query_cache import QueryCache
 from app.services.sql_loader import load_sql
 
@@ -33,7 +33,10 @@ class MetricsService:
 
     def _run(self, query_name: str, **parameters: Any) -> list[dict[str, Any]]:
         def compute() -> list[dict[str, Any]]:
-            return query_dicts(self.client, _load_sql(query_name), parameters)
+            # the marts are read FINAL: a rebuild inserts new rows before merges drop the old
+            return query_dicts(
+                self.client, _load_sql(query_name), parameters, settings=PARTITION_LOCAL_FINAL
+            )
 
         if self.cache is None:
             return compute()
@@ -134,6 +137,46 @@ class MetricsService:
     ) -> list[dict[str, Any]]:
         return self._run(
             "kpis.sql",
+            organization_id=organization_id,
+            marketplace=marketplace,
+            account_id=account_id,
+            limit=limit,
+            offset=offset,
+        )
+
+    def finance_daily(
+        self,
+        *,
+        organization_id: str,
+        date_from: date,
+        date_to: date,
+        marketplace: str,
+        account_id: str,
+        limit: int,
+        offset: int,
+    ) -> list[dict[str, Any]]:
+        return self._run(
+            "finance_daily.sql",
+            organization_id=organization_id,
+            date_from=date_from,
+            date_to=date_to,
+            marketplace=marketplace,
+            account_id=account_id,
+            limit=limit,
+            offset=offset,
+        )
+
+    def finance_balance(
+        self,
+        *,
+        organization_id: str,
+        marketplace: str,
+        account_id: str,
+        limit: int,
+        offset: int,
+    ) -> list[dict[str, Any]]:
+        return self._run(
+            "finance_balance.sql",
             organization_id=organization_id,
             marketplace=marketplace,
             account_id=account_id,

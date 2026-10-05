@@ -11,6 +11,9 @@ import AbcXyz from "./pages/AbcXyz.jsx";
 import Ads from "./pages/Ads.jsx";
 import Bidder from "./pages/Bidder.jsx";
 import PnL from "./pages/PnL.jsx";
+import Finance from "./pages/Finance.jsx";
+import History from "./pages/History.jsx";
+import Login from "./pages/Login.jsx";
 import Repricer from "./pages/Repricer.jsx";
 import KPIs from "./pages/KPIs.jsx";
 import Watermarks from "./pages/Watermarks.jsx";
@@ -19,12 +22,14 @@ import AdminActions from "./pages/AdminActions.jsx";
 import System from "./pages/System.jsx";
 import Pim from "./pages/Pim.jsx";
 import Integrations from "./pages/Integrations.jsx";
-import { loadSettings, getTheme } from "./utils/api.js";
+import { loadSettings, getTheme, getSettings, subscribeSettings } from "./utils/api.js";
 loadSettings();
 
 const PAGES = {
   dashboard: Dashboard,
   sales: Sales,
+  finance: Finance,
+  history: History,
   stocks: Stocks,
   funnel: Funnel,
   abcXyz: AbcXyz,
@@ -48,6 +53,7 @@ function getPageFromHash() {
 
 function AppInner() {
   const [currentPath, setCurrentPath] = useState(getPageFromHash);
+  const [signedIn, setSignedIn] = useState(() => Boolean(getSettings().apiKey));
   const PageComponent = PAGES[currentPath];
   const { t } = useI18n();
 
@@ -58,9 +64,13 @@ function AppInner() {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
+  useEffect(() => subscribeSettings((s) => setSignedIn(Boolean(s.apiKey))), []);
+
   const handleReload = useCallback(() => {
     window.location.reload();
   }, []);
+
+  if (!signedIn) return <Login />;
 
   return (
     <Layout onReload={handleReload}>

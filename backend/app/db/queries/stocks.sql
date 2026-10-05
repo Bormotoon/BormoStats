@@ -1,15 +1,18 @@
+-- The latest stock day of each marketplace/account: one common max(day) would hide an
+-- account whose collector is a day behind.
 WITH scoped AS (
   SELECT day, marketplace, account_id, product_id, warehouse_id, stock_end
-  FROM mrt_stock_daily
+  FROM mrt_stock_daily FINAL
   WHERE (%(marketplace)s = '' OR marketplace = %(marketplace)s)
     AND (%(account_id)s = '' OR account_id = %(account_id)s)
     AND (marketplace, account_id) IN (
     SELECT marketplace, account_id FROM dim_account FINAL WHERE organization_id = %(organization_id)s
   )
 ),
-max_day AS (
-  SELECT max(day) AS current_day
+latest AS (
+  SELECT marketplace, account_id, max(day) AS current_day
   FROM scoped
+  GROUP BY marketplace, account_id
 )
 SELECT
   s.day,
@@ -19,9 +22,11 @@ SELECT
   s.warehouse_id,
   sum(s.stock_end) AS stock_end
 FROM scoped AS s
-CROSS JOIN max_day
-WHERE s.day = max_day.current_day
+INNER JOIN latest AS l
+  ON s.marketplace = l.marketplace
+  AND s.account_id = l.account_id
+  AND s.day = l.current_day
 GROUP BY s.day, s.marketplace, s.account_id, s.product_id, s.warehouse_id
-ORDER BY stock_end ASC
+ORDER BY stock_end ASC, s.marketplace, s.product_id
 LIMIT %(limit)s
 OFFSET %(offset)s

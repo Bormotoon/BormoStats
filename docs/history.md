@@ -28,7 +28,9 @@ An entity is `(marketplace, account_id, repo, entity_key)`. A **repo** groups en
 
 Rules that keep the store small and honest:
 
-- A commit is written only when the object hash differs from HEAD. Re-reading an unchanged
+- A commit is written only when the object hash differs from HEAD and the field diff finds a
+  change: a list of id-matched items that only came back in another order (Ozon's complex
+  attributes do on every call) is not a commit. Re-reading an unchanged
   catalogue writes nothing. Volatile columns (`run_id`, `ingested_at`, and `snapshot_ts` of stock
   snapshots) are not part of the state, so a stock row is committed when the quantity changes, not
   every 30 minutes.
@@ -51,7 +53,7 @@ Rules that keep the store small and honest:
 |---|---|---|
 | `tasks.history.wb_catalog_snapshot` | hourly `:12` | `WB_TOKEN_CONTENT` (category "Content"); prices additionally need `WB_TOKEN_PRICES` |
 | `tasks.history.ozon_catalog_snapshot` | hourly `:27` | `OZON_CLIENT_ID` / `OZON_API_KEY` |
-| `tasks.history.backfill_raw_archive` | daily 01:30 | imports the raw tables' current contents once per table |
+| `tasks.history.backfill_raw_archive` | daily 01:30 | imports the raw tables' current contents once per table (a table added later, e.g. the finance tables, is imported on the next run), then retires entities whose key changed (below) |
 | every collector | on each insert | `insert_rows` archives what it writes; no extra API calls |
 
 `prune_old_raw` (02:00) skips a raw table until its one-off import is done, so pruning can never delete
@@ -60,6 +62,22 @@ the only copy of a row. `HISTORY_ENABLED=false` switches the archive and this gu
 Marketplace endpoints used (constants in `collectors/*/endpoints.py`): WB `POST /content/v2/get/cards/list`,
 `GET /api/v2/list/goods/filter`; Ozon `POST /v3/product/list`, `/v3/product/info/list`,
 `/v4/product/info/attributes`, `/v5/product/info/prices`.
+
+### What is archived
+
+Every raw table of the seller's own data: sales, returns and orders (WB), stocks (both), the WB
+funnel, Ozon postings and their items, Ozon ads, Ozon accruals, the finance block
+(`raw_ozon_finance_balance`, `raw_wb_sales_report`, `raw_marketplace_balance` — balance snapshots
+are one entity per marketplace, committed when the balance changes), and the product catalogues
+of both marketplaces (cards, attributes, prices, price indexes). An integration test fails when
+a non-empty raw table has no history repo.
+
+### Re-keyed tables
+
+When a migration changes a table's key, the entities under the old key would live on next to
+the new ones. `LEGACY_ENTITY_FILTERS` lists them; the daily import gives each a deletion commit
+with the reason ("re-keyed: sale_id joined the key (migration 0029)"), so a point-in-time view
+shows the old entities before that moment and the new ones after it.
 
 ## Configuration
 
@@ -80,6 +98,7 @@ All endpoints are read-only, tenant-scoped, and need the same access as the anal
 | `GET /api/v1/history/commits` | `git log` | `repo` (default `product`), `marketplace`, `account_id`, `entity_key`, `since`, `until`, `limit`, `offset` |
 | `GET /api/v1/history/commits/{commit_id}` | `git show` | the document as recorded and the fields it changed |
 | `GET /api/v1/history/snapshot` | `git checkout <time>` | `marketplace`, `entity_key`, `at` (default now); 404 when the entity did not exist yet |
+| `GET /api/v1/history/state` | `git checkout <time>` of a whole repo | `repo`, `marketplace`, `account_id`, `at` (default now), `limit`, `offset`: every entity alive at `at` with its document. The UI page "История" shows it for any dataset and moment. |
 | `GET /api/v1/history/changes` | `git log -p -- <path>` | `path_prefix` (e.g. `price`, `card.title`), same filters as `commits` |
 
 Examples:

@@ -22,9 +22,11 @@ from collectors.ozon.errors import is_capability_error
 from collectors.ozon.parsers import (
     parse_ads_daily,
     parse_finance_accruals,
+    parse_finance_balance,
     parse_postings,
     parse_stocks,
 )
+from common.finance import FINANCE_CATEGORIES
 
 LOGGER = logging.getLogger(__name__)
 
@@ -34,6 +36,33 @@ OZON_TZ = ZoneInfo("Europe/Moscow")
 # accruals of recent days are still being posted, so every run re-reads them
 FINANCE_LOOKBACK_DAYS = 3
 ADS_LOOKBACK_DAYS = 3
+
+RAW_OZON_FINANCE_BALANCE_COLUMNS = [
+    "run_id",
+    "account_id",
+    "day",
+    *FINANCE_CATEGORIES,
+    "net_accrued",
+    "payouts",
+    "opening_balance",
+    "closing_balance",
+    "services",
+    "payload",
+]
+
+RAW_MARKETPLACE_BALANCE_COLUMNS = [
+    "run_id",
+    "marketplace",
+    "account_id",
+    "snapshot_ts",
+    "balance",
+    "for_withdraw",
+    "payload",
+]
+
+# the seller's balance history starts with the first sale; the method answers zeros before
+FINANCE_BALANCE_EARLIEST_DAY = date(2022, 1, 1)
+FINANCE_BALANCE_LOOKBACK_DAYS = 3
 
 RAW_OZON_POSTINGS_COLUMNS = [
     "run_id",
@@ -333,6 +362,116 @@ def _collect_finance(account_id: str, from_day: date | None = None) -> dict[str,
                 return {"status": "skipped", "reason": "capability_unavailable"}
             log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
             raise
+
+
+def _collect_finance_balance(account_id: str, from_day: date) -> dict[str, Any]:
+    """Daily balance rows from ``from_day`` to today and a snapshot of the current balance."""
+    task_name = "tasks.ozon_collect.ozon_finance_balance"
+    run_id, started_at = new_run_context()
+    ozon = _ozon_client()
+    if ozon is None:
+        return {"status": "skipped", "reason": "missing Ozon credentials"}
+
+    redis_client = get_redis_client()
+    with lock_scope(
+        redis_client=redis_client,
+        source="ozon_finance_balance",
+        account_id=account_id,
+        ttl_seconds=1200,
+        auto_renew=True,
+    ):
+        ch_client = get_ch_client()
+        try:
+            today = _ozon_today()
+            start_day = min(max(from_day, FINANCE_BALANCE_EARLIEST_DAY), today)
+            rows: list[dict[str, Any]] = []
+            day = start_day
+            while day <= today:
+                rows.append(
+                    parse_finance_balance(
+                        ozon.finance_balance(day, day),
+                        day=day,
+                        run_id=run_id,
+                        account_id=account_id,
+                    )
+                )
+                day += timedelta(days=1)
+            inserted = insert_rows(
+                ch_client, "raw_ozon_finance_balance", RAW_OZON_FINANCE_BALANCE_COLUMNS, rows
+            )
+            # today's closing balance is the balance the seller cabinet shows right now
+            current = rows[-1]
+            insert_rows(
+                ch_client,
+                "raw_marketplace_balance",
+                RAW_MARKETPLACE_BALANCE_COLUMNS,
+                [
+                    {
+                        "run_id": run_id,
+                        "marketplace": "ozon",
+                        "account_id": account_id,
+                        "snapshot_ts": datetime.now(UTC).replace(microsecond=0),
+                        "balance": current["closing_balance"],
+                        "for_withdraw": None,
+                        "payload": current["payload"],
+                    }
+                ],
+            )
+            set_watermark(
+                ch_client,
+                "ozon_finance_balance",
+                account_id,
+                datetime.combine(today, datetime.min.time(), tzinfo=OZON_TZ).astimezone(UTC),
+            )
+            log_task_run(
+                ch_client,
+                task_name,
+                run_id,
+                started_at,
+                "success",
+                inserted,
+                "ozon balance collected",
+                meta={"from_day": start_day.isoformat(), "to_day": today.isoformat()},
+            )
+            return {
+                "status": "success",
+                "rows": inserted,
+                "balance": current["closing_balance"],
+                "from_day": start_day.isoformat(),
+                "to_day": today.isoformat(),
+            }
+        except Exception as exc:
+            if is_capability_error(exc):
+                _log_capability_skip(ch_client, task_name, run_id, started_at, "balance", exc)
+                return {"status": "skipped", "reason": "capability_unavailable"}
+            log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
+            raise
+
+
+@shared_task(name="tasks.ozon_collect.ozon_finance_balance")
+def ozon_finance_balance(account_id: str = OZON_ACCOUNT_ID) -> dict[str, Any]:
+    try:
+        return _collect_finance_balance(
+            account_id=account_id,
+            from_day=_ozon_today() - timedelta(days=FINANCE_BALANCE_LOOKBACK_DAYS),
+        )
+    except LockNotAcquiredError:
+        return {"status": "skipped", "reason": "lock_not_acquired"}
+
+
+@shared_task(name="tasks.ozon_collect.ozon_finance_balance_backfill_days")
+def ozon_finance_balance_backfill_days(
+    days: int = 30, account_id: str = OZON_ACCOUNT_ID
+) -> dict[str, Any]:
+    safe_days = max(1, min(days, 730))
+    try:
+        result = _collect_finance_balance(
+            account_id=account_id, from_day=_ozon_today() - timedelta(days=safe_days)
+        )
+        result["days"] = safe_days
+        return result
+    except LockNotAcquiredError:
+        return {"status": "skipped", "reason": "lock_not_acquired"}
 
 
 @shared_task(name="tasks.ozon_collect.ozon_finance_incremental")

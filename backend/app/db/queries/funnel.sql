@@ -8,7 +8,7 @@ SELECT
   sum(f.orders) AS orders,
   if(sum(f.views)=0, 0, sum(f.orders)/sum(f.views)) AS cr_order,
   if(sum(f.views)=0, 0, sum(f.adds_to_cart)/sum(f.views)) AS cr_cart
-FROM mrt_funnel_daily AS f
+FROM mrt_funnel_daily AS f FINAL
 WHERE f.day BETWEEN %(date_from)s AND %(date_to)s
   AND (%(marketplace)s = '' OR f.marketplace = %(marketplace)s)
   AND (%(account_id)s = '' OR f.account_id = %(account_id)s)

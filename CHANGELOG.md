@@ -60,9 +60,76 @@ and every run was logged as `skipped` instead of failing.
     `tasks.history.backfill_raw_archive`.
   - New settings: `WB_TOKEN_CONTENT`, `HISTORY_ENABLED`, `HISTORY_PRODUCT_IGNORE_PATHS`,
     `HISTORY_STAT_IGNORE_PATHS`.
+- **Finance block** ([docs/data_catalog.md](docs/data_catalog.md#finance)): the balance and the
+  amount to withdraw as the seller cabinets show them, payouts (Ozon), and every charge per day —
+  commission, acquiring, logistics, reverse logistics, storage, acceptance, penalties, other —
+  adding up to the net accrual. Sources: Ozon `/v1/finance/balance` (daily, 730-day backfill),
+  WB realization reports (`/api/finance/v1/sales-reports/detailed`; the v5
+  `reportDetailByPeriod` is switched off) and the WB balance widget. `GET /api/v1/finance/daily`,
+  `GET /api/v1/finance/balance`, a "Финансы" page and balance cards on the dashboard. Backfill
+  datasets `ozon/balance` and `wb/finance`. Optional `WB_TOKEN_FINANCE` (defaults to the
+  statistics token).
+- **Point-in-time history of everything collected:** the finance tables join the archive,
+  `GET /api/v1/history/state` returns every record of a dataset as it was at any moment, and the
+  "История" page shows it. WB card history runs with `WB_TOKEN_CONTENT`; entities re-keyed by
+  0029 are retired with a reason; reordered id-matched lists are no longer commits.
+- **P&L is built** from the finance block: revenue, returns, commission, logistics, storage,
+  other charges, the marketplaces' accrual, cost of goods, Ozon ads and indirect expenses.
+- The sales page no longer calls the amount after commission "К выплате".
+- **Several stacks on one host.** Scripts (`bootstrap`, `backup`, `restore_check`, `run_local`)
+  and the Makefile take `ENV_FILE`; the app containers read `APP_ENV_FILE` (see
+  [docs/environments.md](docs/environments.md#running-an-environment-from-its-own-env-file)).
+- Container logs rotate (`LOG_MAX_SIZE`, default `20m`; `LOG_MAX_FILES`, default `5`).
+- `gen_tls_cert.sh` writes an IP SAN when `TLS_SERVER_NAME` is an IPv4 address, so the UI can be
+  opened by LAN address.
+- Backfill limits follow the marketplace history depth: WB funnel 364 days, Ozon postings,
+  Ozon finance and marts 730 days (WB sales/orders stay at 90, the Statistics API limit).
+
+### Fixed
+
+- **Backend descriptor leak.** Every operational-metrics refresh opened a ClickHouse pool that
+  `close()` never released (clickhouse-connect treats a passed-in pool as shared), so the backend
+  hit `Too many open files` within a day and turned unhealthy.
+- **App containers always read `.env`**, whatever `--env-file` said, so a second stack started with
+  the first stack's secrets.
+- Ozon postings are requested in 364-day windows; `/v4/posting/fbs/list` rejects exactly 365
+  (`PERIOD_IS_TOO_LONG`). WB funnel backfill starts 364 days back, the oldest day WB accepts.
+- A capability skip records the status, method, path and response body of the refused call.
+- **Sales figures** ([docs/data_catalog.md](docs/data_catalog.md#metrics)):
+  - WB payout was `incomeID` (the supply number; 2.3 billion ₽ in a month) and WB revenue was
+    `forPay`. Revenue is now `priceWithDisc`, payout `forPay`.
+  - WB returns (`saleID` `R…`) were counted as sales, and a return replaced its sale in
+    `raw_wb_sales` (same `srid`/`nm_id`/`chrt_id`); `sale_id` joins the key.
+  - Ozon sales were every posting, cancelled ones included, dated by order, with no returns,
+    plus 1 206 legacy `product_id = 0` rows counted twice (revenue about three times too high).
+    They now come from the realization accruals: the day of the sale, returns, actual commission.
+  - Returns were stored negative (`UInt32` overflow in `mrt_profit_daily`); profit revenue ignored
+    the quantity; margin was relative to the payout.
+  - WB order value was `totalPrice`, the list price before every discount.
+- **Stocks and supply planning:** no Ozon stock was ever stored (negative FBO warehouse ids on a
+  `UInt64` column); WB stock was per size while sales are per card, so WB never matched; "average
+  daily sales" was the average quantity per order line; the latest stock was one warehouse's.
+- **Days are Moscow days.** WB times (Moscow wall-clock without an offset) were read as UTC and
+  days were taken in the server time zone, so late-evening sales moved to the next day.
+- **Reads during a rebuild:** the API summed marts without `FINAL`, and the rebuild's
+  `SET mutations_sync` was lost between HTTP requests, so totals could double until merges ran.
+- ABC/XYZ was never built (no task ran it), the API returned every daily snapshot, and XYZ
+  skipped days without sales; it now uses weekly quantities over 8 full weeks.
+- The UI summed only the first page of results and averaged per-row ratios (conversion, ACOS,
+  margin); "top products" were product-days; the default period was 31 UTC days.
+- Data-quality checks compared times across conventions (false "future" sales) and flagged WB
+  funnels with more orders than cart adds, which WB allows (one-click orders).
 
 ### Migrations
 
+- `0030_finance`: `raw_ozon_finance_balance`, `raw_wb_sales_report`, `raw_marketplace_balance`,
+  `mrt_finance_daily`; `mrt_pnl_monthly` gains `storage_rub`, `other_costs_rub`,
+  `net_accrued_rub`, `cogs_rub`. Afterwards run the `ozon/balance` and `wb/finance` backfills
+  and a marts backfill.
+- `0029_sales_math_fixes` (destructive: rebuilds `raw_wb_sales` with `sale_id`, recreates
+  `raw_ozon_stocks` — empty — and the `stg_sales`/`stg_orders`/`stg_stocks`/`mrt_stock_daily`
+  tables, deletes the duplicate Ozon posting items). Afterwards run the transform and marts
+  backfills for 730 days and a 90-day WB sales backfill; take a backup first.
 - `0028_history`: the four `hist_*` tables (rollback drops them; take a backup first).
 - `0027_ozon_finance_accruals`: `raw_ozon_finance_ops.source` (`transaction_list_v3` for existing
   rows, `accrual_by_day` for new ones).

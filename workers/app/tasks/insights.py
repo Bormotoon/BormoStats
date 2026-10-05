@@ -34,20 +34,31 @@ GENERATE_TASK_NAME = "tasks.insights.generate_actionable_tasks"
 DIGEST_TASK_NAME = "tasks.insights.send_daily_digest"
 _SCOPE = account_scope_sql("oid")
 
+# Moscow days as in the marts; marts are read FINAL (a rebuild inserts before merges drop)
+_TODAY = "toDate(now(), 'Europe/Moscow')"
+_LATEST_STOCK = f"""
+  SELECT st.marketplace, st.account_id, st.product_id, sum(st.stock_end) AS stock_end
+  FROM mrt_stock_daily AS st FINAL
+  INNER JOIN (
+    SELECT marketplace, account_id, max(day) AS day
+    FROM mrt_stock_daily FINAL
+    WHERE {_SCOPE}
+    GROUP BY marketplace, account_id
+  ) AS latest USING (marketplace, account_id, day)
+  WHERE {_SCOPE}
+  GROUP BY st.marketplace, st.account_id, st.product_id
+"""
+
 TURNOVER_SQL = f"""
 WITH
   sales AS (
+    -- the last 14 full days (today is incomplete)
     SELECT marketplace, account_id, product_id, sum(qty) / 14 AS avg_daily_sales
-    FROM mrt_sales_daily
-    WHERE day >= today() - 14 AND {_SCOPE}
+    FROM mrt_sales_daily FINAL
+    WHERE day >= {_TODAY} - 14 AND day < {_TODAY} AND {_SCOPE}
     GROUP BY marketplace, account_id, product_id
   ),
-  stock AS (
-    SELECT marketplace, account_id, product_id, sum(stock_end) AS stock_end
-    FROM mrt_stock_daily
-    WHERE day = (SELECT max(day) FROM mrt_stock_daily WHERE {_SCOPE}) AND {_SCOPE}
-    GROUP BY marketplace, account_id, product_id
-  )
+  stock AS ({_LATEST_STOCK})
 SELECT s.marketplace, s.account_id, s.product_id, st.stock_end, s.avg_daily_sales,
        st.stock_end / s.avg_daily_sales AS turnover_days
 FROM sales AS s
@@ -64,19 +75,14 @@ FROM (
   WHERE {_SCOPE}
   GROUP BY marketplace, account_id, product_id
 ) AS a
-INNER JOIN (
-  SELECT marketplace, account_id, product_id, sum(stock_end) AS stock_end
-  FROM mrt_stock_daily
-  WHERE day = today() - 1 AND {_SCOPE}
-  GROUP BY marketplace, account_id, product_id
-) AS st USING (marketplace, account_id, product_id)
+INNER JOIN ({_LATEST_STOCK}) AS st USING (marketplace, account_id, product_id)
 WHERE a.abc_class = 'C' AND st.stock_end > 100
 """
 
 BAD_ADS_SQL = f"""
 SELECT marketplace, account_id, campaign_id, sum(cost) AS cost_14d, sum(orders) AS orders_14d
-FROM mrt_ads_daily
-WHERE day >= today() - 14 AND {_SCOPE}
+FROM mrt_ads_daily FINAL
+WHERE day >= {_TODAY} - 14 AND day < {_TODAY} AND {_SCOPE}
 GROUP BY marketplace, account_id, campaign_id
 HAVING cost_14d > 0 AND orders_14d = 0
 """

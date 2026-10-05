@@ -12,6 +12,7 @@ from datetime import UTC, date, datetime
 from typing import Any
 
 from collectors.common.time import as_ch_datetime, parse_dt
+from common.finance import FINANCE_CATEGORIES
 
 
 def _safe_int(value: Any, default: int = 0) -> int:
@@ -376,3 +377,78 @@ def build_ozon_products(
             document["price"] = prices_by_id.get(key)
         documents[key] = document
     return documents
+
+
+# /v1/finance/balance service names -> finance category (common.finance); names not listed
+# go to "other" and stay visible by name in the ``services`` column
+OZON_SERVICE_CATEGORIES: dict[str, str] = {
+    "logistics": "logistics",
+    "courier_client_reinvoice": "logistics",
+    "delivery_to_handover_place_by_ozon": "logistics",
+    "reverse_logistics": "reverse_logistics",
+    "partner_returns_cancellations_processing": "reverse_logistics",
+    "acquiring": "acquiring",
+    "product_placement_in_ozon_warehouses": "storage",
+}
+
+
+def _as_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _balance_value(value: Any) -> float:
+    """Balance amounts are ``{"value": 1.5, "currency_code": "RUB"}`` or plain numbers."""
+    if isinstance(value, dict):
+        return _safe_float(value.get("value"))
+    return _safe_float(value)
+
+
+def parse_finance_balance(
+    payload: dict[str, Any], *, day: date, run_id: str, account_id: str
+) -> dict[str, Any]:
+    """One row per Moscow day from ``/v1/finance/balance`` called for that single day.
+
+    The categories add up to ``net_accrued`` (Ozon ``total.accrued``): whatever the
+    breakdown does not explain is put into ``other``, so the day always reconciles with
+    the balance the seller cabinet shows.
+    """
+    total = _as_dict(payload.get("total"))
+    cashflows = _as_dict(payload.get("cashflows"))
+    sales = _as_dict(cashflows.get("sales"))
+    returns = _as_dict(cashflows.get("returns"))
+
+    amounts = dict.fromkeys(FINANCE_CATEGORIES, 0.0)
+    amounts["sales"] = _balance_value(sales.get("amount"))
+    amounts["returns"] = _balance_value(returns.get("amount"))
+    amounts["commission"] = _balance_value(sales.get("fee")) + _balance_value(returns.get("fee"))
+
+    services: dict[str, float] = {}
+    for item in cashflows.get("services") or []:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "unknown")
+        value = _balance_value(item.get("amount"))
+        services[name] = services.get(name, 0.0) + value
+        amounts[OZON_SERVICE_CATEGORIES.get(name, "other")] += value
+
+    net_accrued = _balance_value(total.get("accrued"))
+    remainder = net_accrued - sum(amounts.values())
+    if abs(remainder) >= 0.005:
+        amounts["other"] += remainder
+        services["unexplained"] = round(remainder, 2)
+
+    payments = total.get("payments")
+    if not isinstance(payments, list):
+        payments = []
+    return {
+        "run_id": run_id,
+        "account_id": account_id,
+        "day": day,
+        **{name: round(value, 2) for name, value in amounts.items()},
+        "net_accrued": net_accrued,
+        "payouts": round(sum(_balance_value(p) for p in payments), 2),
+        "opening_balance": _balance_value(total.get("opening_balance")),
+        "closing_balance": _balance_value(total.get("closing_balance")),
+        "services": {name: round(value, 2) for name, value in services.items()},
+        "payload": json.dumps(payload, ensure_ascii=True),
+    }

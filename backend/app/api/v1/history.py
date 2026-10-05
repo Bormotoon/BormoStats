@@ -101,6 +101,33 @@ def history_snapshot(
     return snapshot
 
 
+@router.get("/state")
+def history_state(
+    *,
+    auth: AnalyticsReadAuth,
+    client: ChClientDependency,
+    repo: RepoParam,
+    at: Annotated[datetime | None, Query(description="Point in time (UTC); default now")] = None,
+    filters: ListQueryParams = Depends(get_list_query_params),
+) -> dict[str, object]:
+    """Every product (or record) of a repo exactly as it was at ``at``."""
+    items = HistoryService(client, auth.organization_id).state(
+        repo=repo,
+        marketplace=filters.marketplace,
+        account_id=filters.account_id,
+        at=at,
+        limit=filters.query_limit,
+        offset=filters.offset,
+    )
+    return build_paginated_response(
+        items=items,
+        limit=filters.limit,
+        offset=filters.offset,
+        repo=repo,
+        at=at.isoformat() if at else None,
+    )
+
+
 @router.get("/changes")
 def history_changes(
     *,

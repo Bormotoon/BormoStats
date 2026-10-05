@@ -2,7 +2,9 @@
 //
 // Security notes:
 // - The API key (a personal user key, ideally not the platform master key) is kept
-//   in sessionStorage only and is sent with every API request as X-API-Key.
+//   in sessionStorage, so it is gone with the tab, unless the user ticks "remember on
+//   this device": then it is kept in localStorage until "sign out". It is sent with every
+//   API request as X-API-Key.
 // - The API base URL defaults to the page origin. In production builds a custom
 //   base is accepted only for origins listed in VITE_ALLOWED_API_ORIGINS, so a
 //   tampered localStorage entry cannot redirect credentials to another host.
@@ -15,6 +17,11 @@ const STORE_KEYS = {
   organization: "bormostats_organization_id",
 };
 
+// the key survives closing the tab only when the user asked for it
+function keyStorages() {
+  return [sessionStorage, localStorage];
+}
+
 const ALLOWED_ORIGINS = (import.meta.env.VITE_ALLOWED_API_ORIGINS || "")
   .split(",")
   .map((item) => item.trim().replace(/\/+$/, ""))
@@ -24,6 +31,7 @@ const state = {
   apiBase: "",
   apiKey: "",
   organizationId: "",
+  rememberKey: false,
 };
 
 const listeners = new Set();
@@ -66,8 +74,11 @@ export function loadSettings() {
     safeSet(sessionStorage, STORE_KEYS.apiKey, legacy);
   }
   safeSet(sessionStorage, STORE_KEYS.legacyAdminKey, "");
-  state.apiKey = safeGet(sessionStorage, STORE_KEYS.apiKey);
-  state.organizationId = safeGet(sessionStorage, STORE_KEYS.organization);
+  const remembered = safeGet(localStorage, STORE_KEYS.apiKey);
+  state.rememberKey = Boolean(remembered);
+  state.apiKey = safeGet(sessionStorage, STORE_KEYS.apiKey) || remembered;
+  state.organizationId =
+    safeGet(sessionStorage, STORE_KEYS.organization) || safeGet(localStorage, STORE_KEYS.organization);
 }
 
 export function getSettings() {
@@ -85,23 +96,40 @@ export function getApiKey() {
 /** @deprecated kept for older pages; every key is now sent with every request. */
 export const getAdminKey = getApiKey;
 
+function persistKey() {
+  safeSet(sessionStorage, STORE_KEYS.apiKey, state.apiKey);
+  safeSet(sessionStorage, STORE_KEYS.organization, state.organizationId);
+  safeSet(localStorage, STORE_KEYS.apiKey, state.rememberKey ? state.apiKey : "");
+  safeSet(localStorage, STORE_KEYS.organization, state.rememberKey ? state.organizationId : "");
+}
+
 export function setApiKey(key) {
   state.apiKey = (key || "").trim();
-  safeSet(sessionStorage, STORE_KEYS.apiKey, state.apiKey);
+  persistKey();
+  notify();
+}
+
+/** Keep the key on this device (localStorage) or only for the tab (sessionStorage). */
+export function setRememberKey(remember) {
+  state.rememberKey = Boolean(remember);
+  persistKey();
   notify();
 }
 
 export function setOrganizationId(value) {
   state.organizationId = (value || "").trim();
-  safeSet(sessionStorage, STORE_KEYS.organization, state.organizationId);
+  persistKey();
   notify();
 }
 
 export function signOut() {
   state.apiKey = "";
   state.organizationId = "";
-  safeSet(sessionStorage, STORE_KEYS.apiKey, "");
-  safeSet(sessionStorage, STORE_KEYS.organization, "");
+  state.rememberKey = false;
+  for (const storage of keyStorages()) {
+    safeSet(storage, STORE_KEYS.apiKey, "");
+    safeSet(storage, STORE_KEYS.organization, "");
+  }
   notify();
 }
 
@@ -204,6 +232,10 @@ export async function request(path, options = {}) {
     } catch {
       message = text;
     }
+    // an expired or revoked session: back to the sign-in screen
+    if (response.status === 401 && state.apiKey && path !== "/api/v1/auth/login") {
+      signOut();
+    }
     throw new ApiError(response.status, message);
   }
 
@@ -215,6 +247,25 @@ export async function request(path, options = {}) {
     return null;
   }
   return response.json();
+}
+
+/**
+ * Every item of a paginated list endpoint. Totals and charts need all rows: a page holds at
+ * most 2000, and summing one page silently drops the rest of the period.
+ */
+export async function requestAll(path, options = {}) {
+  const pageSize = 2000; // the API's MAX_PAGE_LIMIT
+  const items = [];
+  let offset = 0;
+  for (;;) {
+    const page = await request(path, { ...options, query: { ...options.query, limit: pageSize, offset } });
+    items.push(...(page?.items || []));
+    const next = page?.pagination?.next_offset;
+    if (next === null || next === undefined) {
+      return { ...page, items };
+    }
+    offset = next;
+  }
 }
 
 /** Download a protected file (the API key travels in a header, so plain links cannot be used). */

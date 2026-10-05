@@ -11,11 +11,19 @@ from collectors.wb import endpoints
 
 
 class WbApiClient:
-    def __init__(self, statistics_token: str, analytics_token: str) -> None:
+    def __init__(
+        self, statistics_token: str, analytics_token: str, finance_token: str = ""
+    ) -> None:
         self.statistics_token = statistics_token
         self.analytics_token = analytics_token
+        # a token with the "Финансы" category; the statistics token often carries it too
+        self.finance_token = finance_token or statistics_token
         self.statistics = JsonHttpClient(endpoints.STATISTICS_BASE_URL, marketplace="wb")
         self.analytics = JsonHttpClient(endpoints.ANALYTICS_BASE_URL, marketplace="wb")
+        # one request per minute per method: the finance report may take minutes
+        self.finance = JsonHttpClient(
+            endpoints.FINANCE_BASE_URL, marketplace="wb", read_timeout_seconds=120.0
+        )
 
     def __enter__(self) -> WbApiClient:
         return self
@@ -30,12 +38,55 @@ class WbApiClient:
     def close(self) -> None:
         self.statistics.close()
         self.analytics.close()
+        self.finance.close()
 
     def _statistics_headers(self) -> dict[str, str]:
         return {"Authorization": self.statistics_token}
 
     def _analytics_headers(self) -> dict[str, str]:
         return {"Authorization": self.analytics_token}
+
+    def _finance_headers(self) -> dict[str, str]:
+        return {"Authorization": self.finance_token}
+
+    # -- Finance --
+
+    def account_balance(self) -> dict[str, Any]:
+        """The balance widget of the seller cabinet: ``current`` and ``for_withdraw``."""
+        payload = self.finance.get(endpoints.BALANCE_PATH, headers=self._finance_headers())
+        return payload if isinstance(payload, dict) else {}
+
+    def sales_report_lines(self, date_from: date, date_to: date) -> list[dict[str, Any]]:
+        """Lines of the daily realization reports of ``[date_from, date_to]`` (Moscow days).
+
+        Pages follow ``rrdId`` until the method answers 204 (an empty body).
+        """
+        collected: list[dict[str, Any]] = []
+        rrd_id = 0
+        for _ in range(endpoints.SALES_REPORT_MAX_PAGES):
+            payload = self.finance.post(
+                endpoints.SALES_REPORT_DETAILED_PATH,
+                headers=self._finance_headers(),
+                json={
+                    "dateFrom": date_from.isoformat(),
+                    "dateTo": date_to.isoformat(),
+                    "period": "daily",
+                    "limit": endpoints.SALES_REPORT_PAGE_LIMIT,
+                    "rrdId": rrd_id,
+                },
+            )
+            lines = [item for item in payload or [] if isinstance(item, dict)]
+            collected.extend(lines)
+            if len(lines) < endpoints.SALES_REPORT_PAGE_LIMIT:
+                return collected
+            next_id = int(lines[-1].get("rrdId") or 0)
+            if next_id <= rrd_id:
+                raise RuntimeError(f"wb sales report returned rrdId {next_id} after {rrd_id}")
+            rrd_id = next_id
+        raise RuntimeError(
+            f"wb sales report exceeded {endpoints.SALES_REPORT_MAX_PAGES} pages "
+            f"for {date_from}..{date_to}"
+        )
 
     def _format_date_from(self, date_from: datetime, flag: int) -> str:
         if flag == 1:

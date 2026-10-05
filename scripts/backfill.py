@@ -14,6 +14,8 @@ ALLOWED_BACKFILLS: dict[tuple[str, str], int] = {
     ("wb", "funnel"): 364,
     ("ozon", "postings"): 730,
     ("ozon", "finance"): 730,
+    ("ozon", "balance"): 730,
+    ("wb", "finance"): 730,
     ("marts", "build"): 730,
 }
 
@@ -30,7 +32,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dataset",
         required=True,
-        choices=["sales", "orders", "funnel", "postings", "finance", "build"],
+        choices=["sales", "orders", "funnel", "postings", "finance", "balance", "build"],
     )
     parser.add_argument("--days", type=int, default=14)
     return parser.parse_args()

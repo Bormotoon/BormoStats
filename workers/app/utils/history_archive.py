@@ -42,10 +42,16 @@ class StatSpec:
     volatile: tuple[str, ...] = ("run_id", "ingested_at")
     # column holding when the state was observed (falls back to ``ingested_at``, then now)
     observed_column: str | None = None
+    # for a table holding several marketplaces: the column naming the row's marketplace
+    marketplace_column: str | None = None
+    # the table's datetimes are true instants (written timezone-aware), not the collectors'
+    # naive-UTC convention that a backfill has to undo
+    true_instants: bool = False
 
 
 STAT_SPECS: dict[str, StatSpec] = {
-    "raw_wb_sales": StatSpec("wb", ("srid", "nm_id", "chrt_id"), "event_ts"),
+    # a sale (S…) and its return (R…) share the srid; sale_id keeps them apart
+    "raw_wb_sales": StatSpec("wb", ("srid", "nm_id", "chrt_id", "sale_id"), "event_ts"),
     "raw_wb_orders": StatSpec("wb", ("srid", "nm_id", "chrt_id"), "event_ts"),
     "raw_wb_stocks": StatSpec(
         "wb",
@@ -68,6 +74,33 @@ STAT_SPECS: dict[str, StatSpec] = {
     ),
     "raw_ozon_ads_daily": StatSpec("ozon", ("day", "campaign_id"), "day"),
     "raw_ozon_finance_ops": StatSpec("ozon", ("operation_id",), "operation_ts"),
+    # finance block: the balance breakdown of a day, report lines, balance snapshots
+    "raw_ozon_finance_balance": StatSpec("ozon", ("day",), "day"),
+    "raw_wb_sales_report": StatSpec("wb", ("rrd_id",), "day"),
+    "raw_marketplace_balance": StatSpec(
+        "",
+        ("marketplace",),
+        "snapshot_ts",
+        volatile=("run_id", "ingested_at", "snapshot_ts"),
+        observed_column="snapshot_ts",
+        marketplace_column="marketplace",
+        true_instants=True,
+    ),
+}
+
+# Entities whose table changed its key: the old keys stay in the archive as history and are
+# retired (a deletion commit) so a point-in-time view does not count a row twice.
+LEGACY_ENTITY_FILTERS: dict[str, tuple[str, str]] = {
+    # srid|nm_id|chrt_id until 0029 added sale_id: a return replaced its sale
+    "raw_wb_sales": (
+        "length(splitByChar('|', entity_key)) = 3",
+        "re-keyed: sale_id joined the key (migration 0029)",
+    ),
+    # items stored before postings carried the SKU; duplicates of the SKU rows (0029)
+    "raw_ozon_posting_items": (
+        "endsWith(entity_key, '|0')",
+        "removed: duplicate of the item stored under its SKU (migration 0029)",
+    ),
 }
 
 
@@ -120,17 +153,24 @@ def archive_rows(
     spec = STAT_SPECS.get(table)
     if spec is None or not rows or not history_enabled():
         return None
-    by_account: dict[str, list[Observation]] = {}
+    by_account: dict[tuple[str, str], list[Observation]] = {}
     for row in rows:
         account_id = str(row.get("account_id") or "default")
-        by_account.setdefault(account_id, []).append(_observation(spec, row, columns))
+        marketplace = (
+            str(row.get(spec.marketplace_column) or "")
+            if spec.marketplace_column
+            else spec.marketplace
+        )
+        by_account.setdefault((marketplace, account_id), []).append(
+            _observation(spec, row, columns)
+        )
 
     store = HistoryStore(client, run_id=run_id or "", source=source)
     total = RecordResult()
     ignore = ignore_patterns(STAT_IGNORE_ENV)
-    for account_id, observations in by_account.items():
+    for (marketplace, account_id), observations in by_account.items():
         part = store.record(
-            marketplace=spec.marketplace,
+            marketplace=marketplace,
             account_id=account_id,
             repo=table,
             observations=observations,
@@ -207,7 +247,7 @@ def backfill_table(client: Any, table: str, *, run_id: str) -> dict[str, int]:
             f"SELECT * FROM {table} FINAL WHERE toDate({spec.time_column}) = %(day)s",
             parameters={"day": day},
         )
-        rows = [_as_ingested(row) for row in result.named_results()]
+        rows = [row if spec.true_instants else _as_ingested(row) for row in result.named_results()]
         if not rows:
             continue
         archived = archive_rows(client, table, rows, run_id=run_id, source="backfill")
@@ -216,3 +256,27 @@ def backfill_table(client: Any, table: str, *, run_id: str) -> dict[str, int]:
             totals["commits"] += archived.commits
     _mark_backfill_done(client, table)
     return totals
+
+
+def retire_legacy_entities(client: Any, *, run_id: str) -> dict[str, int]:
+    """Deletion commits for the live entities of ``LEGACY_ENTITY_FILTERS`` (idempotent)."""
+    retired: dict[str, int] = {}
+    store = HistoryStore(client, run_id=run_id, source="maintenance")
+    for repo, (condition, message) in LEGACY_ENTITY_FILTERS.items():
+        result = client.query(
+            "SELECT marketplace, account_id, groupArray(entity_key) FROM hist_refs FINAL"
+            f" WHERE repo = %(repo)s AND is_deleted = 0 AND {condition}"
+            " GROUP BY marketplace, account_id",
+            parameters={"repo": repo},
+        )
+        for marketplace, account_id, keys in result.result_rows:
+            part = store.record(
+                marketplace=str(marketplace),
+                account_id=str(account_id),
+                repo=repo,
+                observations=[],
+                retire=list(keys),
+                retire_message=message,
+            )
+            retired[repo] = retired.get(repo, 0) + part.deleted
+    return retired

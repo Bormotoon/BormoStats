@@ -36,29 +36,44 @@ def _to_datetime(value: Any, default: datetime | None = None) -> datetime:
 def parse_sales(
     records: list[dict[str, Any]], run_id: str, account_id: str
 ) -> list[dict[str, Any]]:
+    """Parse ``/api/v1/supplier/sales`` rows: one row per sold (``S…``) or returned (``R…``) unit.
+
+    ``price_rub`` is the seller's price after the seller's discount (``priceWithDisc``, the
+    same basis as Ozon's ``seller_price``), always positive; ``payout_rub`` is ``forPay``,
+    the amount due for the unit before logistics, negative for a return.
+    """
     rows: list[dict[str, Any]] = []
     for item in records:
         last_change = _to_datetime(item.get("lastChangeDate") or item.get("lastChangeDt"))
         event_ts = _to_datetime(item.get("date"), default=last_change)
+        # the method has no quantity field: every row is one unit
         quantity = _safe_int(item.get("quantity") or item.get("saleQty") or 1, 1)
+        sale_id = str(item.get("saleID") or "")
+        price = _safe_float(item.get("priceWithDisc") or item.get("totalPrice"))
+        payout = _safe_float(item.get("forPay"))
         is_return = (
-            1 if quantity < 0 or "возврат" in str(item.get("supplierOperName", "")).lower() else 0
+            1
+            if sale_id.upper().startswith("R")
+            or quantity < 0
+            or price < 0
+            or payout < 0
+            or "возврат" in str(item.get("supplierOperName", "")).lower()
+            else 0
         )
         rows.append(
             {
                 "run_id": run_id,
                 "account_id": account_id,
                 "srid": str(item.get("srid") or item.get("saleID") or item.get("gNumber") or ""),
+                "sale_id": sale_id,
                 "last_change_ts": as_ch_datetime(last_change),
                 "event_ts": as_ch_datetime(event_ts),
                 "nm_id": _safe_int(item.get("nmId")),
                 "chrt_id": _safe_int(item.get("chrtId")),
                 "barcode": item.get("barcode"),
                 "quantity": abs(quantity),
-                "price_rub": _safe_float(
-                    item.get("forPay") or item.get("totalPrice") or item.get("priceWithDisc")
-                ),
-                "payout_rub": _safe_float(item.get("ppvzForPay") or item.get("incomeID") or 0.0),
+                "price_rub": abs(price),
+                "payout_rub": -abs(payout) if is_return else payout,
                 "is_return": is_return,
                 "payload": json.dumps(item, ensure_ascii=True),
             }
@@ -83,8 +98,10 @@ def parse_orders(
                 "nm_id": _safe_int(item.get("nmId")),
                 "chrt_id": _safe_int(item.get("chrtId")),
                 "quantity": max(1, _safe_int(item.get("quantity"), 1)),
+                # seller's price after the seller's discount, as for sales; totalPrice is
+                # the list price before any discount
                 "price_rub": _safe_float(
-                    item.get("totalPrice") or item.get("priceWithDisc") or item.get("price")
+                    item.get("priceWithDisc") or item.get("totalPrice") or item.get("price")
                 ),
                 "payload": json.dumps(item, ensure_ascii=True),
             }
@@ -231,3 +248,63 @@ def build_wb_products(
             document["price"] = price_by_nm.get(key)
         documents[key] = document
     return documents
+
+
+def parse_sales_report_lines(
+    records: list[dict[str, Any]], run_id: str, account_id: str
+) -> list[dict[str, Any]]:
+    """Realization report lines, each split into the finance categories (common.finance).
+
+    Per line, with ``sign`` = -1 for a return document:
+      sales/returns  sign x retailPriceWithDisc x quantity (the seller's price)
+      acquiring      -sign x acquiringFee
+      commission     sign x forPay - sales/returns - acquiring (what WB kept of the price)
+      logistics      -deliveryService; storage -paidStorage; acceptance -paidAcceptance
+      penalties      -penalty; other -deduction + additionalPayment
+    so the categories add up to ``net_accrued`` = sign x forPay - deliveryService -
+    paidStorage - paidAcceptance - deduction - penalty + additionalPayment, WB's
+    "Итого к оплате" (bankPaymentSum of the reports).
+    """
+    rows: list[dict[str, Any]] = []
+    for item in records:
+        rrd_id = _safe_int(item.get("rrdId"))
+        day = _to_datetime(item.get("rrDate")).date() if item.get("rrDate") else None
+        if not rrd_id or day is None:
+            continue
+        doc_type = str(item.get("docTypeName") or "")
+        sign = -1.0 if doc_type == "Возврат" else 1.0
+        quantity = _safe_int(item.get("quantity"))
+        goods = _safe_float(item.get("retailPriceWithDisc")) * quantity if doc_type else 0.0
+        for_pay = sign * _safe_float(item.get("forPay"))
+        acquiring = -sign * _safe_float(item.get("acquiringFee"))
+        amounts = {
+            "sales": goods if sign > 0 else 0.0,
+            "returns": -goods if sign < 0 else 0.0,
+            "acquiring": acquiring,
+            "commission": for_pay - sign * goods - acquiring,
+            "logistics": -_safe_float(item.get("deliveryService")),
+            "reverse_logistics": 0.0,
+            "storage": -_safe_float(item.get("paidStorage")),
+            "acceptance": -_safe_float(item.get("paidAcceptance")),
+            "penalties": -_safe_float(item.get("penalty")),
+            "other": -_safe_float(item.get("deduction"))
+            + _safe_float(item.get("additionalPayment")),
+        }
+        rows.append(
+            {
+                "run_id": run_id,
+                "account_id": account_id,
+                "rrd_id": rrd_id,
+                "report_id": _safe_int(item.get("reportId")),
+                "report_type": _safe_int(item.get("reportType")),
+                "day": day,
+                "nm_id": _safe_int(item.get("nmId")),
+                "doc_type": doc_type,
+                "oper_name": str(item.get("sellerOperName") or ""),
+                "quantity": quantity,
+                **{name: round(value, 2) for name, value in amounts.items()},
+                "net_accrued": round(sum(amounts.values()), 2),
+                "payload": json.dumps(item, ensure_ascii=True),
+            }
+        )
+    return rows

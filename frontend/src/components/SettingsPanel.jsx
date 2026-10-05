@@ -7,7 +7,9 @@ import {
   setApiBase,
   setApiKey,
   setOrganizationId,
+  setRememberKey,
   signOut,
+  request,
   subscribeSettings,
   validateApiBase,
 } from "../utils/api.js";
@@ -90,6 +92,14 @@ export default function SettingsPanel() {
           className={inputClass}
         />
       </label>
+      <label className="flex items-center gap-2 text-sm text-[var(--color-on-surface)]">
+        <input
+          type="checkbox"
+          checked={settings.rememberKey}
+          onChange={(e) => { setApiKey(keyInput); setRememberKey(e.target.checked); }}
+        />
+        {t("common.rememberKey")}
+      </label>
 
       {principal?.auth_method === "admin_key" && (
         <label className="block">
@@ -126,14 +136,52 @@ export default function SettingsPanel() {
 
       <p className="text-xs text-[var(--color-on-surface-variant)] leading-relaxed">{t("common.keyNote")}</p>
 
+      {principal && principal.auth_method !== "admin_key" && <PasswordChange />}
+
       <button
         type="button"
-        onClick={() => { signOut(); setKeyInput(""); setOrgInput(""); }}
+        onClick={() => {
+          // end the session on the server too; sign out locally whatever it answers
+          request("/api/v1/auth/logout", { method: "POST" }).catch(() => null).finally(() => {
+            signOut();
+            setKeyInput("");
+            setOrgInput("");
+          });
+        }}
         disabled={!settings.apiKey}
         className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-medium border border-[var(--color-outline-variant)] text-[var(--color-on-surface)] hover:bg-[var(--color-surface-container)] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
       >
         <SignOut size={16} aria-hidden="true" /> {t("common.signOut")}
       </button>
     </div>
+  );
+}
+
+function PasswordChange() {
+  const { t } = useI18n();
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [message, setMessage] = useState("");
+
+  const submit = (event) => {
+    event.preventDefault();
+    request("/api/v1/auth/password", {
+      method: "POST",
+      body: { current_password: current, new_password: next },
+    })
+      .then(() => { setMessage(t("login.passwordChanged")); setCurrent(""); setNext(""); })
+      .catch((err) => setMessage(err.status === 400 ? t("login.currentWrong") : err.status === 422 ? t("login.tooShort") : err.message));
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-2">
+      <p className="text-sm font-medium text-[var(--color-on-surface)]">{t("login.changePassword")}</p>
+      <input type="password" autoComplete="current-password" placeholder={t("login.currentPassword")} value={current} onChange={(e) => setCurrent(e.target.value)} className={inputClass} />
+      <input type="password" autoComplete="new-password" placeholder={t("login.newPassword")} value={next} onChange={(e) => setNext(e.target.value)} className={inputClass} />
+      <button type="submit" disabled={next.length < 8} className="w-full px-3 py-2 rounded-lg text-sm font-medium border border-[var(--color-outline-variant)] disabled:opacity-50">
+        {t("login.savePassword")}
+      </button>
+      {message && <p className="text-xs text-[var(--color-on-surface-variant)]">{message}</p>}
+    </form>
   );
 }

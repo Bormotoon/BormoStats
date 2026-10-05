@@ -39,6 +39,11 @@ class PnlRow(BaseModel):
     commission_rub: float
     logistics_rub: float
     returns_cost_rub: float
+    storage_rub: float = 0.0
+    other_costs_rub: float = 0.0
+    # what the marketplace accrued to the balance: revenue minus every marketplace charge
+    net_accrued_rub: float = 0.0
+    cogs_rub: float = 0.0
     gross_profit_rub: float
     ad_cost_rub: float
     additional_expenses_rub: float

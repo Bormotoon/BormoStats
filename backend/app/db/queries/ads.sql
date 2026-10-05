@@ -10,7 +10,7 @@ SELECT
   sum(a.revenue) AS revenue,
   if(sum(a.revenue)=0, 0, sum(a.cost)/sum(a.revenue)) AS acos,
   if(sum(a.cost)=0, 0, (sum(a.revenue)-sum(a.cost))/sum(a.cost)) AS romi
-FROM mrt_ads_daily AS a
+FROM mrt_ads_daily AS a FINAL
 WHERE a.day BETWEEN %(date_from)s AND %(date_to)s
   AND (%(marketplace)s = '' OR a.marketplace = %(marketplace)s)
   AND (%(account_id)s = '' OR a.account_id = %(account_id)s)

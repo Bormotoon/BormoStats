@@ -83,12 +83,15 @@ def _check_stale_marts(client: clickhouse_connect.driver.Client) -> DataQualityI
     cutoff = datetime.now(UTC) - MAX_MART_STALENESS
     samples: list[dict[str, Any]] = []
 
-    for table_name in (
-        "mrt_sales_daily",
-        "mrt_stock_daily",
-        "mrt_funnel_daily",
-        "mrt_ads_daily",
+    for table_name, source_table in (
+        ("mrt_sales_daily", "stg_sales"),
+        ("mrt_stock_daily", "stg_stocks"),
+        ("mrt_funnel_daily", "stg_funnel_daily"),
+        ("mrt_ads_daily", "stg_ads_daily"),
     ):
+        # a mart without source rows (e.g. no ad campaigns) is empty, not stale
+        if not client.query(f"SELECT count() FROM {source_table}").result_rows[0][0]:
+            continue
         result = client.query(
             f"SELECT max(updated_at) AS last_updated FROM {table_name}", parameters={}
         )
@@ -205,57 +208,53 @@ def _check_duplicate_grains(client: clickhouse_connect.driver.Client) -> DataQua
 def _check_impossible_timestamps(
     client: clickhouse_connect.driver.Client,
 ) -> DataQualityIssue | None:
-    future_cutoff = datetime.now(UTC) + MAX_FUTURE_SKEW
+    # The cut-offs are computed by the server in each column's convention (see
+    # docs/data_catalog.md, "Time"): raw WB times hold Moscow wall-clock, raw Ozon times UTC
+    # wall-clock (both as written through the server time zone), staging true instants.
     samples: list[dict[str, Any]] = []
+    skew = f"INTERVAL {int(MAX_FUTURE_SKEW.total_seconds())} SECOND"
+    moscow_now = "toDateTime(toString(now(), 'Europe/Moscow'))"
+    utc_now = "toDateTime(toString(now(), 'UTC'))"
 
     checks = (
-        """
+        f"""
         SELECT 'raw_wb_sales' AS table_name, account_id, srid AS entity_id, event_ts AS bad_ts
         FROM raw_wb_sales
-        WHERE event_ts > %(future_cutoff)s
+        WHERE event_ts > {moscow_now} + {skew}
         LIMIT %(limit)s
         """,
-        """
+        f"""
         SELECT 'raw_wb_orders' AS table_name, account_id, srid AS entity_id, event_ts AS bad_ts
         FROM raw_wb_orders
-        WHERE event_ts > %(future_cutoff)s
+        WHERE event_ts > {moscow_now} + {skew}
         LIMIT %(limit)s
         """,
-        """
+        f"""
         SELECT
           'raw_ozon_postings' AS table_name,
           account_id,
           posting_number AS entity_id,
           created_at AS bad_ts
         FROM raw_ozon_postings
-        WHERE created_at > %(future_cutoff)s
+        WHERE created_at > {utc_now} + {skew}
            OR (delivered_at IS NOT NULL AND delivered_at < created_at)
            OR (canceled_at IS NOT NULL AND canceled_at < created_at)
         LIMIT %(limit)s
         """,
-        """
+        f"""
         SELECT
           'stg_sales' AS table_name,
           account_id,
           order_id AS entity_id,
           event_ts AS bad_ts
         FROM stg_sales
-        WHERE event_ts > %(future_cutoff)s
+        WHERE event_ts > now() + {skew}
         LIMIT %(limit)s
         """,
     )
 
     for sql in checks:
-        samples.extend(
-            _query_dicts(
-                client,
-                sql,
-                parameters={
-                    "future_cutoff": future_cutoff.replace(tzinfo=None),
-                    "limit": MAX_SAMPLE_ROWS,
-                },
-            )
-        )
+        samples.extend(_query_dicts(client, sql, parameters={"limit": MAX_SAMPLE_ROWS}))
 
     if not samples:
         return None
@@ -296,13 +295,15 @@ def _check_invalid_values(client: clickhouse_connect.driver.Client) -> DataQuali
         """,
         """
         SELECT
-          'mrt_funnel_daily_impossible_counts' AS issue,
+          'mrt_funnel_daily_negative_counts' AS issue,
           marketplace,
           account_id,
           product_id,
           concat(toString(views), '/', toString(adds_to_cart), '/', toString(orders)) AS value
         FROM mrt_funnel_daily
-        WHERE adds_to_cart > views OR orders > adds_to_cart
+        -- WB counts cart adds from search results (no card view) and one-click orders
+        -- (no cart), so only negative counts are impossible
+        WHERE views < 0 OR adds_to_cart < 0 OR orders < 0
         LIMIT %(limit)s
         """,
     )

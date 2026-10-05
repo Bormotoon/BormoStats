@@ -48,6 +48,8 @@ TRUNCATE_TABLES = (
     "raw_ozon_ads_daily",
     "raw_ozon_finance_ops",
     "stg_sales",
+    "dim_user_credential",
+    "sys_user_session",
     "stg_orders",
     "stg_stocks",
     "stg_funnel_daily",

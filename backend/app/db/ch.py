@@ -76,8 +76,9 @@ def query_dicts(
     client: clickhouse_connect.driver.Client,
     sql: str,
     parameters: dict[str, Any] | None = None,
+    settings: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    result = client.query(sql, parameters=parameters or {})
+    result = client.query(sql, parameters=parameters or {}, settings=settings)
     return [dict(zip(result.column_names, row, strict=True)) for row in result.result_rows]
 
 

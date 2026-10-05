@@ -58,7 +58,7 @@ def test_run_task_endpoint_removed(client: TestClient) -> None:
 
 def test_backfill_request_rejects_invalid_marketplace_dataset_combo() -> None:
     with pytest.raises(ValidationError):
-        BackfillRequest(marketplace="wb", dataset="finance", days=14)
+        BackfillRequest(marketplace="wb", dataset="postings", days=14)
 
     with pytest.raises(ValidationError):
         BackfillRequest(marketplace="wb", dataset="sales", days=365)

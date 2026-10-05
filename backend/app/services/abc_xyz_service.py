@@ -28,9 +28,13 @@ class AbcXyzService:
         if account_id:
             where.append("account_id = {aid:String}")
             params["aid"] = account_id
+        scope = " AND ".join(where)
+        # the mart keeps one snapshot per day as class history; the page shows the latest
         rows = self._ch.query(
             f"SELECT {_ABC_XYZ_COLS} FROM mrt_abc_xyz_analysis FINAL"
-            f" WHERE {' AND '.join(where)} ORDER BY revenue_60d DESC LIMIT 5000",
+            f" WHERE {scope}"
+            f" AND day = (SELECT max(day) FROM mrt_abc_xyz_analysis WHERE {scope})"
+            " ORDER BY revenue_60d DESC LIMIT 5000",
             parameters=params,
             settings=PARTITION_LOCAL_FINAL,
         )

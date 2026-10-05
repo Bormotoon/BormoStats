@@ -41,16 +41,29 @@ export default function PnL() {
   const totalNet = pnl.reduce((s, r) => s + r.net_profit_rub, 0);
   const totalAdCost = pnl.reduce((s, r) => s + r.ad_cost_rub, 0);
   const totalAdditional = pnl.reduce((s, r) => s + r.additional_expenses_rub, 0);
-  const avgMargin = pnl.length ? pnl.reduce((s, r) => s + r.margin_pct, 0) / pnl.length : 0;
+  const total = (key) => pnl.reduce((s, r) => s + (r[key] || 0), 0);
+  const netRevenue = totalRevenue - total("returns_cost_rub");
+  // gross margin of the whole period: an average of monthly percentages would weigh a
+  // month with little revenue as much as the best month
+  const avgMargin = netRevenue ? (totalGross / netRevenue) * 100 : 0;
+  const noCosts = pnl.length > 0 && total("cogs_rub") === 0;
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <PnlCard label="Выручка" value={moneyFmt(totalRevenue)} accent="success" />
-        <PnlCard label="Маржинальная прибыль" value={moneyFmt(totalGross)} accent="success" sub={`${percentFmt(avgMargin / 100)} средняя маржа`} />
+        <PnlCard label="Маржинальная прибыль" value={moneyFmt(totalGross)} accent="success" sub={`${percentFmt(avgMargin / 100)} от выручки за вычетом возвратов`} />
         <PnlCard label="Операционная прибыль" value={moneyFmt(totalOperating)} accent={totalOperating >= 0 ? "success" : "error"} />
         <PnlCard label="Чистая прибыль" value={moneyFmt(totalNet)} accent={totalNet >= 0 ? "success" : "error"} />
       </div>
+
+      {noCosts && (
+        <div className="rounded-xl border border-[var(--color-warning,orange)]/40 p-3 text-sm">
+          Себестоимость товаров не заведена, поэтому прибыль посчитана без неё: это то, что остаётся
+          после всех удержаний маркетплейсов и рекламы. Задайте себестоимость (API <code>/api/v1/costs</code>),
+          и она вычтется автоматически.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="md3-card-elevated p-4">
@@ -60,7 +73,7 @@ export default function PnL() {
               <div key={i} className="flex justify-between items-center py-1.5 border-b border-[var(--color-outline-variant)] last:border-0 text-sm">
                 <div>
                   <p className="font-medium">{row.month}</p>
-                  <p className="text-xs text-[var(--color-on-surface-variant)]">{row.marketplace} · {row.account_id}</p>
+                  <p className="text-xs text-[var(--color-on-surface-variant)]">{row.marketplace ? `${row.marketplace} · ${row.account_id}` : "косвенные расходы"}</p>
                 </div>
                 <p className="font-mono font-semibold">{moneyFmt(row.net_profit_rub)}</p>
               </div>
@@ -86,6 +99,22 @@ export default function PnL() {
             <div className="flex justify-between text-sm">
               <span className="text-[var(--color-on-surface-variant)]">Возвраты</span>
               <span className="font-mono font-semibold">{moneyFmt(pnl.reduce((s, r) => s + r.returns_cost_rub, 0))}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-[var(--color-on-surface-variant)]">Хранение</span>
+              <span className="font-mono font-semibold">{moneyFmt(total("storage_rub"))}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-[var(--color-on-surface-variant)]">Прочие удержания</span>
+              <span className="font-mono font-semibold">{moneyFmt(total("other_costs_rub"))}</span>
+            </div>
+            <div className="flex justify-between text-sm font-semibold">
+              <span>Начислено маркетплейсами</span>
+              <span className="font-mono">{moneyFmt(total("net_accrued_rub"))}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-[var(--color-on-surface-variant)]">Себестоимость</span>
+              <span className="font-mono font-semibold">{moneyFmt(total("cogs_rub"))}</span>
             </div>
             <div className="border-t border-[var(--color-outline-variant)] pt-2 flex justify-between text-sm font-semibold">
               <span>Косвенные расходы</span>

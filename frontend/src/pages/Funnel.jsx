@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useI18n } from "../utils/i18n.jsx";
 import ExportButton from "../components/ExportButton.jsx";
-import { request } from "../utils/api.js";
-import { sum, avg, groupSeries, commonParams, moneyFmt, numberFmt, percentFmt } from "../utils/formats.js";
+import { requestAll } from "../utils/api.js";
+import { sum, ratio, groupSeries, commonParams, numberFmt, percentFmt, isoDay, DEFAULT_DATE_FROM_OFFSET } from "../utils/formats.js";
 import MetricCard from "../components/MetricCard.jsx";
 import DataTable from "../components/DataTable.jsx";
 import { AreaChartCard } from "../components/Chart.jsx";
@@ -17,8 +17,8 @@ export default function Funnel() {
   const [error, setError] = useState("");
 
   const filters = {
-    dateFrom: searchParams.get("dateFrom") || (() => { const d = new Date(); d.setUTCDate(d.getUTCDate() - 30); return d.toISOString().slice(0, 10); })(),
-    dateTo: searchParams.get("dateTo") || new Date().toISOString().slice(0, 10),
+    dateFrom: searchParams.get("dateFrom") || isoDay(DEFAULT_DATE_FROM_OFFSET),
+    dateTo: searchParams.get("dateTo") || isoDay(0),
     marketplace: searchParams.get("marketplace") || "",
     accountId: searchParams.get("accountId") || "",
     limit: searchParams.get("limit") || "1000",
@@ -29,7 +29,7 @@ export default function Funnel() {
     setLoading(true);
     setError("");
     const params = commonParams(filters);
-    request("/api/v1/funnel/daily", { query: params })
+    requestAll("/api/v1/funnel/daily", { query: params })
       .then((res) => { if (!cancelled) { setData(res); setLoading(false); } })
       .catch((err) => { if (!cancelled) { setError(err.message); setLoading(false); } });
     return () => { cancelled = true; };
@@ -50,8 +50,8 @@ export default function Funnel() {
         <MetricCard label={t("funnel.views")} value={numberFmt(sum(rows, "views"))} />
         <MetricCard label={t("funnel.addsToCart")} value={numberFmt(sum(rows, "adds_to_cart"))} />
         <MetricCard label={t("funnel.orders")} value={numberFmt(sum(rows, "orders"))} accent="success" />
-        <MetricCard label={t("funnel.avgCrOrder")} value={percentFmt(avg(rows, "cr_order"))} />
-        <MetricCard label={t("funnel.avgCrCart")} value={percentFmt(avg(rows, "cr_cart"))} />
+        <MetricCard label={t("funnel.avgCrOrder")} value={percentFmt(ratio(rows, "orders", "views"))} subvalue={t("funnel.crHint")} />
+        <MetricCard label={t("funnel.avgCrCart")} value={percentFmt(ratio(rows, "adds_to_cart", "views"))} subvalue={t("funnel.crHint")} />
         <MetricCard label={t("common.rows")} value={numberFmt(rows.length)} />
       </div>
 
@@ -59,7 +59,7 @@ export default function Funnel() {
         <div className="lg:col-span-4">
           <AreaChartCard title={t("funnel.ordersByDay")} data={groupSeries(rows, "day", "orders")} dataKey="value" name={t("funnel.orders")} color="var(--color-success)" />
         </div>
-        <MetricCard label={t("funnel.conversionRate")} value={percentFmt(sum(rows, "orders") / sum(rows, "views"))} accent="success" />
+        <MetricCard label={t("funnel.conversionRate")} value={percentFmt(ratio(rows, "orders", "adds_to_cart"))} accent="success" />
       </div>
 
       <section className="md3-card-elevated p-4">

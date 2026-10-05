@@ -7,12 +7,13 @@ import FreshnessBanner from "./FreshnessBanner.jsx";
 import {
   ChartLineUp, ShoppingCart, Warehouse, Funnel, Megaphone,
   Target, Drop, ListChecks, ShieldCheck, Monitor, CurrencyCircleDollar, Tag, ChartBar, ChartPie,
-  Gear, List, MoonStars, Sun, ArrowClockwise, Translate, Notepad, Plugs,
+  Gear, List, MoonStars, Sun, ArrowClockwise, Translate, Notepad, Plugs, Wallet, ClockCounterClockwise,
 } from "@phosphor-icons/react";
 
 const NAV_ITEMS = [
   { id: "dashboard", icon: ChartLineUp },
   { id: "sales", icon: ShoppingCart },
+  { id: "finance", icon: Wallet },
   { id: "stocks", icon: Warehouse },
   { id: "funnel", icon: Funnel },
   { id: "ads", icon: Megaphone },
@@ -21,6 +22,7 @@ const NAV_ITEMS = [
   { id: "pnl", icon: ChartBar },
   { id: "abcXyz", icon: ChartPie },
   { id: "kpis", icon: Target },
+  { id: "history", icon: ClockCounterClockwise },
   { id: "watermarks", icon: Drop },
   { id: "pim", icon: Notepad },
   { id: "integrations", icon: Plugs },

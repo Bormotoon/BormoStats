@@ -1,3 +1,5 @@
+-- Available stock (present - reserved) per SKU and warehouse. snapshot_ts is stored as UTC
+-- wall-clock (see wb_stocks_to_stg.sql).
 INSERT INTO stg_stocks
 (
   snapshot_ts,
@@ -15,7 +17,7 @@ INSERT INTO stg_stocks
   ingested_at
 )
 SELECT
-  snapshot_ts,
+  toDateTime(toString(snapshot_ts), 'UTC') AS snapshot_ts,
   'ozon' AS marketplace,
   account_id,
   toString(ozon_product_id) AS product_id,
@@ -29,4 +31,6 @@ SELECT
   payload AS meta_json,
   ingested_at
 FROM raw_ozon_stocks FINAL
-WHERE snapshot_ts >= now() - toIntervalDay(%(days)s)
+WHERE snapshot_ts >= now() - toIntervalDay(%(days)s + 2)
+  AND toDate(toDateTime(toString(snapshot_ts), 'UTC'), 'Europe/Moscow')
+      >= toDate(now(), 'Europe/Moscow') - %(days)s

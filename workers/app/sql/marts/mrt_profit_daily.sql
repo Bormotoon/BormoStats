@@ -1,24 +1,27 @@
+-- Per Moscow day and product, net of returns (stg_sales holds returns with a negative qty):
+--   revenue_rub     sales minus returns at the seller's price
+--   payout_rub      amount due before logistics, sales minus return reversals
+--   total_cost_rub  cost price x units kept by buyers (a returned unit goes back to stock)
+--   profit_rub      payout_rub - total_cost_rub (logistics, storage and ads are P&L items)
+--   margin_pct      profit_rub / revenue_rub
+--   quantity        units sold; return_qty units returned (both positive)
 INSERT INTO mrt_profit_daily
 SELECT
     s.day,
     s.marketplace,
     s.account_id,
-    s.product_id,
-    s.nm_id,
-    s.ozon_product_id,
+    toUInt64OrZero(s.product_id) AS product_id,
+    any(s.nm_id) AS nm_id,
+    any(s.ozon_product_id) AS ozon_product_id,
     coalesce(anyLast(p.name), '') AS product_name,
-    sum(if(s.is_return = 0, s.price_gross, 0)) AS revenue_rub,
-    sum(if(s.is_return = 0, s.payout, 0)) AS payout_rub,
+    sum(s.price_gross * s.qty) AS revenue_rub,
+    sum(ifNull(s.payout, 0)) AS payout_rub,
     coalesce(anyLast(c.cost_price_rub), 0) AS cost_price_rub,
-    sum(if(s.is_return = 0, s.qty, 0)) * coalesce(anyLast(c.cost_price_rub), 0) AS total_cost_rub,
-    sum(if(s.is_return = 0, s.payout, 0)) - sum(if(s.is_return = 0, s.qty, 0)) * coalesce(anyLast(c.cost_price_rub), 0) AS profit_rub,
-    if(
-        sum(if(s.is_return = 0, s.payout, 0)) > 0,
-        (sum(if(s.is_return = 0, s.payout, 0)) - sum(if(s.is_return = 0, s.qty, 0)) * coalesce(anyLast(c.cost_price_rub), 0)) / sum(if(s.is_return = 0, s.payout, 0)) * 100,
-        0
-    ) AS margin_pct,
-    sum(if(s.is_return = 0, s.qty, 0)) AS quantity,
-    sum(if(s.is_return = 1, s.qty, 0)) AS return_qty
+    sum(s.qty) * cost_price_rub AS total_cost_rub,
+    payout_rub - total_cost_rub AS profit_rub,
+    if(revenue_rub > 0, profit_rub / revenue_rub * 100, 0) AS margin_pct,
+    toUInt32(sumIf(s.qty, s.is_return = 0)) AS quantity,
+    toUInt32(-sumIf(s.qty, s.is_return = 1)) AS return_qty
 FROM stg_sales AS s FINAL
 LEFT JOIN dim_product_cost AS c FINAL
     ON s.marketplace = c.marketplace
@@ -26,5 +29,5 @@ LEFT JOIN dim_product_cost AS c FINAL
 LEFT JOIN raw_competitor_products AS p FINAL
     ON s.marketplace = p.marketplace
     AND s.product_id = toString(p.product_id)
-WHERE s.day >= today() - %(days)s
-GROUP BY s.day, s.marketplace, s.account_id, s.product_id, s.nm_id, s.ozon_product_id
+WHERE s.day >= toDate(now(), 'Europe/Moscow') - %(days)s
+GROUP BY s.day, s.marketplace, s.account_id, s.product_id

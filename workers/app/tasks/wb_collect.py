@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import os
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from app.utils.celery_helpers import shared_task
 from app.utils.chunking import date_chunks
@@ -18,16 +20,55 @@ from app.utils.collection import (
 from app.utils.locking import LockNotAcquiredError, lock_scope
 from app.utils.metrics import observe_empty_payload
 from app.utils.runtime import get_ch_client, get_redis_client, log_task_run, new_run_context
+from app.utils.watermarks import set_watermark
 
+from collectors.wb import endpoints
 from collectors.wb.client import WbApiClient
-from collectors.wb.parsers import parse_funnel, parse_orders, parse_sales, parse_stocks
+from collectors.wb.parsers import (
+    parse_funnel,
+    parse_orders,
+    parse_sales,
+    parse_sales_report_lines,
+    parse_stocks,
+)
+from common.finance import FINANCE_CATEGORIES
 
 WB_ACCOUNT_ID = os.getenv("WB_ACCOUNT_ID", "default")
+MOSCOW_TZ = ZoneInfo("Europe/Moscow")
+# realization lines of past days are corrected for a few days after the report
+SALES_REPORT_LOOKBACK_DAYS = 7
+
+RAW_WB_SALES_REPORT_COLUMNS = [
+    "run_id",
+    "account_id",
+    "rrd_id",
+    "report_id",
+    "report_type",
+    "day",
+    "nm_id",
+    "doc_type",
+    "oper_name",
+    "quantity",
+    *FINANCE_CATEGORIES,
+    "net_accrued",
+    "payload",
+]
+
+RAW_MARKETPLACE_BALANCE_COLUMNS = [
+    "run_id",
+    "marketplace",
+    "account_id",
+    "snapshot_ts",
+    "balance",
+    "for_withdraw",
+    "payload",
+]
 
 RAW_WB_SALES_COLUMNS = [
     "run_id",
     "account_id",
     "srid",
+    "sale_id",
     "last_change_ts",
     "event_ts",
     "nm_id",
@@ -92,7 +133,11 @@ def _wb_client() -> WbApiClient | None:
     analytics_token = os.getenv("WB_TOKEN_ANALYTICS", "")
     if not statistics_token or not analytics_token:
         return None
-    return WbApiClient(statistics_token=statistics_token, analytics_token=analytics_token)
+    return WbApiClient(
+        statistics_token=statistics_token,
+        analytics_token=analytics_token,
+        finance_token=os.getenv("WB_TOKEN_FINANCE", ""),
+    )
 
 
 # -- Sales tasks --
@@ -315,3 +360,115 @@ def wb_funnel_backfill_days(days: int = 14, account_id: str = WB_ACCOUNT_ID) -> 
     except Exception as exc:
         log_task_run(ch_client, task_name, run_id, started_at, "failed", total_rows, str(exc))
         raise
+
+
+# -- Finance tasks --
+
+
+def _moscow_today() -> date:
+    return datetime.now(MOSCOW_TZ).date()
+
+
+def _collect_sales_report(account_id: str, from_day: date) -> dict[str, Any]:
+    task_name = "tasks.wb_collect.wb_finance_report"
+    run_id, started_at = new_run_context()
+    wb = _wb_client()
+    if wb is None:
+        return {"status": "skipped", "reason": "missing WB tokens"}
+
+    ch_client = get_ch_client()
+    today = _moscow_today()
+    start_day = min(max(from_day, endpoints.SALES_REPORT_EARLIEST_DAY), today)
+    try:
+        with lock_scope(
+            redis_client=get_redis_client(),
+            source="wb_finance_report",
+            account_id=account_id,
+            ttl_seconds=1800,
+            auto_renew=True,
+        ):
+            lines = wb.sales_report_lines(start_day, today)
+            rows = parse_sales_report_lines(lines, run_id=run_id, account_id=account_id)
+            if not rows:
+                observe_empty_payload("wb_finance_report")
+            inserted = insert_rows(
+                ch_client, "raw_wb_sales_report", RAW_WB_SALES_REPORT_COLUMNS, rows
+            )
+            set_watermark(
+                ch_client,
+                "wb_finance_report",
+                account_id,
+                datetime.combine(today, datetime.min.time(), tzinfo=MOSCOW_TZ).astimezone(UTC),
+            )
+            log_task_run(
+                ch_client,
+                task_name,
+                run_id,
+                started_at,
+                "success",
+                inserted,
+                "wb realization report collected",
+                meta={"from_day": start_day.isoformat(), "to_day": today.isoformat()},
+            )
+            return {
+                "status": "success",
+                "rows": inserted,
+                "from_day": start_day.isoformat(),
+                "to_day": today.isoformat(),
+            }
+    except LockNotAcquiredError:
+        return {"status": "skipped", "reason": "lock_not_acquired"}
+    except Exception as exc:
+        log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
+        raise
+    finally:
+        wb.close()
+
+
+@shared_task(name="tasks.wb_collect.wb_finance_report")
+def wb_finance_report(account_id: str = WB_ACCOUNT_ID) -> dict[str, Any]:
+    return _collect_sales_report(
+        account_id, _moscow_today() - timedelta(days=SALES_REPORT_LOOKBACK_DAYS)
+    )
+
+
+@shared_task(name="tasks.wb_collect.wb_finance_report_backfill_days")
+def wb_finance_report_backfill_days(
+    days: int = 30, account_id: str = WB_ACCOUNT_ID
+) -> dict[str, Any]:
+    safe_days = max(1, min(days, 730))
+    result = _collect_sales_report(account_id, _moscow_today() - timedelta(days=safe_days))
+    result["days"] = safe_days
+    return result
+
+
+@shared_task(name="tasks.wb_collect.wb_balance_snapshot")
+def wb_balance_snapshot(account_id: str = WB_ACCOUNT_ID) -> dict[str, Any]:
+    """The balance widget of the seller cabinet: current balance and the amount to withdraw."""
+    task_name = "tasks.wb_collect.wb_balance_snapshot"
+    run_id, started_at = new_run_context()
+    wb = _wb_client()
+    if wb is None:
+        return {"status": "skipped", "reason": "missing WB tokens"}
+    ch_client = get_ch_client()
+    try:
+        payload = wb.account_balance()
+        if "current" not in payload:
+            raise RuntimeError(f"wb balance response without 'current': {str(payload)[:200]}")
+        row = {
+            "run_id": run_id,
+            "marketplace": "wb",
+            "account_id": account_id,
+            "snapshot_ts": datetime.now(UTC).replace(microsecond=0),
+            "balance": float(payload["current"]),
+            "for_withdraw": float(payload.get("for_withdraw") or 0),
+            "payload": json.dumps(payload, ensure_ascii=True),
+        }
+        insert_rows(ch_client, "raw_marketplace_balance", RAW_MARKETPLACE_BALANCE_COLUMNS, [row])
+        log_task_run(ch_client, task_name, run_id, started_at, "success", 1, "wb balance")
+        return {"status": "success", "balance": row["balance"], "for_withdraw": row["for_withdraw"]}
+    except Exception as exc:
+        log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
+        raise
+    finally:
+        wb.close()
