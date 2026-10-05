@@ -171,8 +171,20 @@ class OzonApiClient:
         collected: list[dict[str, Any]] = []
         batch = endpoints.FBO_STOCKS_SKU_BATCH
         for start in range(0, len(unique), batch):
+            if start:
+                time.sleep(endpoints.FBO_STOCKS_BATCH_PAUSE_SECONDS)
             body = {"skus": [str(sku) for sku in unique[start : start + batch]]}
-            payload = self.http.post(endpoints.FBO_STOCKS_PATH, headers=self._headers(), json=body)
+            try:
+                payload = self.http.post(
+                    endpoints.FBO_STOCKS_PATH, headers=self._headers(), json=body
+                )
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code != 429:
+                    raise
+                time.sleep(endpoints.FBO_STOCKS_RATE_WINDOW_SECONDS)
+                payload = self.http.post(
+                    endpoints.FBO_STOCKS_PATH, headers=self._headers(), json=body
+                )
             if isinstance(payload, dict):
                 collected.extend(_dict_items(payload.get("items")))
         return collected

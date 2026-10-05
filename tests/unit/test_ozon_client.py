@@ -129,6 +129,7 @@ def test_stocks_follow_cursor_until_total() -> None:
 
 def test_fbo_stocks_are_requested_in_sku_batches(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(endpoints, "FBO_STOCKS_SKU_BATCH", 2)
+    monkeypatch.setattr("collectors.ozon.client.time.sleep", lambda _: None)
 
     def handler(path: str, body: dict[str, Any] | None, _: Any) -> Any:
         assert path == endpoints.FBO_STOCKS_PATH
@@ -140,6 +141,34 @@ def test_fbo_stocks_are_requested_in_sku_batches(monkeypatch: pytest.MonkeyPatch
 
     assert [row["sku"] for row in rows] == [1, 2, 3]
     assert [call[2]["skus"] for call in fake.calls] == [["1", "2"], ["3"]]  # type: ignore[index]
+
+
+def test_fbo_stocks_batch_refused_with_429_is_retried_after_the_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(endpoints, "FBO_STOCKS_SKU_BATCH", 1)
+    sleeps: list[float] = []
+    monkeypatch.setattr("collectors.ozon.client.time.sleep", sleeps.append)
+    refused = {"done": False}
+
+    def handler(path: str, body: dict[str, Any] | None, _: Any) -> Any:
+        assert body is not None
+        if body["skus"] == ["2"] and not refused["done"]:
+            refused["done"] = True
+            request = httpx.Request("POST", "https://api-seller.ozon.ru" + path)
+            response = httpx.Response(429, request=request)
+            raise httpx.HTTPStatusError("429", request=request, response=response)
+        return {"items": [{"sku": int(sku)} for sku in body["skus"]]}
+
+    client, fake = _seller(handler)
+    rows = client.fbo_stocks([1, 2])
+
+    assert [row["sku"] for row in rows] == [1, 2]
+    assert len(fake.calls) == 3
+    assert sleeps == [
+        endpoints.FBO_STOCKS_BATCH_PAUSE_SECONDS,
+        endpoints.FBO_STOCKS_RATE_WINDOW_SECONDS,
+    ]
 
 
 def test_finance_accruals_follow_last_id_for_one_day() -> None:

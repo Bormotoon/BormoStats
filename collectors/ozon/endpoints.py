@@ -21,6 +21,10 @@ STOCKS_PATH = "/v4/product/info/stocks"
 STOCKS_PAGE_LIMIT = 1000
 FBO_STOCKS_PATH = "/v1/analytics/stocks"
 FBO_STOCKS_SKU_BATCH = 100
+# The method's limit is per minute: the client's short retries all land in the same window,
+# so batches are paced and a batch refused with 429 is tried once more after the window.
+FBO_STOCKS_BATCH_PAUSE_SECONDS = 2.0
+FBO_STOCKS_RATE_WINDOW_SECONDS = 60.0
 
 # /v3/finance/transaction/list and /totals were switched off on 2026-09-08
 FINANCE_ACCRUAL_BY_DAY_PATH = "/v1/finance/accrual/by-day"
