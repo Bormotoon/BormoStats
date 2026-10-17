@@ -54,8 +54,10 @@ def log_task_run(
     message: str,
     meta: dict[str, Any] | None = None,
 ) -> None:
+    # aware datetimes: the driver converts them to the server's timezone, while a naive one
+    # is taken as server-local time and shifts by the server's UTC offset
     finished_at_utc = datetime.now(UTC)
-    finished_at = finished_at_utc.replace(tzinfo=None)
+    started_at_utc = started_at if started_at.tzinfo else started_at.replace(tzinfo=UTC)
     payload = meta or {}
     client.command(
         """
@@ -69,8 +71,8 @@ def log_task_run(
         parameters={
             "task_name": task_name,
             "run_id": run_id,
-            "started_at": started_at.replace(tzinfo=None),
-            "finished_at": finished_at,
+            "started_at": started_at_utc,
+            "finished_at": finished_at_utc,
             "status": status,
             "rows_ingested": rows_ingested,
             "message": message,

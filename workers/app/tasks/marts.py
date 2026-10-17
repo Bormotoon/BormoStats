@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 from app.sql.loader import load_sql
@@ -10,6 +11,7 @@ from app.utils.locking import LockNotAcquiredError
 from app.utils.rebuilds import LOGGER as REBUILD_LOGGER
 from app.utils.rebuilds import rebuild_task_scope
 from app.utils.runtime import get_ch_client, get_redis_client, log_task_run, new_run_context
+from clickhouse_connect.driver import Client
 
 from common.query_cache import bump_generation
 
@@ -38,6 +40,21 @@ MART_REBUILD_TABLES = (
     ("mrt_ad_performance_daily", "day"),
     ("mrt_finance_daily", "day"),
 )
+
+
+def _build_price_current(client: Client) -> None:
+    """Replace the price breakdown snapshot: insert the new build, then drop older builds.
+
+    Readers never see an empty table; until the delete finishes they may see both builds,
+    which ``FINAL`` collapses to the newer one.
+    """
+    built_at = datetime.now(UTC).replace(microsecond=0)
+    client.command(_load("mrt_price_current.sql"), parameters={"built_at": built_at})
+    client.command(
+        "ALTER TABLE mrt_price_current DELETE WHERE built_at < {built_at:DateTime}",
+        parameters={"built_at": built_at},
+        settings=SYNC_MUTATION,
+    )
 
 
 def _run_marts(days: int, task_name: str) -> dict[str, str | int]:
@@ -89,6 +106,7 @@ def _run_marts(days: int, task_name: str) -> dict[str, str | int]:
                 settings=SYNC_MUTATION,
             )
             client.command(_load("mrt_abc_xyz_daily.sql"))
+            _build_price_current(client)
         # The API caches mart reads; drop them now that fresh rows are in place.
         bump_generation(redis_client)
         log_task_run(

@@ -8,6 +8,12 @@ import { ActionLog, DryRunToggle } from "../components/RuleControls.jsx";
 import { motion } from "motion/react";
 import { Tag, Plus, Trash } from "@phosphor-icons/react";
 
+const RULE_MODES = {
+  buyer_price: "держит цену для покупателя",
+  seller_price: "держит цену со скидкой продавца",
+  margin: "по марже от безубыточности",
+};
+
 export default function Repricer() {
   const { t } = useI18n();
   const [rules, setRules] = useState([]);
@@ -85,7 +91,7 @@ export default function Repricer() {
             <div className="text-center py-12 text-[var(--color-on-surface-variant)]">
               <Tag size={40} className="mx-auto mb-3 opacity-40" />
               <p className="font-semibold">Нет правил ценообразования</p>
-              <p className="text-sm mt-1">Добавьте правило через API для управления ценами</p>
+              <p className="text-sm mt-1">Задайте желаемую цену на странице «Цены»</p>
             </div>
           )}
           {rules.map((rule) => (
@@ -96,7 +102,8 @@ export default function Repricer() {
                     {rule.marketplace === "wb" ? "WB" : "Ozon"} — {rule.product_id}
                   </h3>
                   <p className="text-xs text-[var(--color-on-surface-variant)] mt-0.5">
-                    {rule.account_id}
+                    {rule.account_id} · {RULE_MODES[rule.mode] || rule.mode}
+                    {rule.target_price > 0 && <> · цель {moneyFmt(rule.target_price)}, шаг до {numberFmt(rule.max_step_pct)}%</>}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -142,7 +149,7 @@ export default function Repricer() {
         <section className="md3-card-elevated p-4">
           <DataTable
             rows={breakeven}
-            preferredColumns={["marketplace", "account_id", "product_id", "current_price", "cost_price", "breakeven_price", "min_recommended_price", "commission_pct", "logistics_rub"]}
+            preferredColumns={["marketplace", "account_id", "offer_id", "product_id", "current_price", "cost_price", "breakeven_price", "commission_pct", "logistics_rub"]}
           />
         </section>
       )}

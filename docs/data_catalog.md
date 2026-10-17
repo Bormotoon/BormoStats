@@ -13,11 +13,12 @@ reports; see [Time](#time) for how timestamps are stored.
 | `mrt_stock_daily` | day × account × product × warehouse | `stg_stocks` snapshots | every 30 min | ≤ 2 h |
 | `mrt_funnel_daily` | day × account × product | WB funnel report | every 30 min | ≤ 2 h (report itself lags ~1 day) |
 | `mrt_ads_daily` | day × account × campaign | Ozon ads statistics | every 30 min, 60-day window | ≤ 6 h |
-| `mrt_profit_daily` | day × account × product | `stg_sales` + `dim_product_cost` | every 30 min | ≤ 2 h |
+| `mrt_profit_daily` | day × account × product | `stg_sales` + cost price (`v_offer_cost` by supplier article, else `dim_product_cost`) | every 30 min | ≤ 2 h |
 | `mrt_supply_planning_daily` | account × product (today) | `stg_sales` + latest `stg_stocks` snapshot | every 30 min | ≤ 2 h |
 | `mrt_abc_xyz_analysis` | day × account × product | `mrt_sales_daily`; one snapshot per day, the API shows the latest | every 30 min (today's snapshot) | ≤ 2 h |
 | `mrt_finance_daily` | day × account | Ozon `/v1/finance/balance` per day; WB realization report lines (`/api/finance/v1/sales-reports/detailed`, daily reports) + balance widget snapshots | every 30 min; collectors hourly | Ozon ≤ 1 h; WB report of a day arrives the next day |
-| `mrt_breakeven_daily` | day × account × product | costs, commissions, logistics | **not built yet** (no task writes it) | — |
+| `mrt_price_current` | account × card (supplier article) | latest catalogue snapshot (prices, Ozon tariffs) + marketplace discount measured on recent sales (WB orders `finishedPrice / priceWithDisc`, Ozon accruals `sale_price / seller_price`) + fees from the WB realization report / Ozon accruals + `dim_offer_cost` | every 30 min, rebuilt whole | catalogue snapshot hourly |
+| `mrt_breakeven_daily` | — | superseded by `mrt_price_current`; nothing reads or writes it, to be dropped | — | — |
 | `mrt_pnl_monthly` | month × organization × account | `mrt_finance_daily` + cost of goods + Ozon ads; `dim_additional_expense` as rows with an empty marketplace | every 30 min (months the window touches) | ≤ 2 h |
 
 ### Product dictionary
@@ -50,7 +51,10 @@ Ozon `primary_image`); `/sales/daily` returns it with the seller's article (`off
 | Turnover days | `stock_end / avg_daily_sales` over the last 14 full days | insights trigger |
 | ABC class | cumulative revenue share over the last 60 full days: A ≤ 80 %, B ≤ 95 %, C rest | `mrt_abc_xyz_analysis` |
 | XYZ class | coefficient of variation of the **weekly** quantity over the last 8 full weeks, weeks without sales counted: X < 10 %, Y < 25 %, Z rest | `mrt_abc_xyz_analysis` |
-| Break-even price | cost + logistics + commission share | `mrt_breakeven_daily` |
+| Break-even price | `(cost + acquiring + logistics) / (1 − commission %)`: the seller price with zero margin | `mrt_price_current` |
+| Marketplace discount | median of `1 − buyer paid / seller price` over the card's sales of the last 7 (WB) / 14 (Ozon) days, or 30 / 60 days with fewer than 3; the account's median for a card without sales, on WB also with fewer than 3 orders (`mp_discount_scope = account`) | `mrt_price_current` |
+| Buyer price | seller price × (1 − marketplace discount) | `mrt_price_current` |
+| Price margin | seller price − commission − acquiring − logistics per unit − cost price | `mrt_price_current` |
 
 ### Finance
 

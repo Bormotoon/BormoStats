@@ -34,6 +34,11 @@
 - [Project status report](./project_status_report.md)
 - [Audit remediation (2026-09)](./audit_remediation.md)
 
+## Plans
+
+- [Pricing plan: customer wishes (2026-10)](./pricing_plan.md)
+- [Yandex Market Partner API notes](./ym_partner_api.md)
+
 ## Archive
 
 - Historical planning and audit prep documents are retained in version history for context and provenance.

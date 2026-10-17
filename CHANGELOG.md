@@ -20,6 +20,12 @@ and every run was logged as `skipped` instead of failing.
 
 ### Changed
 
+- **Repricer** keeps a desired price: `buyer_price` (compensates the marketplace's discount),
+  `seller_price` or `margin`, never below break-even, at most `max_step_pct` per change, and
+  waits for the next catalogue snapshot after a live change. It read `mrt_breakeven_daily`,
+  which nothing ever wrote, so no rule could act before. Rules now name cards by supplier
+  article. See `docs/marketplace_actions.md`.
+
 - Web UI, from a user's walkthrough: a signed-in user on a platform-only page (watermarks, task
   runs) got a 401 and was signed out, and signed out again right after signing in, since the
   page stayed in the address bar. `/api/v1/admin/*`, `/organizations`, `/costs` and `/ai` now
@@ -52,6 +58,11 @@ and every run was logged as `skipped` instead of failing.
 - `make check-tokens` probes the new Ozon postings, finance and Performance API token methods.
 
 ### Added
+
+- **Prices page** ("Цены"): per card the crossed-out price, the seller's discount and price, the
+  marketplace's discount (WB SPP, Ozon co-financed discounts) measured on recent sales, the
+  buyer's price, fees, cost price and margin; a WB / Ozon comparison by supplier article; cost
+  prices entered in place or pasted from a spreadsheet. API: `/api/v1/pricing/*`.
 
 - **Analytics query cache.** `sales`, `stocks`, `funnel`, `ads` and `kpis` results are cached in
   Redis per organization and parameters for `QUERY_CACHE_TTL_SECONDS` (300 s; `0` disables).
@@ -102,6 +113,13 @@ and every run was logged as `skipped` instead of failing.
 
 ### Fixed
 
+- Ozon price changes sent `old_price: "0"` and dropped the card's crossed-out price; WB price
+  changes now send the card's discount along with the price.
+- `sys_task_runs` times were written as naive datetimes, which ClickHouse read in its own
+  timezone: on a server outside UTC every task run was off by the server's UTC offset (2 h on
+  `Europe/Warsaw`), skewing freshness and data-quality windows. Rows written before the fix
+  keep the offset.
+
 - **Products had no names.** Profit and supply planning took names from the empty
   `raw_competitor_products`, and `dim_product` held no WB title at all (only cards seen in
   sales). The dictionary is now also built from the catalogue in the history store (every card
@@ -143,7 +161,20 @@ and every run was logged as `skipped` instead of failing.
 - Data-quality checks compared times across conventions (false "future" sales) and flagged WB
   funnels with more orders than cart adds, which WB allows (one-click orders).
 
+### Security
+
+- Python runtime of the backend and worker images 3.14.3 → 3.14.8: fixes CVE-2025-12781,
+  CVE-2025-15366, CVE-2026-2297 (their waivers had expired) and 11 other high/critical CPython
+  findings. CVE-2025-15367 (`poplib`, unused) is still reported on every released CPython,
+  3.15.0 included; its waiver runs to 2027-01-15.
+- Frontend build dependency `source-map-js` updated (GHSA-68fv-2mgg-jv7q, high).
+
 ### Migrations
+
+- `0033_pricing`: `dim_offer_cost` (cost price by supplier article per organization, used by
+  profit and P&L before the platform-level `dim_product_cost`), `v_offer_cost`,
+  `mrt_price_current`, and `mode` / `target_price` / `max_step_pct` on `dim_price_rule`.
+  The price breakdown fills on the next marts run; enter cost prices on the Prices page.
 
 - `0032_product_image_account_titles`: `dim_product.image_url`; renames the seeded account
   titles. Afterwards run a transform (the catalogue sync fills the photos).

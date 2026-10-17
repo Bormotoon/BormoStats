@@ -7,7 +7,8 @@
 --   other_costs_rub   penalties and other charges (net of compensations; WB ads are
 --                     deducted here)
 --   net_accrued_rub   what the marketplace accrued to the balance: revenue minus all above
---   cogs_rub          cost price x units kept by buyers (dim_product_cost; 0 without costs)
+--   cogs_rub          cost price x units kept by buyers (v_offer_cost by supplier article,
+--                     else dim_product_cost; 0 without costs)
 --   gross_profit_rub  net_accrued_rub - cogs_rub
 --   ad_cost_rub       Ozon Performance spend (mrt_ads_daily; paid outside the balance)
 --   operating/ebitda/net profit: gross profit - ads (indirect expenses are separate rows,
@@ -43,13 +44,18 @@ WITH
   (
     SELECT
       toStartOfMonth(s.day) AS month,
-      s.marketplace,
-      s.account_id,
-      sum(s.qty * c.cost_price_rub) AS cogs
+      s.marketplace AS marketplace,
+      s.account_id AS account_id,
+      sum(s.qty * if(ifNull(oc.cost_price_rub, 0) > 0, oc.cost_price_rub,
+        ifNull(c.cost_price_rub, 0))) AS cogs
     FROM stg_sales AS s FINAL
-    INNER JOIN dim_product_cost AS c FINAL
+    LEFT JOIN dim_product_cost AS c FINAL
       ON s.marketplace = c.marketplace
       AND s.product_id = toString(c.product_id)
+    LEFT JOIN v_offer_cost AS oc
+      ON s.marketplace = oc.marketplace
+      AND s.account_id = oc.account_id
+      AND s.product_id = oc.product_id
     WHERE s.day >= from_month
     GROUP BY month, s.marketplace, s.account_id
   ),

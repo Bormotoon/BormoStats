@@ -7,7 +7,7 @@ const ru = {
   nav: {
     dashboard: "Дашборд", sales: "Продажи", finance: "Финансы", stocks: "Остатки",
     funnel: "Воронка", ads: "Реклама", bidder: "Биддер",
-    repricer: "Репрайсер", pnl: "P&L", abcXyz: "ABC/XYZ",
+    pricing: "Цены", repricer: "Репрайсер", pnl: "P&L", abcXyz: "ABC/XYZ",
     kpis: "KPI", history: "История", watermarks: "Водяные знаки",
     pim: "PIM",
     integrations: "Интеграции",
@@ -16,7 +16,7 @@ const ru = {
   pageTitles: {
     dashboard: "Дашборд", sales: "Продажи", finance: "Финансы", stocks: "Остатки",
     funnel: "Воронка", ads: "Реклама", bidder: "Биддер",
-    repricer: "Репрайсер", pnl: "P&L", abcXyz: "ABC/XYZ",
+    pricing: "Цены", repricer: "Репрайсер", pnl: "P&L", abcXyz: "ABC/XYZ",
     kpis: "KPI", history: "История", watermarks: "Водяные знаки",
     pim: "PIM",
     integrations: "Интеграции",
@@ -24,6 +24,7 @@ const ru = {
   },
   pageSubtitles: {
     bidder: "Управление ставками рекламных кампаний",
+    pricing: "Разбор цены, сравнение по маркетплейсам, желаемые цены и себестоимость",
     repricer: "Динамическое ценообразование и break-even",
     pnl: "Прибыли и убытки (P&L)",
     abcXyz: "ABC/XYZ анализ ассортимента",
@@ -217,7 +218,7 @@ const en = {
   nav: {
     dashboard: "Dashboard", sales: "Sales", finance: "Finance", stocks: "Stocks",
     funnel: "Funnel", ads: "Ads", bidder: "Bidder",
-    repricer: "Repricer", pnl: "P&L", abcXyz: "ABC/XYZ",
+    pricing: "Prices", repricer: "Repricer", pnl: "P&L", abcXyz: "ABC/XYZ",
     kpis: "KPIs", history: "History", watermarks: "Watermarks",
     pim: "PIM",
     integrations: "Integrations",
@@ -226,7 +227,7 @@ const en = {
   pageTitles: {
     dashboard: "Dashboard", sales: "Sales", finance: "Finance", stocks: "Stocks",
     funnel: "Funnel", ads: "Ads", bidder: "Bidder",
-    repricer: "Repricer", pnl: "P&L", abcXyz: "ABC/XYZ",
+    pricing: "Prices", repricer: "Repricer", pnl: "P&L", abcXyz: "ABC/XYZ",
     kpis: "KPIs", history: "History", watermarks: "Watermarks",
     pim: "PIM",
     integrations: "Integrations",
@@ -234,6 +235,7 @@ const en = {
   },
   pageSubtitles: {
     bidder: "Ad campaign bid management",
+    pricing: "Price breakdown, comparison across marketplaces, desired prices and cost prices",
     repricer: "Dynamic pricing and break-even analysis",
     pnl: "Profit & Loss statement",
     abcXyz: "ABC/XYZ assortment analysis",

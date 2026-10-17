@@ -1,0 +1,307 @@
+"""Price breakdown, price comparison, desired prices and cost prices for one organization."""
+
+from __future__ import annotations
+
+import re
+from typing import Any
+
+from app.db.ch import query_dicts, utc_now
+from app.models.pricing import (
+    OfferCost,
+    OfferCostImportResult,
+    PriceBreakdownRow,
+    PriceCompareRow,
+    TargetPriceSet,
+)
+from app.models.repricer import PriceRule, PriceRuleCreate, PriceRuleUpdate
+from app.services.repricer_service import RepricerService
+from app.services.tenancy import account_scope_sql, ensure_account_access
+from clickhouse_connect.driver import Client
+
+_PRICE_COLS = (
+    "p.marketplace AS marketplace, p.account_id AS account_id, p.offer_id AS offer_id,"
+    " p.product_id AS product_id, p.title AS title, p.image_url AS image_url,"
+    " p.list_price AS list_price, p.seller_discount_pct AS seller_discount_pct,"
+    " p.seller_price AS seller_price, p.mp_discount_pct AS mp_discount_pct,"
+    " p.mp_discount_scope AS mp_discount_scope, p.mp_discount_samples AS mp_discount_samples,"
+    " p.buyer_price AS buyer_price, p.commission_pct AS commission_pct,"
+    " p.commission_rub AS commission_rub, p.acquiring_rub AS acquiring_rub,"
+    " p.logistics_rub AS logistics_rub, p.fees_rub AS fees_rub, p.cost_price AS cost_price,"
+    " p.margin_rub AS margin_rub, p.margin_pct AS margin_pct,"
+    " p.breakeven_price AS breakeven_price, p.min_price AS min_price,"
+    " p.auto_actions_enabled AS auto_actions_enabled, p.price_seen_at AS price_seen_at"
+)
+# the latest rule per card; a card may carry an older rule created through /repricer/rules
+_RULES = (
+    "SELECT marketplace, account_id, product_id,"
+    " argMax(rule_id, updated_at) AS rule_id, argMax(mode, updated_at) AS mode,"
+    " argMax(target_price, updated_at) AS target_price,"
+    " argMax(is_active, updated_at) AS is_active, argMax(dry_run, updated_at) AS dry_run"
+    " FROM dim_price_rule FINAL GROUP BY marketplace, account_id, product_id"
+)
+_SEPARATORS = (";", "\t", ",")
+_MAX_IMPORT_ERRORS = 50
+
+
+class PricingService:
+    def __init__(self, ch: Client, organization_id: str) -> None:
+        self._ch = ch
+        self._org = organization_id
+
+    def _scope(
+        self, alias: str, marketplace: str | None, account_id: str | None
+    ) -> tuple[str, dict[str, object]]:
+        where = [account_scope_sql("oid", alias=alias)]
+        params: dict[str, object] = {"oid": self._org}
+        if marketplace:
+            where.append(f"{alias}.marketplace = {{mp:String}}")
+            params["mp"] = marketplace
+        if account_id:
+            where.append(f"{alias}.account_id = {{aid:String}}")
+            params["aid"] = account_id
+        return " WHERE " + " AND ".join(where), params
+
+    def breakdown(
+        self, marketplace: str | None = None, account_id: str | None = None
+    ) -> list[PriceBreakdownRow]:
+        clause, params = self._scope("p", marketplace, account_id)
+        rows = query_dicts(
+            self._ch,
+            f"SELECT {_PRICE_COLS}, r.rule_id AS rule_id, r.mode AS mode,"
+            " r.target_price AS target_price, r.is_active AS rule_is_active,"
+            " r.dry_run AS rule_dry_run"
+            " FROM mrt_price_current AS p FINAL"
+            f" LEFT JOIN ({_RULES}) AS r"
+            " ON r.marketplace = p.marketplace AND r.account_id = p.account_id"
+            " AND r.product_id = p.offer_id"
+            f"{clause}"
+            " ORDER BY p.offer_id, p.marketplace LIMIT 20000",
+            params,
+            settings={"join_use_nulls": 1},
+        )
+        return [_breakdown_row(r) for r in rows]
+
+    def compare(self, account_id: str | None = None) -> list[PriceCompareRow]:
+        clause, params = self._scope("p", None, account_id)
+        rows = query_dicts(
+            self._ch,
+            "SELECT p.offer_id AS offer_id, anyIf(p.title, p.title IS NOT NULL) AS title,"
+            " anyIf(p.image_url, p.image_url IS NOT NULL) AS image_url,"
+            " anyIf(p.seller_price, p.marketplace = 'wb') AS wb_seller_price,"
+            " anyIf(p.buyer_price, p.marketplace = 'wb') AS wb_buyer_price,"
+            " anyIf(p.seller_price, p.marketplace = 'ozon') AS ozon_seller_price,"
+            " anyIf(p.buyer_price, p.marketplace = 'ozon') AS ozon_buyer_price,"
+            " countIf(p.marketplace = 'wb') AS on_wb, countIf(p.marketplace = 'ozon') AS on_ozon"
+            " FROM mrt_price_current AS p FINAL"
+            f"{clause}"
+            " GROUP BY p.offer_id ORDER BY p.offer_id LIMIT 20000",
+            params,
+        )
+        return [_compare_row(r) for r in rows]
+
+    def set_target(self, marketplace: str, offer_id: str, data: TargetPriceSet) -> PriceRule:
+        """Create the card's price rule (dry-run) or update the latest one."""
+        ensure_account_access(self._ch, self._org, marketplace, data.account_id)
+        repricer = RepricerService(self._ch, self._org)
+        existing = self._latest_rule_id(marketplace, data.account_id, offer_id)
+        if existing is not None:
+            rule = repricer.update_rule(
+                existing,
+                PriceRuleUpdate(
+                    mode=data.mode,
+                    target_price=data.target_price,
+                    min_price=data.min_price,
+                    max_price=data.max_price,
+                    max_step_pct=data.max_step_pct,
+                ),
+            )
+            if rule is not None:
+                return rule
+        return repricer.create_rule(
+            PriceRuleCreate(
+                marketplace=marketplace,
+                account_id=data.account_id,
+                product_id=offer_id,
+                mode=data.mode,
+                target_price=data.target_price,
+                min_price=data.min_price or 0,
+                max_price=data.max_price or 0,
+                max_step_pct=data.max_step_pct or 10,
+                dry_run=True,
+            )
+        )
+
+    def _latest_rule_id(self, marketplace: str, account_id: str, offer_id: str) -> str | None:
+        clause, params = self._scope("r", marketplace, account_id)
+        rows = self._ch.query(
+            f"SELECT r.rule_id FROM dim_price_rule AS r FINAL{clause}"
+            " AND r.product_id = {offer:String} ORDER BY r.updated_at DESC LIMIT 1",
+            parameters={**params, "offer": offer_id},
+        ).result_rows
+        return str(rows[0][0]) if rows else None
+
+    def list_costs(self) -> list[OfferCost]:
+        rows = query_dicts(
+            self._ch,
+            "SELECT offer_id, cost_price_rub, updated_at FROM dim_offer_cost FINAL"
+            " WHERE organization_id = {oid:String} ORDER BY offer_id",
+            {"oid": self._org},
+        )
+        return [
+            OfferCost(
+                offer_id=r["offer_id"],
+                cost_price_rub=float(r["cost_price_rub"]),
+                updated_at=str(r["updated_at"]),
+            )
+            for r in rows
+        ]
+
+    def set_costs(self, costs: dict[str, float]) -> int:
+        if not costs:
+            return 0
+        now = utc_now()
+        self._ch.insert(
+            "dim_offer_cost",
+            [[self._org, offer, float(cost), now] for offer, cost in costs.items()],
+            column_names=["organization_id", "offer_id", "cost_price_rub", "updated_at"],
+        )
+        return len(costs)
+
+    def delete_cost(self, offer_id: str) -> bool:
+        exists = self._ch.query(
+            "SELECT count() FROM dim_offer_cost FINAL"
+            " WHERE organization_id = {oid:String} AND offer_id = {offer:String}",
+            parameters={"oid": self._org, "offer": offer_id},
+        ).result_rows[0][0]
+        if not exists:
+            return False
+        self._ch.command(
+            "ALTER TABLE dim_offer_cost DELETE"
+            " WHERE organization_id = {oid:String} AND offer_id = {offer:String}",
+            parameters={"oid": self._org, "offer": offer_id},
+        )
+        return True
+
+    def import_costs(self, text: str) -> OfferCostImportResult:
+        costs, errors = parse_cost_table(text)
+        return OfferCostImportResult(imported=self.set_costs(costs), errors=errors)
+
+
+def parse_cost_table(text: str) -> tuple[dict[str, float], list[str]]:
+    """Parse ``article<sep>cost`` lines pasted from a spreadsheet.
+
+    The separator is ``;``, tab or ``,`` (the first one found in a line); a decimal comma, spaces
+    and a rouble sign in the cost are accepted. A first line whose cost is not a number is
+    taken as a header. A later line for the same article wins.
+    """
+    costs: dict[str, float] = {}
+    errors: list[str] = []
+    first = True
+    for number, raw in enumerate(text.splitlines(), start=1):
+        line = raw.strip()
+        if not line:
+            continue
+        is_first, first = first, False
+        sep = next((s for s in _SEPARATORS if s in line), None)
+        if sep is None:
+            _add_error(errors, f"line {number}: no separator")
+            continue
+        offer, _, cost_text = line.partition(sep)
+        offer = offer.strip().strip('"')
+        cost = _parse_number(cost_text if sep != "," else cost_text.replace(",", "."))
+        if cost is None:
+            if not is_first:
+                _add_error(errors, f"line {number}: cost is not a number")
+            continue
+        if not offer or len(offer) > 128:
+            _add_error(errors, f"line {number}: bad article")
+            continue
+        if cost <= 0:
+            _add_error(errors, f"line {number}: cost must be positive")
+            continue
+        costs[offer] = cost
+    return costs, errors
+
+
+def _parse_number(text: str) -> float | None:
+    # drop spaces, currency signs and words ("1 250,50 RUB"), keep the number
+    cleaned = re.sub(r"[^0-9,.\-]", "", text).replace(",", ".")
+    if not re.search(r"[0-9]", cleaned):
+        return None
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
+def _add_error(errors: list[str], message: str) -> None:
+    if len(errors) < _MAX_IMPORT_ERRORS:
+        errors.append(message)
+
+
+def _opt_float(value: Any) -> float | None:
+    return None if value is None else float(value)
+
+
+def _breakdown_row(r: dict[str, Any]) -> PriceBreakdownRow:
+    mode = r.get("mode")
+    target = _opt_float(r.get("target_price"))
+    kept = {"buyer_price": r.get("buyer_price"), "seller_price": r.get("seller_price")}.get(
+        mode or ""
+    )
+    gap = None
+    if target and kept is not None:
+        gap = round((float(kept) - target) / target * 100, 2)
+    auto = r.get("auto_actions_enabled")
+    return PriceBreakdownRow(
+        marketplace=r["marketplace"],
+        account_id=r["account_id"],
+        offer_id=r["offer_id"],
+        product_id=r["product_id"],
+        title=r.get("title"),
+        image_url=r.get("image_url"),
+        list_price=float(r["list_price"]),
+        seller_discount_pct=float(r["seller_discount_pct"]),
+        seller_price=float(r["seller_price"]),
+        mp_discount_pct=_opt_float(r.get("mp_discount_pct")),
+        mp_discount_scope=r.get("mp_discount_scope") or "",
+        mp_discount_samples=int(r.get("mp_discount_samples") or 0),
+        buyer_price=_opt_float(r.get("buyer_price")),
+        commission_pct=float(r["commission_pct"]),
+        commission_rub=float(r["commission_rub"]),
+        acquiring_rub=float(r["acquiring_rub"]),
+        logistics_rub=float(r["logistics_rub"]),
+        fees_rub=float(r["fees_rub"]),
+        cost_price=_opt_float(r.get("cost_price")),
+        margin_rub=_opt_float(r.get("margin_rub")),
+        margin_pct=_opt_float(r.get("margin_pct")),
+        breakeven_price=_opt_float(r.get("breakeven_price")),
+        min_price=_opt_float(r.get("min_price")),
+        auto_actions_enabled=None if auto is None else bool(auto),
+        price_seen_at=str(r["price_seen_at"]) if r.get("price_seen_at") else None,
+        rule_id=r.get("rule_id") or None,
+        mode=mode or None,
+        target_price=target if r.get("rule_id") else None,
+        rule_is_active=None if not r.get("rule_id") else bool(r.get("rule_is_active")),
+        rule_dry_run=None if not r.get("rule_id") else bool(r.get("rule_dry_run")),
+        target_gap_pct=gap if r.get("rule_id") else None,
+    )
+
+
+def _compare_row(r: dict[str, Any]) -> PriceCompareRow:
+    def present(key: str, flag: str) -> float | None:
+        return _opt_float(r.get(key)) if r.get(flag) else None
+
+    row = PriceCompareRow(
+        offer_id=r["offer_id"],
+        title=r.get("title"),
+        image_url=r.get("image_url"),
+        wb_seller_price=present("wb_seller_price", "on_wb"),
+        wb_buyer_price=present("wb_buyer_price", "on_wb"),
+        ozon_seller_price=present("ozon_seller_price", "on_ozon"),
+        ozon_buyer_price=present("ozon_buyer_price", "on_ozon"),
+    )
+    buyer = [p for p in (row.wb_buyer_price, row.ozon_buyer_price) if p]
+    if len(buyer) > 1:
+        row.buyer_spread_pct = round((max(buyer) - min(buyer)) / min(buyer) * 100, 2)
+    return row

@@ -17,6 +17,9 @@ _RULE_COLUMNS: tuple[tuple[str, str], ...] = (
     ("marketplace", "String"),
     ("account_id", "String"),
     ("product_id", "String"),
+    ("mode", "String"),
+    ("target_price", "Float64"),
+    ("max_step_pct", "Float64"),
     ("min_price", "Float64"),
     ("max_price", "Float64"),
     ("target_margin_percent", "Float64"),
@@ -28,8 +31,8 @@ _RULE_COLUMNS: tuple[tuple[str, str], ...] = (
 _RULE_COLS = ", ".join(name for name, _ in _RULE_COLUMNS)
 _RULE_INSERT = insert_values_sql("dim_price_rule", _RULE_COLUMNS)
 _BE_COLS = (
-    "day, marketplace, account_id, product_id, current_price, cost_price, commission_pct,"
-    " logistics_rub, breakeven_price, min_recommended_price"
+    "marketplace, account_id, offer_id, product_id, seller_price AS current_price, cost_price,"
+    " commission_pct, logistics_rub, breakeven_price"
 )
 
 
@@ -81,6 +84,9 @@ class RepricerService:
             marketplace=data.marketplace,
             account_id=data.account_id,
             product_id=data.product_id,
+            mode=data.mode,
+            target_price=data.target_price,
+            max_step_pct=data.max_step_pct,
             min_price=data.min_price,
             max_price=data.max_price,
             target_margin_percent=data.target_margin_percent,
@@ -121,8 +127,8 @@ class RepricerService:
     ) -> list[BreakevenRow]:
         clause, params = self._filters(marketplace, account_id)
         rows = self._ch.query(
-            f"SELECT {_BE_COLS} FROM mrt_breakeven_daily FINAL{clause}"
-            " ORDER BY breakeven_price DESC LIMIT 5000",
+            f"SELECT {_BE_COLS} FROM mrt_price_current FINAL{clause}"
+            " ORDER BY marketplace, offer_id LIMIT 5000",
             parameters=params,
             settings=PARTITION_LOCAL_FINAL,
         )
@@ -139,6 +145,9 @@ class RepricerService:
                 "marketplace": rule.marketplace,
                 "account_id": rule.account_id,
                 "product_id": rule.product_id,
+                "mode": rule.mode,
+                "target_price": rule.target_price,
+                "max_step_pct": rule.max_step_pct,
                 "min_price": rule.min_price,
                 "max_price": rule.max_price,
                 "target_margin_percent": rule.target_margin_percent,
@@ -156,6 +165,9 @@ def _row_to_rule(r: dict[str, Any]) -> PriceRule:
         marketplace=r["marketplace"],
         account_id=r["account_id"],
         product_id=r["product_id"],
+        mode=r.get("mode") or "margin",
+        target_price=float(r.get("target_price") or 0),
+        max_step_pct=float(r.get("max_step_pct") or 10),
         min_price=r["min_price"],
         max_price=r["max_price"],
         target_margin_percent=r["target_margin_percent"],
@@ -166,16 +178,19 @@ def _row_to_rule(r: dict[str, Any]) -> PriceRule:
     )
 
 
+def _opt_float(value: Any) -> float | None:
+    return None if value is None else float(value)
+
+
 def _row_to_breakeven(r: dict[str, Any]) -> BreakevenRow:
     return BreakevenRow(
-        day=str(r["day"]),
         marketplace=r["marketplace"],
         account_id=r["account_id"],
+        offer_id=r["offer_id"],
         product_id=r["product_id"],
         current_price=float(r["current_price"]),
-        cost_price=float(r["cost_price"]),
+        cost_price=_opt_float(r["cost_price"]),
         commission_pct=float(r["commission_pct"]),
         logistics_rub=float(r["logistics_rub"]),
-        breakeven_price=float(r["breakeven_price"]),
-        min_recommended_price=float(r["min_recommended_price"]),
+        breakeven_price=_opt_float(r["breakeven_price"]),
     )

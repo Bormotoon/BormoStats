@@ -93,12 +93,20 @@ class WbActionsClient:
     def can_set_stocks(self) -> bool:
         return bool(self._marketplace_token)
 
-    def set_price(self, nm_id: int, price: int) -> ActionResult:
+    def set_price(self, nm_id: int, price: int, discount: int | None = None) -> ActionResult:
+        """``price`` is the list price before the seller's discount, ``discount`` its percent.
+
+        The discount is sent whenever it is known, so the card keeps the discount it had
+        instead of relying on what WB does with a missing field.
+        """
+        item: dict[str, int] = {"nmID": nm_id, "price": price}
+        if discount is not None:
+            item["discount"] = discount
         try:
             payload = self._prices.post(
                 wb_endpoints.PRICES_UPLOAD_PATH,
                 headers={"Authorization": self._prices_token},
-                json={"data": [{"nmID": nm_id, "price": price}]},
+                json={"data": [item]},
             )
         except Exception as exc:
             return ActionResult.failure(exc)
@@ -160,13 +168,18 @@ class OzonActionsClient:
     def _headers(self) -> dict[str, str]:
         return {"Client-Id": self._client_id, "Api-Key": self._api_key}
 
-    def set_price(self, offer_id: str, price: float) -> ActionResult:
+    def set_price(self, offer_id: str, price: float, old_price: float = 0.0) -> ActionResult:
+        """``price`` is the seller's price; ``old_price`` the crossed-out one.
+
+        Ozon reads ``old_price`` "0" as "no discount" and drops the crossed-out price, so the
+        caller passes the current one (scaled to the new price) to keep the discount shown.
+        """
         body = {
             "prices": [
                 {
                     "offer_id": offer_id,
                     "price": f"{price:.2f}",
-                    "old_price": "0",
+                    "old_price": f"{old_price:.2f}" if old_price > price else "0",
                     "currency_code": "RUB",
                 }
             ]

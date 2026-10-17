@@ -15,6 +15,7 @@ import Finance from "./pages/Finance.jsx";
 import History from "./pages/History.jsx";
 import Login from "./pages/Login.jsx";
 import Repricer from "./pages/Repricer.jsx";
+import Pricing from "./pages/Pricing.jsx";
 import KPIs from "./pages/KPIs.jsx";
 import Watermarks from "./pages/Watermarks.jsx";
 import TaskRuns from "./pages/TaskRuns.jsx";
@@ -36,6 +37,7 @@ const PAGES = {
   ads: Ads,
   bidder: Bidder,
   pnl: PnL,
+  pricing: Pricing,
   repricer: Repricer,
   kpis: KPIs,
   watermarks: Watermarks,

@@ -1,7 +1,8 @@
 -- Per Moscow day and product, net of returns (stg_sales holds returns with a negative qty):
 --   revenue_rub     sales minus returns at the seller's price
 --   payout_rub      amount due before logistics, sales minus return reversals
---   total_cost_rub  cost price x units kept by buyers (a returned unit goes back to stock)
+--   total_cost_rub  cost price x units kept by buyers (a returned unit goes back to stock);
+--                   the cost is the supplier article's (v_offer_cost), else dim_product_cost
 --   profit_rub      payout_rub - total_cost_rub (logistics, storage and ads are P&L items)
 --   margin_pct      profit_rub / revenue_rub
 --   quantity        units sold; return_qty units returned (both positive)
@@ -16,7 +17,8 @@ SELECT
     coalesce(anyLast(p.name), '') AS product_name,
     sum(s.price_gross * s.qty) AS revenue_rub,
     sum(ifNull(s.payout, 0)) AS payout_rub,
-    coalesce(anyLast(c.cost_price_rub), 0) AS cost_price_rub,
+    if(anyLast(oc.cost_price_rub) > 0, anyLast(oc.cost_price_rub),
+        coalesce(anyLast(c.cost_price_rub), 0)) AS cost_price_rub,
     sum(s.qty) * cost_price_rub AS total_cost_rub,
     payout_rub - total_cost_rub AS profit_rub,
     if(revenue_rub > 0, profit_rub / revenue_rub * 100, 0) AS margin_pct,
@@ -26,6 +28,10 @@ FROM stg_sales AS s FINAL
 LEFT JOIN dim_product_cost AS c FINAL
     ON s.marketplace = c.marketplace
     AND s.product_id = toString(c.product_id)
+LEFT JOIN v_offer_cost AS oc
+    ON s.marketplace = oc.marketplace
+    AND s.account_id = oc.account_id
+    AND s.product_id = oc.product_id
 LEFT JOIN (
     SELECT marketplace, account_id, product_id, anyLast(title) AS name
     FROM dim_product FINAL
