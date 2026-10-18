@@ -14,6 +14,12 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    # one weekly PR for minor and patch updates instead of one per package: the lock files
+    # conflict between them, so separate PRs had to be merged one rebase at a time.
+    # Major versions and security updates still come as their own PRs.
+    groups:
+      python-minor:
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: "npm"
     directory: "/frontend"
