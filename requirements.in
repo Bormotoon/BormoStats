@@ -3,7 +3,7 @@
 celery==5.6.3
 clickhouse-connect==0.13.0
 cryptography==50.0.2
-fastapi==0.135.1
+fastapi==0.143.2
 httpx==0.28.1
 prometheus_client==0.26.0
 pydantic==2.14.1
