@@ -96,7 +96,7 @@ services:
       - private
 
   redis:
-    image: redis@sha256:ee64a64eaab618d88051c3ade8f6352d11531fcf79d9a4818b9b183d8c1d18ba
+    image: redis@sha256:2c2dff791878316e3b083188be0d578423b24813cdda5de0e80ea4f7b3e6bfd6
     restart: unless-stopped
     logging: *default-logging
     environment:
