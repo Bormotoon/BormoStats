@@ -118,7 +118,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(
     title="Marketplace Analytics API",
-    version="1.1.0",
+    version="1.2.0",
     docs_url=None,
     redoc_url=None,
     openapi_url=None,

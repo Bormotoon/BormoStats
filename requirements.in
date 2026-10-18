@@ -7,11 +7,11 @@ fastapi==0.135.1
 httpx==0.28.1
 prometheus_client==0.26.0
 pydantic==2.14.1
-pydantic-settings==2.14.2
-python-dotenv==1.2.2
+pydantic-settings==2.16.0
+python-dotenv==1.2.4
 python-dateutil==2.9.0.post0
 PyYAML==6.0.3
-redis==7.2.1
+redis==8.1.0
 structlog==26.1.0
 tzdata==2026.5
-uvicorn[standard]==0.41.0
+uvicorn[standard]==0.54.0
