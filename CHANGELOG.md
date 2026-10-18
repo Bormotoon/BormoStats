@@ -5,8 +5,16 @@ All notable changes to this project are documented here. The project follows
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-10-18
+
 Collectors moved to the current marketplace APIs; several methods they used were switched off
-and every run was logged as `skipped` instead of failing.
+and every run was logged as `skipped` instead of failing. New: the finance block, login
+sessions, the history store, the prices page with a repricer that keeps a desired price, the
+reviews page with auto replies, Excel export and import, and the customer's UI fixes.
+
+Upgrading: take a ClickHouse backup first. The server image moves from 26.2 to 26.3 LTS and
+Redis from 7.4 to 8.10. Then apply migrations `0027`–`0034` (see Migrations; `0029` is
+destructive) and rebuild the stack.
 
 ### Breaking changes
 
@@ -213,6 +221,29 @@ and every run was logged as `skipped` instead of failing.
   findings. CVE-2025-15367 (`poplib`, unused) is still reported on every released CPython,
   3.15.0 included; its waiver runs to 2027-01-15.
 - Frontend build dependency `source-map-js` updated (GHSA-68fv-2mgg-jv7q, high).
+- urllib3 2.7.0 → 2.8.0 (GHSA-8988-9cw3-xx77, GHSA-vxq7-64xx-v4gw high; GHSA-gh4c-6fx4-qh6g).
+  It had turned the supply-chain gate red on `main`.
+- Code scanning gets only fixable image findings. The 326 open Grype alerts were Debian base
+  packages marked wont-fix; the full list stays in the image SBOM artifacts, and the blocking
+  gate (high, fixable) is unchanged.
+
+### Dependencies
+
+- Images: ClickHouse 26.2 → **26.3.55.2 LTS**, Redis 7.4.7 → 8.10.2, nginx 1.27.5 → 1.31.0,
+  the frontend build stage on node 26. ClickHouse builds after 26.3 need AVX2 (x86-64-v3)
+  and die with "Illegal instruction" on CPUs without it (an Intel i7-3770 runs production);
+  Dependabot ignores ClickHouse ≥ 26.4.
+- Python: redis-py 8.1, pydantic 2.14, pydantic-settings 2.16, celery 5.6.3, uvicorn 0.54,
+  structlog 26.1, cryptography 50.0.2, prometheus-client 0.26, tzdata 2026.5; dev: mypy 2.4,
+  ruff 0.17, pytest 9.1, pip-audit 2.10.1. `httpx2` joins the dev lock: starlette 1.3's
+  TestClient needs it, and without it CI could not collect the tests.
+- Frontend: react 19.3, recharts 3.10, motion 14, vite 8.3, Playwright 1.64.
+- Not taken yet: FastAPI 0.143 (routes of included routers left `app.routes`, so the audit
+  trail and metrics lost `/api/v1` and the auth-matrix test saw one route) and
+  clickhouse-connect 1.x (closing a client no longer frees its own pool). Dependabot ignores
+  both until they are adapted.
+- Dependabot groups minor and patch Python updates into one weekly PR.
+- The Playwright smoke tests follow the sign-in screen added on 2026-10-05.
 
 ### Migrations
 
@@ -225,6 +256,8 @@ and every run was logged as `skipped` instead of failing.
 
 - `0032_product_image_account_titles`: `dim_product.image_url`; renames the seeded account
   titles. Afterwards run a transform (the catalogue sync fills the photos).
+- `0031_login`: `dim_user_credential` (password hashes) and `sys_user_session` (sign-in
+  sessions next to API keys).
 - `0030_finance`: `raw_ozon_finance_balance`, `raw_wb_sales_report`, `raw_marketplace_balance`,
   `mrt_finance_daily`; `mrt_pnl_monthly` gains `storage_rub`, `other_costs_rub`,
   `net_accrued_rub`, `cogs_rub`. Afterwards run the `ozon/balance` and `wb/finance` backfills

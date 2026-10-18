@@ -20,6 +20,17 @@ updates:
     groups:
       python-minor:
         update-types: ["minor", "patch"]
+    ignore:
+      # FastAPI 0.143 no longer copies included routes into app.routes: route templates in
+      # the audit trail and metrics lose /api/v1, and the auth-matrix test sees one route.
+      # Lift once both read routes from a public source (see the closed PR #52).
+      - dependency-name: "fastapi"
+        versions: [">= 0.136"]
+      # clickhouse-connect 1.x hands pool ownership to its backend at construction, so the
+      # client._owns_pool_manager flag set in backend/app/db/ch.py no longer frees the pool on
+      # close() (test_closing_a_built_client_releases_its_pool, see the closed PR #63).
+      - dependency-name: "clickhouse-connect"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/frontend"
