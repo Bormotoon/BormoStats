@@ -16,6 +16,7 @@ import History from "./pages/History.jsx";
 import Login from "./pages/Login.jsx";
 import Repricer from "./pages/Repricer.jsx";
 import Pricing from "./pages/Pricing.jsx";
+import Reviews from "./pages/Reviews.jsx";
 import KPIs from "./pages/KPIs.jsx";
 import Watermarks from "./pages/Watermarks.jsx";
 import TaskRuns from "./pages/TaskRuns.jsx";
@@ -35,6 +36,7 @@ const PAGES = {
   funnel: Funnel,
   abcXyz: AbcXyz,
   ads: Ads,
+  reviews: Reviews,
   bidder: Bidder,
   pnl: PnL,
   pricing: Pricing,

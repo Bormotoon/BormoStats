@@ -2,9 +2,11 @@ import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { request } from "../utils/api.js";
+import { marketplaceName } from "../utils/formats.js";
 import { Storefront, CaretDown, Check } from "@phosphor-icons/react";
 
 const ALL_ACCOUNTS_VALUE = "";
+const ALL_LABEL = "Все площадки";
 
 export default function AccountSwitcher() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -47,9 +49,8 @@ export default function AccountSwitcher() {
     setOpen(false);
   };
 
-  const selectedLabel = currentAccountId
-    ? accounts.find(isCurrent)?.title || currentAccountId
-    : "Все аккаунты";
+  // an account is the shop on one marketplace, so the switcher picks a marketplace
+  const selectedLabel = currentMarketplace ? marketplaceName(currentMarketplace) : ALL_LABEL;
 
   return (
     <div className="relative" ref={ref}>
@@ -80,12 +81,12 @@ export default function AccountSwitcher() {
               <span className="w-5 flex justify-center">
                 {currentAccountId === ALL_ACCOUNTS_VALUE && <Check size={16} weight="bold" />}
               </span>
-              <span className="font-medium">Все аккаунты</span>
+              <span className="font-medium">{ALL_LABEL}</span>
             </button>
             <div className="border-t border-[var(--color-outline-variant)]" />
 
             {accounts.map((acct) => {
-              const mpName = acct.marketplace === "wb" ? "WB" : "Ozon";
+              const mpName = marketplaceName(acct.marketplace);
               return (
                 <button
                   key={`${acct.marketplace}-${acct.account_id}`}
@@ -98,9 +99,9 @@ export default function AccountSwitcher() {
                     {isCurrent(acct) && <Check size={16} weight="bold" />}
                   </span>
                   <div className="flex flex-col">
-                    <span className="font-medium">{acct.title}</span>
-                    {acct.title !== mpName && (
-                      <span className="text-xs text-[var(--color-on-surface-variant)]">{mpName}</span>
+                    <span className="font-medium">{mpName}</span>
+                    {acct.title && acct.title !== mpName && acct.title !== "default" && (
+                      <span className="text-xs text-[var(--color-on-surface-variant)]">{acct.title}</span>
                     )}
                   </div>
                 </button>

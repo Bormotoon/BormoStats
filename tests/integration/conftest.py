@@ -66,6 +66,11 @@ TRUNCATE_TABLES = (
     "hist_commits",
     "hist_refs",
     "hist_changes",
+    "fct_review",
+    "sys_review_reply",
+    "dim_review_settings",
+    "dim_review_template",
+    "sys_review_sync",
 )
 
 

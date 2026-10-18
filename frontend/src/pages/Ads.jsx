@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useI18n } from "../utils/i18n.jsx";
-import ExportButton from "../components/ExportButton.jsx";
 import { requestAll } from "../utils/api.js";
-import { sum, ratio, groupSeries, commonParams, moneyFmt, numberFmt, percentFmt, isoDay, DEFAULT_DATE_FROM_OFFSET } from "../utils/formats.js";
+import { sum, ratio, groupSeries, commonParams, moneyFmt, numberFmt, percentFmt, isoDay, periodLabel, DEFAULT_DATE_FROM_OFFSET } from "../utils/formats.js";
 import MetricCard from "../components/MetricCard.jsx";
 import DataTable from "../components/DataTable.jsx";
 import { AreaChartCard } from "../components/Chart.jsx";
@@ -43,16 +42,12 @@ export default function Ads() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <ExportButton dataset="ads_daily" filters={filters} includeDates={true} />
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <MetricCard label={t("ads.cost")} value={moneyFmt(sum(rows, "cost"))} accent="error" />
         <MetricCard label={t("ads.revenue")} value={moneyFmt(sum(rows, "revenue"))} accent="success" />
         <MetricCard label={t("ads.clicks")} value={numberFmt(sum(rows, "clicks"))} />
         <MetricCard label={t("ads.orders")} value={numberFmt(sum(rows, "orders"))} />
         <MetricCard label={t("ads.avgAcos")} value={percentFmt(ratio(rows, "cost", "revenue"))} subvalue={t("ads.acosHint")} accent="warning" />
-        <MetricCard label={t("common.rows")} value={numberFmt(rows.length)} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
@@ -66,7 +61,7 @@ export default function Ads() {
 
       <section className="md3-card-elevated p-4">
         <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">{t("ads.adsDaily")}</h3>
-        <DataTable rows={rows} preferredColumns={["day", "marketplace", "account_id", "campaign_id", "impressions", "clicks", "cost", "orders", "revenue", "acos", "romi"]} />
+        <DataTable rows={rows} exportName={`Реклама ${periodLabel(filters.dateFrom, filters.dateTo)}`} preferredColumns={["day", "marketplace", "campaign_id", "impressions", "clicks", "cost", "orders", "revenue", "acos", "romi"]} />
       </section>
     </div>
   );

@@ -35,6 +35,7 @@ from app.api.v1 import (
     pnl,
     pricing,
     repricer,
+    reviews,
     sales,
     stocks,
     users,
@@ -92,6 +93,7 @@ API_ROUTERS = (
     freshness,
     exports,
     history,
+    reviews,
 )
 
 

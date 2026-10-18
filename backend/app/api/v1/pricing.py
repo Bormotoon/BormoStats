@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 from app.api.errors import API_ERROR_RESPONSES
-from app.core.auth import AdminAuth, AuthContext, ManagerAuth
-from app.core.deps import ChClientDependency
+from app.core.auth import AdminAuth, AuthContext, ManagerAuth, Scope, ensure_scope
+from app.core.deps import ChClientDependency, SettingsDependency
 from app.models.pricing import (
     OFFER_ID_MAX,
+    KeepPrices,
+    KeepPricesResult,
     OfferCost,
     OfferCostImport,
     OfferCostImportResult,
     OfferCostSet,
     PriceBreakdownRow,
     PriceCompareRow,
+    TargetPriceImport,
+    TargetPriceImportResult,
     TargetPriceSet,
 )
 from app.models.repricer import PriceRule
@@ -60,6 +64,38 @@ def set_target_price(
 ) -> PriceRule:
     """Set the desired price of a card. A new rule starts in dry-run."""
     return _svc(ch, auth).set_target(marketplace, offer_id, body)
+
+
+@router.post("/targets/import")
+def import_targets(
+    body: TargetPriceImport,
+    ch: ChClientDependency,
+    auth: AdminAuth,
+) -> TargetPriceImportResult:
+    """Desired buyer prices of one marketplace from ``article;price`` lines of a spreadsheet."""
+    return _svc(ch, auth).import_targets(body.marketplace, body.text)
+
+
+@router.get("/status")
+def pricing_status(settings: SettingsDependency, auth: ManagerAuth) -> dict[str, bool]:
+    """Whether the workers may write prices at all (MARKETPLACE_ACTIONS_ENABLED)."""
+    return {"marketplace_actions_enabled": settings.marketplace_actions_enabled}
+
+
+@router.post("/targets/keep")
+def keep_prices(
+    body: KeepPrices,
+    ch: ChClientDependency,
+    auth: AdminAuth,
+    settings: SettingsDependency,
+) -> KeepPricesResult:
+    """Keep every desired price of the marketplace on the marketplace, or only simulate."""
+    if body.keep:
+        ensure_scope(auth, Scope.execute_marketplace, "disable dry-run")
+    rules = _svc(ch, auth).keep_prices(body.marketplace, body.keep)
+    return KeepPricesResult(
+        rules=rules, marketplace_actions_enabled=settings.marketplace_actions_enabled
+    )
 
 
 @router.get("/costs")

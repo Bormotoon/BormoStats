@@ -75,6 +75,17 @@ class Settings(BaseSettings):
     wb_statistics_token: str = Field(default="", alias="WB_TOKEN_STATISTICS")
     wb_analytics_token: str = Field(default="", alias="WB_TOKEN_ANALYTICS")
     wb_marketplace_token: str = Field(default="", alias="WB_TOKEN_MARKETPLACE")
+    wb_content_token: str = Field(default="", alias="WB_TOKEN_CONTENT")
+    wb_feedbacks_token: str = Field(
+        default="",
+        alias="WB_TOKEN_FEEDBACKS",
+        description="Token with the 'Вопросы и отзывы' category; falls back to WB_TOKEN_CONTENT",
+    )
+    marketplace_actions_enabled: bool = Field(
+        default=False,
+        alias="MARKETPLACE_ACTIONS_ENABLED",
+        description="The workers' kill switch for price and bid writes; shown in the UI",
+    )
     ozon_client_id: str = Field(default="", alias="OZON_CLIENT_ID")
     ozon_api_key: str = Field(default="", alias="OZON_API_KEY")
 

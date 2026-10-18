@@ -18,7 +18,52 @@ and every run was logged as `skipped` instead of failing.
 - Ozon HTTP 404/405 now fail the task. Only 403 (missing role or subscription) is logged as a
   capability skip, so a switched-off method is visible in alerts.
 
+### Added
+
+- **Reviews page** ("Работа с отзывами"). WB feedbacks and Ozon reviews are collected every
+  15 minutes (`tasks.reviews.sync_reviews`, queue `marketplace_actions`). Reviews with text are
+  answered from the page: an AI draft, a random template of the rating or a reply typed by
+  hand, sent at once. Reviews with only a rating can be answered automatically: per rating
+  1–5 a mode (off, a random template, an AI reply) behind a master switch, off by default;
+  at most `REVIEW_AUTO_REPLIES_PER_RUN` per run, reviews up to 30 days old, one reply per
+  review, a failed one retried after 6 h. Templates per rating, for reviews with and without
+  text, start from a ready-made list and can be added, edited and deleted; `{имя}` and
+  `{товар}` are filled in. WB needs a token with the "Вопросы и отзывы" category
+  (`WB_TOKEN_FEEDBACKS`, else `WB_TOKEN_CONTENT`); Ozon's Review API needs the Premium Plus
+  subscription, otherwise the page says the method is unavailable. AI drafts need
+  `AI_API_URL` / `AI_API_KEY`.
+- **Excel**: every analytics table (sales, finance by day, stocks, stocks by warehouse,
+  funnel, ads, price comparison) has a filter under each column (text, `> 100`, `10-20`),
+  sorting by a header click and "Скачать в Excel" of the shown rows (`.xlsx` written in the
+  browser, real dates and numbers, a frozen header with an autofilter). The finance breakdown
+  downloads as Excel too.
+- **Prices**: desired prices of a marketplace and cost prices upload from an Excel/CSV file of
+  two columns (`POST /pricing/targets/import`, the cost import accepts files); a template with
+  the current articles downloads from the page. "Держать цены на WB/Ozon" switches every
+  desired price of the marketplace live or back to simulation (`POST /pricing/targets/keep`,
+  needs `execute_marketplace`); the page warns while `MARKETPLACE_ACTIONS_ENABLED` is off.
+- The shop name (the organization's name) is shown in the header; admins rename it in
+  Settings (`PUT /users/me/organization`); `/users/me` returns `organization_name`.
+
 ### Changed
+
+- Web UI, from the customer's second walkthrough:
+  - Clicking "Фильтры" blanked the page (a string default was called as a function), and Back
+    did not help. The filters are replaced by a period bar always on top of the dashboard,
+    sales, finance, funnel and ads (7/30/90 days, half a year, a year, or dates); the default
+    stays the last 30 days and every card and table names its dates.
+  - The marketplace switcher reads "Все площадки" / WB / Ozon.
+  - Tables: "Дата" in `dd.mm.yyyy` on one line, Russian headers everywhere, no "Кабинет"
+    column, seller article and photo on sales, stocks and funnel; the "Записей" cards are gone.
+  - Sales: payout by day on the revenue chart.
+  - Finance: a balance card says when it was taken and, for Ozon, since which payout it has
+    accrued (`/finance/balance` returns `last_payout_day`).
+  - Stocks: totals in "шт", per marketplace, a table by warehouse with names
+    (`/stocks/current` returns `warehouse_name`, `offer_id`, `image_url`); low stock is
+    highlighted in the table instead of a separate card; the top chart is labelled by article.
+  - Prices: the "Новые цены держат" mode selector is gone — a desired price is always the
+    price the buyer sees; headers centred; photo and column filters on the comparison.
+  - Cost and price import errors are in Russian; empty cells of a template are skipped.
 
 - **Repricer** keeps a desired price: `buyer_price` (compensates the marketplace's discount),
   `seller_price` or `margin`, never below break-even, at most `max_step_pct` per change, and
@@ -171,6 +216,8 @@ and every run was logged as `skipped` instead of failing.
 
 ### Migrations
 
+- `0034_reviews`: `fct_review`, `sys_review_reply`, `dim_review_settings`,
+  `dim_review_template`, `sys_review_sync`. Reviews appear after the first sync run.
 - `0033_pricing`: `dim_offer_cost` (cost price by supplier article per organization, used by
   profit and P&L before the platform-level `dim_product_cost`), `v_offer_cost`,
   `mrt_price_current`, and `mode` / `target_price` / `max_step_pct` on `dim_price_rule`.

@@ -34,6 +34,18 @@ product id). The catalogue needs `HISTORY_ENABLED` and, for WB, `WB_TOKEN_CONTEN
 The catalogue also sets `image_url`, a thumbnail of the card's first photo (WB `c246x328`,
 Ozon `primary_image`); `/sales/daily` returns it with the seller's article (`offer_id`).
 
+### Reviews
+
+| Table | Grain | Source | Updated |
+|---|---|---|---|
+| `fct_review` | account × review | WB `/api/v1/feedbacks` (unanswered + answered of 90 days), Ozon `/v1/review/list` (UNPROCESSED + 1000 latest PROCESSED); `has_text` = any of text, pros, cons holds a letter or a digit | every 15 min (`tasks.reviews.sync_reviews`) |
+| `sys_review_reply` | reply attempt | replies sent from the reviews page (`manual`) or by auto replies (`auto_template`, `auto_ai`), `sent` / `failed` with the error | on every reply |
+| `sys_review_sync` | account | outcome of the last sync: `ok`, `unavailable` (403/401/404, e.g. Ozon without Premium Plus), `error`, `no_credentials` | every 15 min |
+| `dim_review_settings`, `dim_review_template` | organization | the reviews page | on save |
+
+A review counts as answered once the marketplace shows an answer or a reply was sent from
+BormoStats (the marketplace reflects it on the next sync).
+
 ## Metrics
 
 | Metric | Formula | Table |

@@ -54,6 +54,7 @@ celery_app = Celery(
         "app.tasks.webhooks",
         "app.tasks.exports",
         "app.tasks.history",
+        "app.tasks.reviews",
     ],
 )
 

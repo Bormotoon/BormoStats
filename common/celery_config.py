@@ -27,6 +27,7 @@ TASK_ROUTES: dict[str, dict[str, str]] = {
     "tasks.insights.*": {"queue": "automation"},
     "tasks.bidder.*": {"queue": "marketplace_actions"},
     "tasks.repricer.*": {"queue": "marketplace_actions"},
+    "tasks.reviews.*": {"queue": "marketplace_actions"},
     "tasks.webhooks.*": {"queue": "webhooks"},
     "tasks.exports.*": {"queue": "automation"},
     "tasks.history.wb_catalog_snapshot": {"queue": "wb"},

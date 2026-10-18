@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import uuid
 from typing import Any
 
 from app.db.ch import query_dicts, utc_now
@@ -11,6 +12,7 @@ from app.models.pricing import (
     OfferCostImportResult,
     PriceBreakdownRow,
     PriceCompareRow,
+    TargetPriceImportResult,
     TargetPriceSet,
 )
 from app.models.repricer import PriceRule, PriceRuleCreate, PriceRuleUpdate
@@ -41,6 +43,15 @@ _RULES = (
 )
 _SEPARATORS = (";", "\t", ",")
 _MAX_IMPORT_ERRORS = 50
+# the latest version of every rule of one marketplace; a card may have several rules
+_LATEST_RULES = (
+    "SELECT r.rule_id AS rule_id, r.marketplace AS marketplace, r.account_id AS account_id,"
+    " r.product_id AS product_id, r.mode AS mode, r.target_price AS target_price,"
+    " r.max_step_pct AS max_step_pct, r.min_price AS min_price, r.max_price AS max_price,"
+    " r.target_margin_percent AS target_margin_percent, r.is_active AS is_active,"
+    " r.dry_run AS dry_run, r.created_at AS created_at, r.updated_at AS updated_at"
+    " FROM dim_price_rule AS r FINAL"
+)
 
 
 class PricingService:
@@ -140,6 +151,86 @@ class PricingService:
         ).result_rows
         return str(rows[0][0]) if rows else None
 
+    def _latest_rules(self, marketplace: str) -> dict[tuple[str, str], PriceRule]:
+        """The newest rule of each card (account, article) of the marketplace."""
+        clause, params = self._scope("r", marketplace, None)
+        rows = query_dicts(self._ch, f"{_LATEST_RULES}{clause} ORDER BY r.updated_at", params)
+        latest: dict[tuple[str, str], PriceRule] = {}
+        for r in rows:
+            rule = PriceRule(
+                **{**r, "is_active": bool(r["is_active"]), "dry_run": bool(r["dry_run"])}
+            )
+            latest[(rule.account_id, rule.product_id)] = rule
+        return latest
+
+    def import_targets(self, marketplace: str, text: str) -> TargetPriceImportResult:
+        """Desired buyer prices of one marketplace from ``article;price`` lines.
+
+        A card's latest rule is updated (it keeps its live / simulation state); a card without
+        one gets a new rule in simulation. Articles with no card on the marketplace are listed.
+        """
+        prices, errors = parse_article_table(text, "цена")
+        if not prices:
+            return TargetPriceImportResult(imported=0, errors=errors)
+        clause, params = self._scope("p", marketplace, None)
+        cards = query_dicts(
+            self._ch,
+            "SELECT DISTINCT p.account_id AS account_id, p.offer_id AS offer_id"
+            f" FROM mrt_price_current AS p FINAL{clause}"
+            " AND p.offer_id IN {offers:Array(String)}",
+            {**params, "offers": list(prices)},
+        )
+        existing = self._latest_rules(marketplace)
+        now = utc_now()
+        rules: list[PriceRule] = []
+        for card in cards:
+            key = (card["account_id"], card["offer_id"])
+            price = prices[card["offer_id"]]
+            rule = existing.get(key)
+            if rule is not None:
+                rules.append(
+                    rule.model_copy(
+                        update={
+                            "mode": "buyer_price",
+                            "target_price": price,
+                            "is_active": True,
+                            "created_at": rule.created_at or now,
+                            "updated_at": now,
+                        }
+                    )
+                )
+            else:
+                rules.append(
+                    PriceRule(
+                        rule_id=str(uuid.uuid4()),
+                        marketplace=marketplace,
+                        account_id=card["account_id"],
+                        product_id=card["offer_id"],
+                        mode="buyer_price",
+                        target_price=price,
+                        dry_run=True,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+        RepricerService(self._ch, self._org).write_rules(rules)
+        found = {card["offer_id"] for card in cards}
+        not_found = sorted(offer for offer in prices if offer not in found)
+        return TargetPriceImportResult(
+            imported=len(found), errors=errors, not_found=not_found[:_MAX_IMPORT_ERRORS]
+        )
+
+    def keep_prices(self, marketplace: str, keep: bool) -> int:
+        """Switch every desired-price rule of the marketplace live (``keep``) or to simulation."""
+        now = utc_now()
+        rules = [
+            rule.model_copy(update={"dry_run": not keep, "is_active": True, "updated_at": now})
+            for rule in self._latest_rules(marketplace).values()
+            if rule.mode == "buyer_price" and rule.target_price > 0
+        ]
+        RepricerService(self._ch, self._org).write_rules(rules)
+        return len(rules)
+
     def list_costs(self) -> list[OfferCost]:
         rows = query_dicts(
             self._ch,
@@ -183,44 +274,49 @@ class PricingService:
         return True
 
     def import_costs(self, text: str) -> OfferCostImportResult:
-        costs, errors = parse_cost_table(text)
+        costs, errors = parse_article_table(text, "себестоимость")
         return OfferCostImportResult(imported=self.set_costs(costs), errors=errors)
 
 
-def parse_cost_table(text: str) -> tuple[dict[str, float], list[str]]:
-    """Parse ``article<sep>cost`` lines pasted from a spreadsheet.
+def parse_article_table(text: str, value_name: str) -> tuple[dict[str, float], list[str]]:
+    """Parse ``article<sep>value`` lines pasted from a spreadsheet (a cost or a price).
 
     The separator is ``;``, tab or ``,`` (the first one found in a line); a decimal comma, spaces
-    and a rouble sign in the cost are accepted. A first line whose cost is not a number is
-    taken as a header. A later line for the same article wins.
+    and a rouble sign in the value are accepted. A first line whose value is not a number is
+    taken as a header. A line with an empty value (a blank cell of a template) is skipped. A
+    later line for the same article wins. Errors are in Russian, for the UI, and name the value
+    as ``value_name``.
     """
-    costs: dict[str, float] = {}
+    values: dict[str, float] = {}
     errors: list[str] = []
     first = True
     for number, raw in enumerate(text.splitlines(), start=1):
-        line = raw.strip()
-        if not line:
+        # spaces only: a trailing tab separates an empty cell
+        line = raw.strip(" \r\n")
+        if not line.strip():
             continue
         is_first, first = first, False
         sep = next((s for s in _SEPARATORS if s in line), None)
         if sep is None:
-            _add_error(errors, f"line {number}: no separator")
+            _add_error(errors, f"строка {number}: нет второго столбца")
             continue
-        offer, _, cost_text = line.partition(sep)
+        offer, _, value_text = line.partition(sep)
         offer = offer.strip().strip('"')
-        cost = _parse_number(cost_text if sep != "," else cost_text.replace(",", "."))
-        if cost is None:
+        if not value_text.strip().strip('"'):
+            continue
+        value = _parse_number(value_text if sep != "," else value_text.replace(",", "."))
+        if value is None:
             if not is_first:
-                _add_error(errors, f"line {number}: cost is not a number")
+                _add_error(errors, f"строка {number}: {value_name} — не число")
             continue
         if not offer or len(offer) > 128:
-            _add_error(errors, f"line {number}: bad article")
+            _add_error(errors, f"строка {number}: неверный артикул")
             continue
-        if cost <= 0:
-            _add_error(errors, f"line {number}: cost must be positive")
+        if value <= 0:
+            _add_error(errors, f"строка {number}: {value_name} должна быть больше нуля")
             continue
-        costs[offer] = cost
-    return costs, errors
+        values[offer] = value
+    return values, errors
 
 
 def _parse_number(text: str) -> float | None:

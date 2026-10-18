@@ -137,6 +137,34 @@ class RepricerService:
     def list_actions(self, limit: int = 200) -> list[MarketplaceAction]:
         return list_marketplace_actions(self._ch, self._org, source="repricer", limit=limit)
 
+    def write_rules(self, rules: list[PriceRule]) -> None:
+        """Insert many rule versions at once (one ClickHouse part instead of one per rule)."""
+        if not rules:
+            return
+        self._ch.insert(
+            "dim_price_rule",
+            [
+                [
+                    r.rule_id,
+                    r.marketplace,
+                    r.account_id,
+                    r.product_id,
+                    r.mode,
+                    r.target_price,
+                    r.max_step_pct,
+                    r.min_price,
+                    r.max_price,
+                    r.target_margin_percent,
+                    1 if r.is_active else 0,
+                    1 if r.dry_run else 0,
+                    r.created_at,
+                    r.updated_at,
+                ]
+                for r in rules
+            ],
+            column_names=[name for name, _ in _RULE_COLUMNS],
+        )
+
     def _write_rule(self, rule: PriceRule) -> None:
         self._ch.command(
             _RULE_INSERT,

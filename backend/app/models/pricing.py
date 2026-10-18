@@ -94,3 +94,30 @@ class OfferCostImport(BaseModel):
 class OfferCostImportResult(BaseModel):
     imported: int
     errors: list[str]
+
+
+class TargetPriceImport(BaseModel):
+    """Rows ``article;desired price`` of one marketplace, from a spreadsheet."""
+
+    marketplace: str = Field(pattern=r"^(wb|ozon)$")
+    text: str = Field(min_length=1, max_length=2_000_000)
+
+
+class TargetPriceImportResult(BaseModel):
+    imported: int
+    errors: list[str]
+    not_found: list[str] = Field(
+        default_factory=list, description="Articles with no card on the marketplace"
+    )
+
+
+class KeepPrices(BaseModel):
+    """Keep the desired prices of a marketplace live (``keep``) or only simulate them."""
+
+    marketplace: str = Field(pattern=r"^(wb|ozon)$")
+    keep: bool
+
+
+class KeepPricesResult(BaseModel):
+    rules: int
+    marketplace_actions_enabled: bool

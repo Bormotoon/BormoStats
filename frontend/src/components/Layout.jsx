@@ -5,10 +5,12 @@ import AccountSwitcher from "./AccountSwitcher.jsx";
 import SettingsPanel from "./SettingsPanel.jsx";
 import FreshnessBanner from "./FreshnessBanner.jsx";
 import { getCurrentPrincipal } from "../utils/api.js";
+
+export const SHOP_RENAMED_EVENT = "bormostats:shop-renamed";
 import {
   ChartLineUp, ShoppingCart, Warehouse, Funnel, Megaphone,
   Target, Drop, ListChecks, ShieldCheck, Monitor, CurrencyCircleDollar, CurrencyRub, Tag, ChartBar, ChartPie,
-  Gear, List, MoonStars, Sun, ArrowClockwise, Translate, Notepad, Plugs, Wallet, ClockCounterClockwise,
+  Gear, List, MoonStars, Sun, ArrowClockwise, Translate, Notepad, Plugs, Wallet, ClockCounterClockwise, Storefront, ChatCircleText,
 } from "@phosphor-icons/react";
 
 const NAV_ITEMS = [
@@ -18,6 +20,7 @@ const NAV_ITEMS = [
   { id: "stocks", icon: Warehouse },
   { id: "funnel", icon: Funnel },
   { id: "ads", icon: Megaphone },
+  { id: "reviews", icon: ChatCircleText },
   { id: "bidder", icon: CurrencyCircleDollar },
   { id: "pricing", icon: CurrencyRub },
   { id: "repricer", icon: Tag },
@@ -46,12 +49,20 @@ export default function Layout({ children, onReload }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [currentPath, setCurrentPath] = useState(getPageFromHash);
   const [platformAdmin, setPlatformAdmin] = useState(false);
+  const [shopName, setShopName] = useState("");
   const { t, lang, setLang } = useI18n();
 
   useEffect(() => {
     getCurrentPrincipal()
-      .then((me) => setPlatformAdmin(me?.auth_method === "admin_key"))
+      .then((me) => {
+        setPlatformAdmin(me?.auth_method === "admin_key");
+        setShopName(me?.organization_name || "");
+      })
       .catch(() => setPlatformAdmin(false));
+    // the settings panel renames the shop
+    const onRename = (e) => setShopName(e.detail || "");
+    window.addEventListener(SHOP_RENAMED_EVENT, onRename);
+    return () => window.removeEventListener(SHOP_RENAMED_EVENT, onRename);
   }, []);
 
   useEffect(() => {
@@ -169,6 +180,12 @@ export default function Layout({ children, onReload }) {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {shopName && (
+              <span className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--color-primary-container)] text-sm font-bold text-[var(--color-on-primary-container)] max-w-[220px]" title={t("common.shop")}>
+                <Storefront size={16} weight="fill" aria-hidden="true" />
+                <span className="truncate">{shopName}</span>
+              </span>
+            )}
             <AccountSwitcher />
             <button
               onClick={onReload}

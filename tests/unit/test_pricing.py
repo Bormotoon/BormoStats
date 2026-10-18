@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from app.services.pricing_service import _breakdown_row, _compare_row, parse_cost_table
+from app.services.pricing_service import _breakdown_row, _compare_row, parse_article_table
 
 
 def test_cost_table_accepts_spreadsheet_pastes() -> None:
@@ -15,7 +15,7 @@ def test_cost_table_accepts_spreadsheet_pastes() -> None:
             "btn30pgf05BK9b;130",
         ]
     )
-    costs, errors = parse_cost_table(text)
+    costs, errors = parse_article_table(text, "себестоимость")
     assert costs == {"btn30pgf05BK9b": 130.0, "btn204pgf10gorc": 1250.0, "btn12": 99.9}
     assert errors == []
 
@@ -23,14 +23,14 @@ def test_cost_table_accepts_spreadsheet_pastes() -> None:
 @pytest.mark.parametrize(
     ("line", "error"),
     [
-        ("a;b\nbtn1;abc", "line 2: cost is not a number"),
-        ("btn1;-5", "line 1: cost must be positive"),
-        ("btn1 120", "line 1: no separator"),
-        (";120", "line 1: bad article"),
+        ("a;b\nbtn1;abc", "строка 2: цена — не число"),
+        ("btn1;-5", "строка 1: цена должна быть больше нуля"),
+        ("btn1 120", "строка 1: нет второго столбца"),
+        (";120", "строка 1: неверный артикул"),
     ],
 )
 def test_cost_table_reports_bad_lines(line: str, error: str) -> None:
-    costs, errors = parse_cost_table(line)
+    costs, errors = parse_article_table(line, "цена")
     assert costs == {} and errors == [error]
 
 

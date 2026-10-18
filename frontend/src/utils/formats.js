@@ -69,6 +69,17 @@ export function isMoneyColumn(key) {
     || ["revenue", "cost", "payout", "amount", "orders_sum", "price"].some((t) => keyLower.includes(t));
 }
 
+export function isPercentColumn(key) {
+  const keyLower = key.toLowerCase();
+  return ["acos", "romi", "cr_", "conversion"].some((t) => keyLower.includes(t));
+}
+
+/** "wb" → "WB", "ozon" → "Ozon", "ym" → "Яндекс Маркет"; anything else as is. */
+export function marketplaceName(value) {
+  const key = String(value ?? "").toLowerCase();
+  return { wb: "WB", ozon: "Ozon", ym: "Яндекс Маркет" }[key] || String(value ?? "");
+}
+
 export function formatCell(key, value) {
   if (value === null || value === undefined || value === "") return "-";
   const keyLower = key.toLowerCase();
@@ -131,6 +142,22 @@ export function groupSeries(rows, byKey, valueKey) {
   return [...grouped.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([label, value]) => ({ label, value }));
+}
+
+/** Rows summed per `byKey` into one point per label carrying every key of `valueKeys`. */
+export function groupSeriesMulti(rows, byKey, valueKeys) {
+  const grouped = new Map();
+  for (const row of rows) {
+    const label = String(row[byKey] || "");
+    let point = grouped.get(label);
+    if (!point) {
+      point = { label };
+      for (const key of valueKeys) point[key] = 0;
+      grouped.set(label, point);
+    }
+    for (const key of valueKeys) point[key] += Number(row[key] || 0);
+  }
+  return [...grouped.values()].sort((a, b) => a.label.localeCompare(b.label));
 }
 
 export function commonParams(filters, includeDates = true) {

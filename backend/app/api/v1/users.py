@@ -2,20 +2,24 @@ from __future__ import annotations
 
 from app.api.errors import API_ERROR_RESPONSES
 from app.core.auth import (
+    AdminAuth,
     AuthContextDependency,
     UserAdminAuth,
     invalidate_auth_cache,
     role_allows,
 )
 from app.core.deps import ChClientDependency
+from app.models.organization import OrganizationUpdate
 from app.models.user import (
     ApiKeyRotateRequest,
+    OrganizationRename,
     PrincipalInfo,
     User,
     UserCreate,
     UserUpdate,
     UserWithApiKey,
 )
+from app.services.organization_service import OrganizationService
 from app.services.user_service import UserService
 from fastapi import APIRouter, HTTPException, status
 
@@ -27,10 +31,12 @@ def _not_found() -> HTTPException:
 
 
 @router.get("/me")
-def get_current_principal(auth: AuthContextDependency) -> PrincipalInfo:
+def get_current_principal(auth: AuthContextDependency, ch: ChClientDependency) -> PrincipalInfo:
+    org = OrganizationService(ch).get_organization(auth.organization_id)
     return PrincipalInfo(
         principal_id=auth.principal_id,
         organization_id=auth.organization_id,
+        organization_name=org.name if org else "",
         role=auth.role.name,
         scopes=sorted(str(scope) for scope in auth.scopes),
         auth_method=str(auth.auth_method),
@@ -38,6 +44,19 @@ def get_current_principal(auth: AuthContextDependency) -> PrincipalInfo:
         email=auth.email,
         api_key_expires_at=auth.api_key_expires_at,
     )
+
+
+@router.put("/me/organization")
+def rename_organization(
+    body: OrganizationRename, auth: AdminAuth, ch: ChClientDependency
+) -> dict[str, str]:
+    """Rename the caller's organization: the shop name shown in the header."""
+    org = OrganizationService(ch).update_organization(
+        auth.organization_id, OrganizationUpdate(name=body.name)
+    )
+    if org is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="organization not found")
+    return {"organization_id": org.organization_id, "name": org.name}
 
 
 @router.get("")

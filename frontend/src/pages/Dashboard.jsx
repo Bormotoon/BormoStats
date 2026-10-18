@@ -2,10 +2,11 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useI18n } from "../utils/i18n.jsx";
 import { request, requestAll } from "../utils/api.js";
-import { sum, groupSeries, totalsBy, moneyFmt, numberFmt, isoDay, periodLabel, formatAsOf, DEFAULT_DATE_FROM_OFFSET } from "../utils/formats.js";
+import { sum, groupSeries, totalsBy, moneyFmt, numberFmt, isoDay, periodLabel, marketplaceName, DEFAULT_DATE_FROM_OFFSET } from "../utils/formats.js";
 import MetricCard from "../components/MetricCard.jsx";
 import StatusChip from "../components/StatusChip.jsx";
 import DataTable from "../components/DataTable.jsx";
+import { balanceCaption } from "./Finance.jsx";
 import { AreaChartCard } from "../components/Chart.jsx";
 import { Spinner } from "../components/StatusChip.jsx";
 import { ListChecks, WarningCircle, Package, Megaphone } from "@phosphor-icons/react";
@@ -105,12 +106,9 @@ export default function Dashboard() {
         {state.balance.map((b) => (
           <MetricCard
             key={`${b.marketplace}|${b.account_id}`}
-            label={`${t("finance.balance")} ${b.marketplace.toUpperCase()}`}
+            label={`${t("finance.balance")} ${marketplaceName(b.marketplace)}`}
             value={moneyFmt(b.balance)}
-            subvalue={[
-              b.for_withdraw !== null && b.for_withdraw !== undefined ? `${t("finance.forWithdraw")}: ${moneyFmt(b.for_withdraw)}` : "",
-              `${t("finance.asOf")} ${formatAsOf(b.as_of)}`,
-            ].filter(Boolean).join(" · ")}
+            subvalue={balanceCaption(b, t)}
             accent="success"
           />
         ))}
@@ -133,7 +131,7 @@ export default function Dashboard() {
 
       <section className="md3-card-elevated p-4">
         <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">{t("dashboard.topProducts")} {period}</h3>
-        <DataTable rows={topProducts} preferredColumns={["rank", "image_url", "title", "offer_id", "marketplace", "product_id", "qty", "revenue", "returns_qty", "payout"]} />
+        <DataTable rows={topProducts} filterable={false} preferredColumns={["rank", "image_url", "title", "offer_id", "marketplace", "product_id", "qty", "revenue", "returns_qty", "payout"]} />
       </section>
     </div>
   );

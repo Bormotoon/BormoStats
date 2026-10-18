@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { SignOut, UserCircle, Warning } from "@phosphor-icons/react";
+import { SignOut, Storefront, UserCircle, Warning } from "@phosphor-icons/react";
+import { SHOP_RENAMED_EVENT } from "./Layout.jsx";
 import { useI18n } from "../utils/i18n.jsx";
 import {
   getCurrentPrincipal,
@@ -136,6 +137,8 @@ export default function SettingsPanel() {
 
       <p className="text-xs text-[var(--color-on-surface-variant)] leading-relaxed">{t("common.keyNote")}</p>
 
+      {principal && ["admin", "owner"].includes(principal.role) && <ShopName initial={principal.organization_name || ""} />}
+
       {principal && principal.auth_method !== "admin_key" && <PasswordChange />}
 
       <button
@@ -154,6 +157,38 @@ export default function SettingsPanel() {
         <SignOut size={16} aria-hidden="true" /> {t("common.signOut")}
       </button>
     </div>
+  );
+}
+
+function ShopName({ initial }) {
+  const { t } = useI18n();
+  const [name, setName] = useState(initial);
+  const [message, setMessage] = useState("");
+  useEffect(() => setName(initial), [initial]);
+
+  const submit = (event) => {
+    event.preventDefault();
+    request("/api/v1/users/me/organization", { method: "PUT", admin: true, body: { name } })
+      .then((org) => {
+        setMessage(t("common.saved"));
+        window.dispatchEvent(new CustomEvent(SHOP_RENAMED_EVENT, { detail: org.name }));
+      })
+      .catch((err) => setMessage(err.message));
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-2">
+      <label className="block">
+        <span className="flex items-center gap-1 text-xs font-semibold text-[var(--color-on-surface-variant)] mb-1.5">
+          <Storefront size={14} aria-hidden="true" /> {t("common.shopName")}
+        </span>
+        <input type="text" maxLength={255} value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
+      </label>
+      <button type="submit" disabled={!name.trim() || name.trim() === initial} className="w-full px-3 py-2 rounded-lg text-sm font-medium border border-[var(--color-outline-variant)] disabled:opacity-50">
+        {t("common.save")}
+      </button>
+      {message && <p className="text-xs text-[var(--color-on-surface-variant)]" role="status">{message}</p>}
+    </form>
   );
 }
 

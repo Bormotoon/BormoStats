@@ -112,6 +112,11 @@ beat_schedule = {
         "task": "tasks.repricer.repricer_evaluate_rules",
         "schedule": crontab(minute="*/10"),
     },
+    # reviews and the auto replies to reviews without text
+    "reviews_sync": {
+        "task": "tasks.reviews.sync_reviews",
+        "schedule": crontab(minute="7,22,37,52"),
+    },
     "insights_generate_tasks": {
         "task": "tasks.insights.generate_actionable_tasks",
         "schedule": crontab(minute="0", hour="6"),

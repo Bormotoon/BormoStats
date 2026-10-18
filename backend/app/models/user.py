@@ -6,7 +6,7 @@ from datetime import datetime
 
 from app.models.enums import ClickHouseIntEnum
 from app.models.organization import OrgMemberRole
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class UserRole(ClickHouseIntEnum):
@@ -65,9 +65,18 @@ class ApiKeyRotateRequest(BaseModel):
 class PrincipalInfo(BaseModel):
     principal_id: str
     organization_id: str
+    organization_name: str = ""
     role: str
     scopes: list[str]
     auth_method: str
     name: str = ""
     email: str = ""
     api_key_expires_at: datetime | None = None
+
+
+class OrganizationRename(BaseModel):
+    """The shop name shown in the header of every page."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    name: str = Field(min_length=1, max_length=255)

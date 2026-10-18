@@ -1,8 +1,10 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { request, safeCall } from "../utils/api.js";
 import { moneyFmt, numberFmt, formatAsOf } from "../utils/formats.js";
+import { downloadXlsx, readTableFile } from "../utils/xlsx.js";
 import { Spinner } from "../components/StatusChip.jsx";
-import { Trash, UploadSimple, Info } from "@phosphor-icons/react";
+import DataTable from "../components/DataTable.jsx";
+import { Trash, UploadSimple, Info, FileXls, Warning } from "@phosphor-icons/react";
 
 const TABS = [
   { id: "breakdown", label: "Разбор цены" },
@@ -13,11 +15,9 @@ const MARKETPLACES = [
   { id: "wb", label: "WB" },
   { id: "ozon", label: "Ozon" },
 ];
-const MODES = [
-  { id: "buyer_price", label: "цену для покупателя" },
-  { id: "seller_price", label: "цену со скидкой продавца" },
-];
-const MODE_SHORT = { buyer_price: "для покупателя", seller_price: "со скидкой продавца", margin: "по марже" };
+// the desired price is the price the buyer sees on the marketplace, after its discounts;
+// older rules made on the repricer page may keep another price
+const MODE_SHORT = { seller_price: "держит цену со скидкой продавца", margin: "держит маржу" };
 // the repricer keeps a buyer price on a discount measured on 3+ of the card's sales, or on WB on
 // the account's median over 10+ orders (workers/app/tasks/repricer.py)
 function discountUsable(row) {
@@ -30,7 +30,7 @@ const GAP_WARN_PCT = 1;
 const inputClass =
   "w-24 px-2 py-1 rounded border border-[var(--color-outline)] bg-[var(--color-surface)] text-sm font-mono text-right";
 const thClass =
-  "text-left px-3 py-2.5 text-[11px] font-semibold text-[var(--color-on-surface-variant)] tracking-wide uppercase sticky top-0 bg-[var(--color-surface-container)] z-10 align-bottom";
+  "text-center px-3 py-2.5 text-[11px] font-semibold text-[var(--color-on-surface-variant)] tracking-wide uppercase sticky top-0 bg-[var(--color-surface-container)] z-10 align-bottom";
 const tdClass = "px-3 py-2 text-[var(--color-on-surface)] align-top";
 
 function pct(value, digits = 1) {
@@ -135,15 +135,15 @@ function DiscountCell({ row }) {
   );
 }
 
-function TargetCell({ row, mode, onSave }) {
+function TargetCell({ row, onSave }) {
   const gap = row.target_gap_pct;
   const off = gap !== null && gap !== undefined && Math.abs(gap) > GAP_WARN_PCT;
   return (
     <div className="space-y-1">
-      <EditableNumber value={row.target_price} onSave={(v) => onSave(row, v, mode)} label={`Желаемая цена ${row.offer_id}`} />
+      <EditableNumber value={row.target_price} onSave={(v) => onSave(row, v)} label={`Желаемая цена ${row.offer_id}`} />
       {row.rule_id && (
         <div className="text-[11px] leading-tight text-[var(--color-on-surface-variant)]">
-          {MODE_SHORT[row.mode] || row.mode}
+          {MODE_SHORT[row.mode] && <span className="block">{MODE_SHORT[row.mode]}</span>}
           {off && (
             <span className="block text-amber-700 dark:text-amber-400 font-medium">
               сейчас {gap > 0 ? "+" : ""}
@@ -151,7 +151,7 @@ function TargetCell({ row, mode, onSave }) {
             </span>
           )}
           <span className="block">
-            {!row.rule_is_active ? "правило выключено" : row.rule_dry_run ? "симуляция" : "удерживается"}
+            {!row.rule_is_active ? "правило выключено" : row.rule_dry_run ? "симуляция" : "держится на площадке"}
           </span>
           {row.mode === "buyer_price" && !discountUsable(row) && (
             <span className="block" title="Скидку маркетплейса нужно измерить хотя бы на 3 продажах этого товара">
@@ -176,10 +176,174 @@ function FeesCell({ row }) {
   );
 }
 
-function Breakdown({ rows, setRows, onError }) {
+const buttonClass =
+  "flex items-center gap-1 px-3 py-1.5 rounded-full border border-[var(--color-outline-variant)] text-sm font-medium hover:bg-[var(--color-surface-container)] disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]";
+
+/** Two-column rows of an uploaded .xlsx / .csv as the "article<TAB>value" text the API parses. */
+async function fileToText(file) {
+  const rows = await readTableFile(file);
+  return rows.map((r) => `${r[0] ?? ""}\t${r[1] ?? ""}`).join("\n");
+}
+
+function fileError(error) {
+  const code = error instanceof Error ? error.message : String(error);
+  if (code === "old_xls") return "Старый формат .xls не поддерживается — сохраните файл как .xlsx (Книга Excel)";
+  if (code === "not_a_zip" || code === "bad_zip" || code === "no_sheet") return "Не удалось прочитать файл — нужен .xlsx или .csv";
+  return code;
+}
+
+/** A button that opens a file picker and hands the file's rows to `onText` as text. */
+function FileImportButton({ onText, busy, children }) {
+  const input = useRef(null);
+  const [error, setError] = useState("");
+  return (
+    <>
+      <input
+        ref={input}
+        type="file"
+        accept=".xlsx,.csv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+        className="hidden"
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (!file) return;
+          setError("");
+          try {
+            await onText(await fileToText(file));
+          } catch (err) {
+            setError(fileError(err));
+          }
+        }}
+      />
+      <button type="button" className={buttonClass} disabled={busy} onClick={() => input.current?.click()}>
+        <UploadSimple size={16} aria-hidden="true" /> {children}
+      </button>
+      {error && <span role="alert" className="text-xs text-red-700">{error}</span>}
+    </>
+  );
+}
+
+function ImportResult({ result, what }) {
+  if (!result) return null;
+  return (
+    <div className="text-sm space-y-1" role="status">
+      <p>
+        {what}: {result.imported}
+        {result.errors.length > 0 && <span className="text-red-600"> · ошибок: {result.errors.length}</span>}
+        {result.not_found?.length > 0 && <span className="text-amber-700"> · нет на площадке: {result.not_found.length}</span>}
+      </p>
+      {result.errors.length > 0 && (
+        <ul className="text-xs text-red-700 font-mono list-disc pl-5">
+          {result.errors.map((e) => <li key={e}>{e}</li>)}
+        </ul>
+      )}
+      {result.not_found?.length > 0 && (
+        <p className="text-xs text-amber-800 font-mono break-words">Не найдены: {result.not_found.join(", ")}</p>
+      )}
+    </div>
+  );
+}
+
+/** Desired prices of one marketplace: a template, an upload and whether they are kept live. */
+function TargetsPanel({ marketplace, rows, onImported, actionsEnabled }) {
+  const label = MARKETPLACES.find((m) => m.id === marketplace)?.label || marketplace;
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const [message, setMessage] = useState("");
+  useEffect(() => {
+    setResult(null);
+    setMessage("");
+  }, [marketplace]);
+
+  const withTarget = rows.filter((r) => r.rule_id && r.mode === "buyer_price" && r.target_price);
+  const live = withTarget.filter((r) => r.rule_is_active && !r.rule_dry_run).length;
+  const priceColumn = `Желаемая цена для МП (${label})`;
+
+  const downloadTemplate = () => {
+    const articles = [...new Map(rows.map((r) => [r.offer_id, r])).values()].sort((a, b) => a.offer_id.localeCompare(b.offer_id));
+    downloadXlsx(
+      `Желаемые цены ${label}`,
+      `Желаемые цены ${label}`,
+      [
+        { label: "Артикул продавца", type: "text", width: 30 },
+        { label: priceColumn, type: "money", width: 22 },
+        { label: "Название (не загружается)", type: "text", width: 50 },
+        { label: "Цена для покупателя сейчас (не загружается)", type: "money", width: 24 },
+      ],
+      articles.map((r) => [r.offer_id, r.mode === "buyer_price" ? r.target_price : null, r.title, r.buyer_price])
+    );
+  };
+
+  const upload = async (text) => {
+    setBusy(true);
+    const res = await safeCall(() => request("/api/v1/pricing/targets/import", { method: "POST", admin: true, body: { marketplace, text } }));
+    setBusy(false);
+    setResult(res.ok ? res.data : { imported: 0, errors: [res.error] });
+    if (res.ok && res.data.imported) onImported();
+  };
+
+  const keep = async (value) => {
+    setBusy(true);
+    const res = await safeCall(() => request("/api/v1/pricing/targets/keep", { method: "POST", admin: true, body: { marketplace, keep: value } }));
+    setBusy(false);
+    if (!res.ok) {
+      setMessage(res.error.includes("403") ? "Нет права менять цены на площадке (нужна роль администратора с правом execute_marketplace)" : res.error);
+      return;
+    }
+    setMessage(value ? `Держатся на ${label}: ${res.data.rules} цен` : `Переведено в симуляцию: ${res.data.rules} цен`);
+    onImported();
+  };
+
+  return (
+    <div className="md3-card-elevated p-4 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold">Желаемые цены {label}</h3>
+          <p className="text-xs text-[var(--color-on-surface-variant)]">
+            Задано: {withTarget.length} · держатся на площадке: {live} · в симуляции: {withTarget.length - live}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className={buttonClass} onClick={downloadTemplate} disabled={!rows.length}>
+            <FileXls size={16} aria-hidden="true" /> Шаблон Excel
+          </button>
+          <FileImportButton onText={upload} busy={busy}>Загрузить из Excel</FileImportButton>
+        </div>
+      </div>
+      <p className="text-xs text-[var(--color-on-surface-variant)]">
+        Файл для {label} из двух столбцов: «Артикул продавца» и «{priceColumn}». Первая строка с заголовками пропускается,
+        пустая цена не меняет текущую. Цены других площадок загружаются отдельным файлом на своей вкладке.
+      </p>
+      <ImportResult result={result} what="Загружено цен" />
+
+      <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-[var(--color-outline-variant)]">
+        <button
+          type="button"
+          disabled={busy || !withTarget.length}
+          onClick={() => keep(true)}
+          className="px-4 py-1.5 rounded-full bg-[var(--color-primary)] text-white text-sm font-medium disabled:opacity-50"
+        >
+          Держать цены на {label}
+        </button>
+        <button type="button" disabled={busy || !live} onClick={() => keep(false)} className={buttonClass}>
+          Только симуляция
+        </button>
+        {message && <span className="text-sm" role="status">{message}</span>}
+      </div>
+      {!actionsEnabled && (
+        <p className="flex items-start gap-2 text-xs text-amber-800 dark:text-amber-300">
+          <Warning size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
+          Запись цен на площадки выключена на сервере (MARKETPLACE_ACTIONS_ENABLED=false): даже «держащиеся» цены пока
+          только записываются в журнал репрайсера. Включите переключатель в настройках сервера, чтобы цены менялись на площадке.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Breakdown({ rows, setRows, onError, onReload, actionsEnabled }) {
   const [marketplace, setMarketplace] = useState("wb");
   const [query, setQuery] = useState("");
-  const [mode, setMode] = useState("buyer_price");
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -192,12 +356,12 @@ function Breakdown({ rows, setRows, onError }) {
 
   const seenAt = visible[0]?.price_seen_at;
 
-  const saveTarget = async (row, value, newMode) => {
+  const saveTarget = async (row, value) => {
     const res = await safeCall(() =>
       request(`/api/v1/pricing/target/${row.marketplace}/${encodeURIComponent(row.offer_id)}`, {
         method: "PUT",
         admin: true,
-        body: { account_id: row.account_id, target_price: value, mode: row.rule_id ? row.mode : newMode },
+        body: { account_id: row.account_id, target_price: value, mode: "buyer_price" },
       })
     );
     if (!res.ok) {
@@ -258,28 +422,22 @@ function Breakdown({ rows, setRows, onError }) {
           onChange={(e) => setQuery(e.target.value)}
           className="flex-1 min-w-[180px] px-3 py-1.5 rounded-lg border border-[var(--color-outline)] bg-[var(--color-surface)] text-sm"
         />
-        <label className="flex items-center gap-2 text-xs text-[var(--color-on-surface-variant)]">
-          Новые цены держат
-          <select
-            value={mode}
-            onChange={(e) => setMode(e.target.value)}
-            className="px-2 py-1 rounded border border-[var(--color-outline)] bg-[var(--color-surface)] text-sm text-[var(--color-on-surface)]"
-          >
-            {MODES.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-        </label>
       </div>
+
+      <TargetsPanel
+        marketplace={marketplace}
+        rows={rows.filter((r) => r.marketplace === marketplace)}
+        onImported={onReload}
+        actionsEnabled={actionsEnabled}
+      />
 
       <div className="flex items-start gap-2 text-xs text-[var(--color-on-surface-variant)]">
         <Info size={14} className="mt-0.5 shrink-0" />
         <p>
-          Скидка маркетплейса (СПП у WB, скидки и баллы за счёт Ozon) измеряется по последним продажам товара; «≈» —
-          оценка по кабинету. Новое правило сначала работает в режиме симуляции: репрайсер только записывает, какую цену
-          поставил бы. Цены со скидкой продавца сняты {seenAt ? formatAsOf(seenAt) : "—"}.
+          Желаемая цена — цена для покупателя на площадке после всех её скидок (СПП у WB, скидки и баллы за счёт Ozon).
+          Скидка площадки измеряется по последним продажам товара; «≈» — оценка по кабинету. Репрайсер каждые 10 минут
+          подбирает цену продавца так, чтобы покупатель видел желаемую. Цены со скидкой продавца сняты{" "}
+          {seenAt ? formatAsOf(seenAt) : "—"}.
         </p>
       </div>
 
@@ -292,7 +450,7 @@ function Breakdown({ rows, setRows, onError }) {
           <table className="w-full min-w-[1100px] text-sm">
             <thead>
               <tr>
-                <th className={thClass}>Артикул поставщика</th>
+                <th className={thClass}>Артикул продавца</th>
                 <th className={thClass}>Цена зачёркнутая</th>
                 <th className={thClass}>Скидка продавца</th>
                 <th className={thClass}>Цена со скидкой</th>
@@ -326,7 +484,7 @@ function Breakdown({ rows, setRows, onError }) {
                     <td className={tdClass}><Money value={row.seller_price} /></td>
                     <td className={tdClass}><DiscountCell row={row} /></td>
                     <td className={tdClass}><Money value={row.buyer_price} className="font-semibold" /></td>
-                    <td className={tdClass}><TargetCell row={row} mode={mode} onSave={saveTarget} /></td>
+                    <td className={tdClass}><TargetCell row={row} onSave={saveTarget} /></td>
                     <td className={tdClass}>
                       <EditableNumber value={row.cost_price} onSave={(v) => saveCost(row, v)} label={`Себестоимость ${row.offer_id}`} />
                     </td>
@@ -357,67 +515,41 @@ function Breakdown({ rows, setRows, onError }) {
   );
 }
 
-function Compare({ rows }) {
-  const [query, setQuery] = useState("");
-  const visible = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return rows.filter((r) => !q || r.offer_id.toLowerCase().includes(q) || (r.title || "").toLowerCase().includes(q));
-  }, [rows, query]);
-
-  const cell = (buyer, seller) =>
-    seller === null || seller === undefined ? (
-      <Dash />
-    ) : (
-      <div>
-        <Money value={buyer} className="font-semibold" />
-        <div className="text-[11px] text-[var(--color-on-surface-variant)] font-mono whitespace-nowrap">со скидкой продавца {moneyFmt(seller)}</div>
-      </div>
-    );
-
+function priceCell(buyer, seller) {
+  if (seller === null || seller === undefined) return <Dash />;
   return (
-    <div className="space-y-3">
-      <input
-        type="search"
-        placeholder="Артикул или название"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        className="w-full px-3 py-1.5 rounded-lg border border-[var(--color-outline)] bg-[var(--color-surface)] text-sm"
-      />
-      <p className="text-xs text-[var(--color-on-surface-variant)]">
-        Цена для покупателя — после скидки маркетплейса. Товары сопоставлены по артикулу поставщика. Яндекс Маркет появится после подключения.
-      </p>
-      <div className="overflow-auto rounded-xl border border-[var(--color-outline-variant)] max-h-[70vh]">
-        <table className="w-full min-w-[640px] text-sm">
-          <thead>
-            <tr>
-              <th className={thClass}>Артикул поставщика</th>
-              <th className={thClass}>Цена на WB</th>
-              <th className={thClass}>Цена на Ozon</th>
-              <th className={thClass}>Цена на ЯМ</th>
-              <th className={thClass}>Разница</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[var(--color-outline-variant)]">
-            {visible.map((row) => (
-              <tr key={row.offer_id} className="hover:bg-[var(--color-surface-container)]/60">
-                <td className={tdClass}>
-                  <div className="font-mono text-xs">{row.offer_id}</div>
-                  {row.title && <div className="text-xs text-[var(--color-on-surface-variant)] truncate max-w-[260px]">{row.title}</div>}
-                </td>
-                <td className={tdClass}>{cell(row.wb_buyer_price, row.wb_seller_price)}</td>
-                <td className={tdClass}>{cell(row.ozon_buyer_price, row.ozon_seller_price)}</td>
-                <td className={tdClass}><Dash /></td>
-                <td className={tdClass}>{row.buyer_spread_pct === null ? <Dash /> : <span className="font-mono">{pct(row.buyer_spread_pct)}</span>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <div className="text-right">
+      <Money value={buyer} className="font-semibold" />
+      <div className="text-[11px] text-[var(--color-on-surface-variant)] font-mono whitespace-nowrap">со скидкой продавца {moneyFmt(seller)}</div>
     </div>
   );
 }
 
-function Costs({ onImported }) {
+function Compare({ rows }) {
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-[var(--color-on-surface-variant)]">
+        Цена для покупателя — после скидки маркетплейса. Товары сопоставлены по артикулу продавца. Яндекс Маркет появится после
+        подключения. В фильтрах цен можно писать «&gt; 500», «&lt; 300» или «200-400».
+      </p>
+      <DataTable
+        rows={rows}
+        exportName="Сравнение цен"
+        columns={[
+          { key: "image_url", type: "image" },
+          { key: "offer_id", label: "Артикул продавца", type: "text", render: (r) => <span className="font-mono text-xs">{r.offer_id}</span> },
+          { key: "title", label: "Название", type: "text", width: 40 },
+          { key: "wb_buyer_price", label: "Цена на WB", type: "money", render: (r) => priceCell(r.wb_buyer_price, r.wb_seller_price) },
+          { key: "ozon_buyer_price", label: "Цена на Ozon", type: "money", render: (r) => priceCell(r.ozon_buyer_price, r.ozon_seller_price) },
+          { key: "ym_buyer_price", label: "Цена на ЯМ", type: "money", value: () => null, render: () => <Dash /> },
+          { key: "buyer_spread_pct", label: "Разница", type: "percent", value: (r) => (r.buyer_spread_pct === null || r.buyer_spread_pct === undefined ? null : r.buyer_spread_pct / 100) },
+        ]}
+      />
+    </div>
+  );
+}
+
+function Costs({ onImported, articles }) {
   const [costs, setCosts] = useState([]);
   const [text, setText] = useState("");
   const [result, setResult] = useState(null);
@@ -430,9 +562,9 @@ function Costs({ onImported }) {
     load();
   }, []);
 
-  const handleImport = async () => {
+  const importText = async (body) => {
     setBusy(true);
-    const res = await safeCall(() => request("/api/v1/pricing/costs/import", { method: "POST", admin: true, body: { text } }));
+    const res = await safeCall(() => request("/api/v1/pricing/costs/import", { method: "POST", admin: true, body: { text: body } }));
     setBusy(false);
     setResult(res.ok ? res.data : { imported: 0, errors: [res.error] });
     if (res.ok && res.data.imported) {
@@ -440,6 +572,23 @@ function Costs({ onImported }) {
       load();
       onImported();
     }
+  };
+  const handleImport = () => importText(text);
+
+  const downloadTemplate = () => {
+    const known = new Map(costs.map((c) => [c.offer_id, c.cost_price_rub]));
+    const all = [...new Map(articles.map((r) => [r.offer_id, r.title])).entries()].sort(([a], [b]) => a.localeCompare(b));
+    for (const offer of known.keys()) if (!all.some(([a]) => a === offer)) all.push([offer, null]);
+    downloadXlsx(
+      "Себестоимость",
+      "Себестоимость",
+      [
+        { label: "Артикул продавца", type: "text", width: 30 },
+        { label: "Себестоимость", type: "money", width: 18 },
+        { label: "Название (не загружается)", type: "text", width: 50 },
+      ],
+      all.map(([offer, title]) => [offer, known.get(offer) ?? null, title])
+    );
   };
 
   const handleDelete = async (offerId) => {
@@ -450,10 +599,19 @@ function Costs({ onImported }) {
   return (
     <div className="space-y-4">
       <div className="md3-card-elevated p-4 space-y-3">
-        <h3 className="text-sm font-semibold">Загрузить себестоимость</h3>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold">Загрузить себестоимость</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" className={buttonClass} onClick={downloadTemplate}>
+              <FileXls size={16} aria-hidden="true" /> Шаблон Excel
+            </button>
+            <FileImportButton onText={importText} busy={busy}>Загрузить из Excel</FileImportButton>
+          </div>
+        </div>
         <p className="text-xs text-[var(--color-on-surface-variant)]">
-          Скопируйте из таблицы два столбца — артикул поставщика и себестоимость — и вставьте сюда. Себестоимость одна для
-          артикула на всех маркетплейсах; повторная загрузка обновляет значения.
+          Файл Excel (.xlsx) или CSV из двух столбцов: «Артикул продавца» и «Себестоимость». Себестоимость одна для артикула на
+          всех площадках, поэтому загружается один раз; повторная загрузка обновляет значения, пустые ячейки пропускаются.
+          Можно и просто вставить два столбца из таблицы в поле ниже.
         </p>
         <textarea
           className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline)] bg-[var(--color-surface)] text-sm min-h-[140px] font-mono"
@@ -532,14 +690,17 @@ export default function Pricing() {
   const [compare, setCompare] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [actionsEnabled, setActionsEnabled] = useState(true);
 
   const load = () =>
     Promise.all([
       safeCall(() => request("/api/v1/pricing/breakdown", { admin: true })),
       safeCall(() => request("/api/v1/pricing/compare", { admin: true })),
-    ]).then(([bRes, cRes]) => {
+      safeCall(() => request("/api/v1/pricing/status", { admin: true })),
+    ]).then(([bRes, cRes, sRes]) => {
       setBreakdown(bRes.ok ? bRes.data : []);
       setCompare(cRes.ok ? cRes.data : []);
+      if (sRes.ok) setActionsEnabled(Boolean(sRes.data.marketplace_actions_enabled));
       setError(bRes.ok ? "" : bRes.error);
       setLoading(false);
     });
@@ -564,9 +725,9 @@ export default function Pricing() {
           </TabButton>
         ))}
       </div>
-      {tab === "breakdown" && <Breakdown rows={breakdown} setRows={setBreakdown} onError={setError} />}
+      {tab === "breakdown" && <Breakdown rows={breakdown} setRows={setBreakdown} onError={setError} onReload={load} actionsEnabled={actionsEnabled} />}
       {tab === "compare" && <Compare rows={compare} />}
-      {tab === "costs" && <Costs onImported={load} />}
+      {tab === "costs" && <Costs onImported={load} articles={breakdown} />}
     </div>
   );
 }

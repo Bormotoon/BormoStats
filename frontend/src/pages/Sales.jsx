@@ -1,35 +1,27 @@
 import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
 import { useI18n } from "../utils/i18n.jsx";
-import ExportButton from "../components/ExportButton.jsx";
 import { requestAll } from "../utils/api.js";
-import { sum, groupSeries, commonParams, moneyFmt, numberFmt, isoDay, DEFAULT_DATE_FROM_OFFSET } from "../utils/formats.js";
+import { usePageFilters } from "../utils/usePageFilters.js";
+import { sum, groupSeriesMulti, moneyFmt, numberFmt, periodLabel } from "../utils/formats.js";
 import MetricCard from "../components/MetricCard.jsx";
 import DataTable from "../components/DataTable.jsx";
 import { AreaChartCard } from "../components/Chart.jsx";
 import { Spinner, EmptyState } from "../components/StatusChip.jsx";
 
+export const SALES_COLUMNS = ["day", "image_url", "offer_id", "title", "marketplace", "product_id", "qty", "revenue", "returns_qty", "payout"];
+
 export default function Sales() {
   const { t } = useI18n();
-  const [searchParams] = useSearchParams();
+  const { searchParams, query, period, dateFrom, dateTo } = usePageFilters();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  const filters = {
-    dateFrom: searchParams.get("dateFrom") || isoDay(DEFAULT_DATE_FROM_OFFSET),
-    dateTo: searchParams.get("dateTo") || isoDay(0),
-    marketplace: searchParams.get("marketplace") || "",
-    accountId: searchParams.get("accountId") || "",
-    limit: searchParams.get("limit") || "1000",
-  };
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError("");
-    const params = commonParams(filters);
-    requestAll("/api/v1/sales/daily", { query: params })
+    requestAll("/api/v1/sales/daily", { query })
       .then((res) => { if (!cancelled) { setData(res); setLoading(false); } })
       .catch((err) => { if (!cancelled) { setError(err.message); setLoading(false); } });
     return () => { cancelled = true; };
@@ -43,26 +35,26 @@ export default function Sales() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <ExportButton dataset="sales_daily" filters={filters} includeDates={true} />
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <MetricCard label={t("common.rows")} value={numberFmt(rows.length)} />
-        <MetricCard label={t("sales.revenue")} value={moneyFmt(sum(rows, "revenue"))} subvalue={t("sales.revenueHint")} accent="success" className="col-span-2" />
-        <MetricCard label={t("sales.qty")} value={numberFmt(sum(rows, "qty"))} subvalue={t("sales.qtyHint")} />
-        <MetricCard label={t("sales.returns")} value={numberFmt(sum(rows, "returns_qty"))} subvalue={t("sales.returnsHint")} accent="warning" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <MetricCard label={t("sales.revenue")} value={moneyFmt(sum(rows, "revenue"))} subvalue={`${t("sales.revenueHint")}, ${period}`} accent="success" />
+        <MetricCard label={t("sales.qty")} value={`${numberFmt(sum(rows, "qty"))} шт`} subvalue={`${t("sales.qtyHint")} ${period}`} />
+        <MetricCard label={t("sales.returns")} value={`${numberFmt(sum(rows, "returns_qty"))} шт`} subvalue={`${t("sales.returnsHint")} ${period}`} accent="warning" />
+        <MetricCard label={t("sales.payout")} value={moneyFmt(sum(rows, "payout"))} subvalue={`${t("sales.payoutHint")}; ${period}`} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
-        <div className="lg:col-span-3">
-          <AreaChartCard title={t("sales.revenueByDay")} data={groupSeries(rows, "day", "revenue")} dataKey="value" name={t("sales.revenue")} currency />
-        </div>
-        <MetricCard label={t("sales.payout")} value={moneyFmt(sum(rows, "payout"))} subvalue={t("sales.payoutHint")} />
-      </div>
+      <AreaChartCard
+        title={`${t("sales.revenueByDay")} ${period}`}
+        data={groupSeriesMulti(rows, "day", ["revenue", "payout"])}
+        series={[
+          { dataKey: "revenue", name: t("sales.revenue"), color: "var(--color-primary)" },
+          { dataKey: "payout", name: t("sales.payoutByDay"), color: "var(--color-success)" },
+        ]}
+        currency
+      />
 
       <section className="md3-card-elevated p-4">
-        <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">{t("sales.salesDaily")}</h3>
-        <DataTable rows={rows} preferredColumns={["day", "marketplace", "account_id", "product_id", "title", "offer_id", "qty", "revenue", "returns_qty", "payout"]} />
+        <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">{t("sales.salesDaily")} {period}</h3>
+        <DataTable rows={rows} preferredColumns={SALES_COLUMNS} exportName={`Продажи ${periodLabel(dateFrom, dateTo)}`} />
       </section>
     </div>
   );
