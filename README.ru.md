@@ -1,175 +1,172 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="screenshots/dashboard.png">
-  <img src="screenshots/dashboard.png" alt="BormoStats Dashboard" width="100%">
-</picture>
-
 <div align="center">
 
-# 📊 BormoStats
+<img src="docs/images/logo.png" alt="Логотип BormoStats" width="128" height="128">
 
-**Собственная аналитика маркетплейсов для продавцов Wildberries и Ozon**
+# BormoStats
+
+**Self-hosted аналитика, управление ценами и автоматизация для продавцов Wildberries и Ozon.**<br>
+Продажи, деньги, остатки, реклама и отзывы в одном месте — на вашем сервере и под вашими ключами.
 
 [![CI](https://github.com/Bormotoon/BormoStats/actions/workflows/ci.yml/badge.svg)](https://github.com/Bormotoon/BormoStats/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/badge/python-3.14-%233776AB?logo=python)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.135-%23009688?logo=fastapi)](https://fastapi.tiangolo.com/)
-[![React](https://img.shields.io/badge/React-19-%2361DAFB?logo=react)](https://react.dev/)
-[![ClickHouse](https://img.shields.io/badge/ClickHouse-26.x-%23FCC624?logo=clickhouse)](https://clickhouse.com/)
-[![License](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
-[![Docker](https://img.shields.io/badge/docker-multi--stage-%232496ED?logo=docker)](https://docker.com/)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](/CONTRIBUTING.md)
+[![Релиз](https://img.shields.io/github/v/release/Bormotoon/BormoStats?label=%D1%80%D0%B5%D0%BB%D0%B8%D0%B7&color=0E7490)](https://github.com/Bormotoon/BormoStats/releases/latest)
+[![Лицензия: GPL-3.0](https://img.shields.io/badge/%D0%BB%D0%B8%D1%86%D0%B5%D0%BD%D0%B7%D0%B8%D1%8F-GPL--3.0-blue.svg)](LICENSE)
+[![Последний коммит](https://img.shields.io/github/last-commit/Bormotoon/BormoStats?label=%D0%BF%D0%BE%D1%81%D0%BB%D0%B5%D0%B4%D0%BD%D0%B8%D0%B9%20%D0%BA%D0%BE%D0%BC%D0%BC%D0%B8%D1%82&color=6D28D9)](https://github.com/Bormotoon/BormoStats/commits/main)
+<br>
+[![Python 3.14](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.135-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![React 19](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)](https://react.dev/)
+[![ClickHouse](https://img.shields.io/badge/ClickHouse-26.3_LTS-FFCC01?logo=clickhouse&logoColor=black)](https://clickhouse.com/)
+[![Celery](https://img.shields.io/badge/Celery-5.6-37814A?logo=celery&logoColor=white)](https://docs.celeryq.dev/)
+[![Redis 8](https://img.shields.io/badge/Redis-8-FF4438?logo=redis&logoColor=white)](https://redis.io/)
+[![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](infra/docker/docker-compose.yml)
+<br>
+[![Поддержать](https://img.shields.io/badge/%E2%9D%A4-%D0%9F%D0%BE%D0%B4%D0%B4%D0%B5%D1%80%D0%B6%D0%B0%D1%82%D1%8C%20%D0%BF%D1%80%D0%BE%D0%B5%D0%BA%D1%82-E53935)](https://www.donationalerts.com/r/bormotoon)
 [![педобраз.рф](https://img.shields.io/badge/%D0%BF%D0%B5%D0%B4%D0%BE%D0%B1%D1%80%D0%B0%D0%B7.%D1%80%D1%84-%D1%81%D1%82%D1%80%D0%B0%D0%BD%D0%B8%D1%86%D0%B0_%D0%BF%D1%80%D0%BE%D0%B5%D0%BA%D1%82%D0%B0-D64500)](https://xn--80abidn3bem.xn--p1ai/projects/bormostats/)
-[![Поддержать](https://img.shields.io/badge/%E2%9D%A4-%D0%9F%D0%BE%D0%B4%D0%B4%D0%B5%D1%80%D0%B6%D0%B0%D1%82%D1%8C%20%D0%BF%D1%80%D0%BE%D0%B5%D0%BA%D1%82-E53935)](https://dalink.to/bormotoon)
+[![PR приветствуются](https://img.shields.io/badge/PR-%D0%BF%D1%80%D0%B8%D0%B2%D0%B5%D1%82%D1%81%D1%82%D0%B2%D1%83%D1%8E%D1%82%D1%81%D1%8F-brightgreen.svg)](CONTRIBUTING.md)
 
----
+[English](README.md) · **Русский**
 
-<p align="center">
-  <strong>Русский</strong> •
-  <a href="README.md"><strong>English</strong></a>
-</p>
+[Возможности](#-возможности) ·
+[Скриншоты](#-скриншоты) ·
+[Быстрый старт](#-быстрый-старт) ·
+[Архитектура](#-архитектура) ·
+[API](#-api) ·
+[Настройка](#-настройка) ·
+[Документация](#-документация) ·
+[Участие](#-участие-в-разработке)
 
-[Возможности](#-возможности) • [Быстрый старт](#-быстрый-старт) • [Архитектура](#-архитектура) • [Скриншоты](#-скриншоты) • [API](#-api) • [Конфигурация](#-конфигурация) • [Документация](#-документация) • [Участие](#-участие)
-
-🌐 **Страница проекта:** [педобраз.рф/projects/bormostats](https://xn--80abidn3bem.xn--p1ai/projects/bormostats/)
+🌐 Страница проекта: **[педобраз.рф/projects/bormostats](https://xn--80abidn3bem.xn--p1ai/projects/bormostats/)**
 
 </div>
 
+<br>
+
+<p align="center">
+  <img src="docs/screenshots/ru/dashboard.png" alt="Дашборд BormoStats: задачи на сегодня, состояние сервисов, выручка, балансы, динамика выручки и расходов на рекламу" width="100%">
+</p>
+
+> [!NOTE]
+> На всех скриншотах — **вымышленный демо-магазин**: данные генерирует
+> [`frontend/scripts/readme-screenshots.mjs`](frontend/scripts/readme-screenshots.mjs) вместо настоящего API.
+> Реальных данных продавцов здесь нет.
+
 ---
 
-## 🚀 Возможности
+## 💡 Зачем это нужно
 
-| Возможность | Описание |
-|---|---|
-| **Автоматический сбор данных** | Инкрементальный сбор продаж, заказов, остатков, воронок, рекламы и финансов из API Wildberries и Ozon |
-| **Аналитическое хранилище** | Трёхуровневое хранилище в ClickHouse (raw → staging → marts) |
-| **REST API** | FastAPI бэкенд с эндпоинтами для продаж, остатков, воронок, рекламы и KPI |
-| **Современный веб-интерфейс** | Встроенное React 19 SPA (Tailwind CSS и собственные дизайн-токены) с двуязычным интерфейсом |
-| **BI Дашборды** | Интеграция с Metabase для произвольных дашбордов и SQL-запросов |
-| **Telegram Уведомления** | YAML-правила автоматизации: высокий ACOS, низкий остаток, отсутствие продаж |
-| **Биддер** | Автоматическое управление ставками для РК WB/Ozon с правилами по CPM/позиции |
-| **Репрайсер** | Динамическое ценообразование с валидацией маржи и break-even анализом |
-| **P&L** | Полный отчёт о прибылях и убытках с учётом косвенных расходов |
-| **ABC/XYZ** | Автоматический анализ ассортимента (доля в выручке + стабильность спроса) |
-| **Actionable Insights** | Ежедневное сканирование аномалий → очередь задач с Telegram-дайджестом |
-| **PIM** | Обогащение карточек товаров: бренды, категории, SEO, AI-генерация описаний |
-| **Webhooks** | Эндпоинт загрузки остатков (1С/МойСклад), webhook подписки |
-| **Admin API** | Бэкфилл, трансформации, водяные знаки, аудит задач и обслуживание |
-| **Мониторинг** | Prometheus метрики, Grafana дашборды, правила оповещений |
-| **Безопасность цепочки поставок** | pip-audit, сканирование Docker образов (Grype), генерация SBOM (SPDX) |
+Кабинеты Wildberries и Ozon показывают картину кусками: продажи в одном отчёте, выплаты в другом,
+реклама в третьем, и ни один не сводит обе площадки вместе. Сервисы аналитики решают это, но просят
+ваши API-ключи и хранят данные у себя.
+
+BormoStats — self-hosted альтернатива. Он забирает всё через **официальные API продавца** ваших
+кабинетов в хранилище ClickHouse на вашей машине и даёт поверх него веб-интерфейс, REST API,
+BI-дашборды и уведомления в Telegram. А ещё инструменты, которые действуют сами: репрайсер, который
+держит цену для покупателя, биддер рекламы и ответы на отзывы с помощью ИИ. Всё, что пишет на
+маркетплейс, начинает работу в режиме **симуляции (dry-run)** и включается в боевой режим только
+глобальным переключателем.
+
+## ✨ Возможности
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### 📊 Аналитика
+
+- **Продажи, воронка, остатки, реклама** WB и Ozon в единой модели, с фильтром по кабинетам
+- **Финансы**: балансы и начисления с разбивкой по комиссии, логистике, хранению, штрафам, выплатам
+- **P&L** по месяцам с себестоимостью и косвенными расходами
+- **ABC/XYZ**-анализ ассортимента (доля выручки × стабильность спроса)
+- **KPI** за 30 дней и операционный **дашборд** с задачами на сегодня
+- **Excel везде**: фильтр под каждой колонкой, сортировка и выгрузка любой таблицы в `.xlsx`
+
+</td>
+<td width="50%" valign="top">
+
+### 🤖 Автоматизация
+
+- **Цены и репрайсер**: полный разбор цены (скидки, комиссия, логистика, маржа, безубыточность); держит заданную цену *для покупателя*, загрузка целей из Excel
+- **Биддер**: правила по CPM и позиции для кампаний WB и Ozon
+- **Отзывы**: черновики от ИИ, шаблоны по оценкам, автоответы на отзывы без текста
+- **Инсайты**: ежедневный поиск аномалий → список задач и дайджест в Telegram
+- **Движок правил на YAML**: высокий ДРР, низкий остаток, нет продаж, залежавшийся товар… (без `eval`)
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 🗄️ Платформа данных
+
+- **Инкрементальные коллекторы** с водяными знаками, ретраями, circuit breaker и маскированием секретов
+- **Трёхслойное хранилище**: `raw_*` → `stg_*` → `mrt_*` в ClickHouse
+- **Хранилище истории**: git-подобный архив каждого изменения карточки и каждой загруженной строки — «какая цена была 3 марта?»
+- **Metabase** для произвольных SQL-запросов и своих дашбордов
+- **PIM**, **вебхуки** с HMAC-подписью и эндпоинт обновления остатков для 1С / МойСклад
+
+</td>
+<td valign="top">
+
+### 🛡️ Готов к продакшену
+
+- **Мультиарендность**: организации, роли (`owner` … `viewer`), личные API-ключи, хранящиеся как scrypt-хеши
+- **Журнал аудита** всех изменяющих запросов
+- **Защищённые контейнеры**: не root, read-only ФС, `no-new-privileges`, единственный вход — через TLS
+- **Метрики Prometheus** и правила алертов, структурированные JSON-логи
+- **Цепочка поставок**: зависимости с хешами, образы по digest, pip-audit, Grype, SBOM в SPDX
+
+</td>
+</tr>
+</table>
 
 ### Границы проекта
 
-- ✅ Собирает данные **только** с ваших собственных аккаунтов продавца
-- ✅ Полностью самостоятельно размещаемый — данные не отправляются третьим лицам
-- ❌ Не парсит данные конкурентов или каталоги маркетплейсов
-- ❌ Не предоставляет аналитику по рынку в целом
+- ✅ Собирает данные **только ваших** кабинетов через официальные API
+- ✅ Полностью self-hosted — ничего не уходит третьим лицам (необязательные ИИ-функции обращаются к OpenAI-совместимому API, который *вы* укажете)
+- ✅ Необязательное отслеживание конкурентов касается только явно перечисленных вами артикулов и запросов
+- ❌ Не парсит каталоги маркетплейсов целиком и не считает доли рынка
 
----
+## 📸 Скриншоты
 
-## 🖼️ Скриншоты
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/ru/sales.png" alt="Страница «Продажи»"><br><sub><b>Продажи</b> — выручка, штуки, возвраты и к выплате по дням, таблица по товарам с выгрузкой в Excel</sub></td>
+<td width="50%"><img src="docs/screenshots/ru/finance.png" alt="Страница «Финансы»"><br><sub><b>Финансы</b> — балансы обоих кабинетов и из чего складывается начисление, по статьям</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/ru/pricing.png" alt="Страница «Цены»"><br><sub><b>Цены</b> — от зачёркнутой цены до цены для покупателя, удержания, маржа и безубыточность; желаемые цены держит репрайсер</sub></td>
+<td><img src="docs/screenshots/ru/reviews.png" alt="Страница «Работа с отзывами»"><br><sub><b>Отзывы</b> — неотвеченные отзывы обеих площадок, черновики ИИ, шаблоны и автоответы</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/ru/stocks.png" alt="Страница «Остатки»"><br><sub><b>Остатки</b> — штуки по складам, топ товаров и подсветка заканчивающихся</sub></td>
+<td><img src="docs/screenshots/ru/ads.png" alt="Страница «Реклама»"><br><sub><b>Реклама</b> — расходы, доход, клики, заказы, ДРР и ROMI по кампаниям и дням</sub></td>
+</tr>
+</table>
 
-| Страница | Превью | Описание |
-|---|---|---|
-| **Dashboard** | ![Dashboard](screenshots/dashboard.png) | Обзор работы сервиса: здоровье сервера, выручка, количество продаж, расходы на рекламу, остатки, тренды выручки/рекламы, таблица топ-товаров |
-| **Sales** | ![Sales](screenshots/sales.png) | Аналитика продаж по дням: агрегированная выручка, количество, возвраты, выплаты — график тренда и таблица с фильтрами по маркетплейсу и аккаунту |
-| **Stocks** | ![Stocks](screenshots/stocks.png) | Текущие остатки: общее количество, предупреждения о низких остатках, распределение по складам, бар-чарт топ-товаров |
-| **Funnel** | ![Funnel](screenshots/funnel.png) | Воронка конверсии: просмотры, добавления в корзину, заказы — средние CR корзины/заказа, тренд заказов по дням |
-| **Ads** | ![Ads](screenshots/ads.png) | Эффективность рекламы: расходы, выручка, клики, заказы, ACOS, ROMI — двойной тренд (расходы vs выручка по дням) |
-| **KPIs** | ![KPIs](screenshots/kpis.png) | 30-дневные KPI: выручка, количество, возвраты, расходы на рекламу с группировкой по маркетплейсу/аккаунту и столбчатая диаграмма |
-| **Watermarks** | ![Watermarks](screenshots/watermarks.png) | Admin — курсоры водяных знаков инкрементальной загрузки (wb_sales, ozon_postings и т.д.) |
-| **Task Runs** | ![Task Runs](screenshots/taskRuns.png) | Admin — аудит задач воркеров со статусом выполнения, количеством строк, сообщениями об ошибках |
-| **Admin Actions** | ![Admin Actions](screenshots/adminActions.png) | Admin — панель операций бэкфилла, трансформаций и обслуживания с выбором периода и просмотром ответа |
-| **System** | ![System](screenshots/system.png) | Здоровье сервиса, готовность и образцы Prometheus метрик |
+<details>
+<summary><b>Ещё скриншоты</b> — воронка, биддер, P&amp;L, ABC/XYZ, KPI, система</summary>
+<br>
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/ru/funnel.png" alt="Страница «Воронка»"><br><sub><b>Воронка</b> — просмотры → корзина → заказы с конверсиями</sub></td>
+<td width="50%"><img src="docs/screenshots/ru/bidder.png" alt="Страница «Биддер»"><br><sub><b>Биддер</b> — целевой и максимальный CPM, позиция, переключатель симуляции и журнал изменений</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/ru/pnl.png" alt="Страница P&L"><br><sub><b>P&amp;L</b> — маржинальная, операционная и чистая прибыль со структурой расходов</sub></td>
+<td><img src="docs/screenshots/ru/abcXyz.png" alt="Страница ABC/XYZ"><br><sub><b>ABC/XYZ</b> — лидеры, звёзды и неликвид с первого взгляда</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/ru/kpis.png" alt="Страница KPI"><br><sub><b>KPI</b> — выручка, штуки, возвраты и реклама за 30 дней по кабинетам</sub></td>
+<td><img src="docs/screenshots/ru/system.png" alt="Страница «Система»"><br><sub><b>Система</b> — liveness, readiness и задержки зависимостей</sub></td>
+</tr>
+</table>
+</details>
 
----
+Интерфейс двуязычный (русский / английский), язык переключается на лету.
 
-## 🏗️ Архитектура
+## 🚀 Быстрый старт
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    CELERY BEAT (Планировщик)                        │
-│    Запускает сборщики, трансформации, marts, автоматизацию, чистку  │
-└────────────┬────────────────┬──────────────────┬───────────────────┘
-             │                │                  │
-             ▼                ▼                  ▼
-┌─────────────────┐ ┌─────────────────┐ ┌───────────────────────────┐
-│  WB Collector   │ │  Ozon Collector │ │  Transforms & Marts       │
-│  (API клиент)   │ │  (API клиент)   │ │  (SQL трансформации)     │
-└────────┬────────┘ └────────┬────────┘ └─────────────┬─────────────┘
-         │                   │                        │
-         ▼                   ▼                        ▼
-┌──────────────────────────────────────────────────────────────────────┐
-│                     CLICKHOUSE (Хранилище данных)                    │
-│    raw_* → stg_* → mrt_*  |  sys_watermarks  |  sys_task_runs       │
-└─────────────────────────────┬────────────────────────────────────────┘
-                              │
-                              ▼
-┌───────────────────────────────────────────────────────┐
-│              FastAPI Бэкенд                            │
-│  /api/v1/* (аналитика)  /api/v1/admin/* (администрирование)│
-│  /ui (веб-интерфейс)  /metrics (Prometheus)           │
-└─────────────────────────┬─────────────────────────────┘
-                          │
-                          ▼
-┌──────────────────────────────┐  ┌──────────────┐
-│  Nginx Reverse Proxy (TLS)  │  │   Metabase   │
-│  → точка входа               │  │  (BI дашборды)│
-└──────────────────────────────┘  └──────────────┘
-```
-
-### Компоненты
-
-| Компонент | Технология | Назначение |
-|---|---|---|
-| **Бэкенд** | FastAPI + Uvicorn | REST API, веб-интерфейс, health/ready/metrics |
-| **Воркер** | Celery | Сбор данных, трансформации, marts, автоматизация |
-| **Beat** | Celery Beat | Планировщик периодических задач |
-| **ClickHouse** | ClickHouse 26.x | OLAP аналитическое хранилище |
-| **Redis** | Redis 7.x | Брокер Celery + распределённые блокировки |
-| **Nginx** | Nginx 1.27 | Обратный прокси с TLS терминацией |
-| **Metabase** | Metabase | BI платформа для дашбордов |
-| **Prometheus** | Prometheus | Сбор метрик и оповещения |
-
-### Конвейер данных
-
-Данные проходят через три слоя обработки:
-
-1. **Raw слой** (`raw_*`) — Сырые ответы API с JSON и нормализованными ключевыми полями для идемпотентной загрузки
-2. **Staging слой** (`stg_*`) — Каноническая нормализованная модель с единой схемой для WB и Ozon
-3. **Mart слой** (`mrt_*`) — Агрегированные BI-представления для дашбордов и API
-
-### Технологический стек
-
-| Категория | Технологии |
-|---|---|
-| **Язык** | Python 3.14 |
-| **Веб-фреймворк** | FastAPI 0.135, Uvicorn 0.41 |
-| **Очередь задач** | Celery 5.6, Redis 7.2 |
-| **Хранилище** | ClickHouse 26.x (clickhouse-connect 0.13) |
-| **Фронтенд** | React 19, Vite 8, Tailwind CSS 4, Recharts 3, Motion |
-| **HTTP клиент** | httpx 0.28 |
-| **Валидация** | Pydantic 2.12, pydantic-settings 2.13 |
-| **Метрики** | prometheus_client 0.24 |
-| **Логирование** | structlog 25.5 (структурированный JSON) |
-| **Автоматизация** | PyYAML 6.0 (YAML-движок правил) |
-| **BI** | Metabase (Docker) |
-| **Инфраструктура** | Docker Compose, Nginx, Prometheus, Grafana |
-| **Линтинг** | Ruff 0.15 |
-| **Типизация** | MyPy 1.19 (строгий режим) |
-| **Тесты** | pytest 9.0, pytest-asyncio |
-| **Безопасность** | pip-audit, Anchore Grype, SPDX SBOM |
-
----
-
-## ⚡ Быстрый старт
-
-### Требования
-
-- Активные аккаунты продавцов Wildberries и/или Ozon с API токенами
-- **make** (для команд быстрого запуска)
-
-### Вариант A: Docker (рекомендуется)
-
-Требуется **Docker** и **Docker Compose v2**.
+**Понадобятся:** Docker с Compose v2, `make` и API-токены кабинета продавца Wildberries и/или Ozon.
 
 ```bash
 git clone https://github.com/Bormotoon/BormoStats.git
@@ -177,467 +174,307 @@ cd BormoStats
 make init ENV=dev        # или ENV=stage / ENV=prod
 ```
 
-`make init` копирует `.env.<env>.example` в `.env` и генерирует стойкие случайные значения для
-`CH_PASSWORD`, `BOOTSTRAP_CH_ADMIN_PASSWORD`, `REDIS_PASSWORD`, `ADMIN_API_KEY`,
-`WEBHOOK_SECRET_KEY` и `METRICS_BEARER_TOKEN`. Затем укажите ключи маркетплейсов:
+`make init` копирует `.env.<env>.example` в `.env` и заполняет все секреты (ClickHouse, Redis, ключ
+администратора, токены вебхуков и метрик) стойкими случайными значениями. Добавьте в `.env` токены
+маркетплейсов:
 
 | Переменная | Где взять |
 |---|---|
-| `WB_TOKEN_STATISTICS` | Wildberries → Личный кабинет → Настройки → API (категория «Статистика») |
-| `WB_TOKEN_ANALYTICS` | Wildberries → Личный кабинет → Настройки → API (категория «Аналитика») |
-| `OZON_CLIENT_ID` | Ozon → Настройки → API |
-| `OZON_API_KEY` | Ozon → Настройки → API |
+| `WB_TOKEN_STATISTICS`, `WB_TOKEN_ANALYTICS` | Кабинет WB → Настройки → Доступ к API (категории «Статистика», «Аналитика») |
+| `OZON_CLIENT_ID`, `OZON_API_KEY` | Ozon Seller → Настройки → API-ключи |
+| `OZON_PERF_CLIENT_ID`, `OZON_PERF_CLIENT_SECRET` | Рекламный кабинет Ozon → Настройки → API *(необязательно, для рекламы)* |
+
+И запустите стек:
 
 ```bash
 make up
 ```
 
-Запускает ClickHouse, Redis, Бэкенд, Воркер, Beat, Nginx (TLS), Metabase — всё в контейнерах.
+| Что | Где |
+|---|---|
+| 🖥️ Веб-интерфейс | <https://localhost:18443/ui/> *(самоподписанный сертификат)* |
+| ❤️ Проверка состояния | `curl -k https://localhost:18443/health/live` |
+| 📈 Metabase | <http://localhost:13000> *(только loopback)* |
 
-> 💡 Первая сборка занимает 3–5 минут. Последующие сборки используют кэширование Docker.
+> [!TIP]
+> Первая сборка занимает 3–5 минут, следующие используют кэш слоёв Docker. Данные начнут поступать
+> со следующего запуска планировщика; чтобы загрузить историю сразу, используйте **Админ → Backfill**
+> (или `POST /api/v1/admin/backfill`).
 
-```bash
-# Проверка здоровья (HTTP на 18080 перенаправляет на HTTPS 18443; сертификат самоподписанный)
-curl -k https://localhost:18443/health/live
+<details>
+<summary><b>Запуск без Docker (на хосте)</b></summary>
 
-# Веб-интерфейс
-open https://localhost:18443/ui/
-
-# Metabase BI
-open http://localhost:13000
-```
-
-### Вариант B: OS (напрямую)
-
-Требуется **Python 3.14+**, **Node.js 22+**, **ClickHouse** и **Redis**, установленные на хосте.
+Нужны **Python 3.14+**, **Node.js 22+**, **ClickHouse** и **Redis** на хосте.
 
 ```bash
-git clone https://github.com/Bormotoon/BormoStats.git
-cd BormoStats
 make init ENV=dev
+# укажите токены маркетплейсов, направьте CH_HOST / REDIS_URL на свои сервисы
+# (очистите REDIS_USERNAME, если в вашем Redis нет ACL-пользователя)
+make install   # venv, зависимости, сборка фронтенда, миграции
+make run       # бэкенд + Celery worker + Celery beat в одном терминале
 ```
 
-Укажите ключи маркетплейсов, направьте `CH_HOST` / `REDIS_URL` на локальные сервисы
-(очистите `REDIS_USERNAME`, если в вашем Redis нет ACL-пользователя), затем:
+Для сервера установите идущие в комплекте юниты systemd: `sudo make install-systemd`.
 
-```bash
-make install
-make run
+</details>
+
+<details>
+<summary><b>Полезные команды make</b></summary>
+
+| Команда | Что делает |
+|---|---|
+| `make up` / `make down` / `make logs` / `make ps` | Управление Docker-стеком |
+| `make migrate` / `make migrate-status` | Применить / посмотреть миграции ClickHouse |
+| `make backup` / `make restore-check` | Резервная копия ClickHouse; проверка восстановления из неё |
+| `make check` | Линтер, проверка форматирования, строгая типизация, манифест миграций и тесты |
+| `make check-tokens` | Проверка токенов маркетплейсов и доступа к API |
+| `make perf-smoke` | Быстрый нагрузочный smoke-тест API |
+
+Полный список — `make help`.
+
+</details>
+
+## 🧩 Архитектура
+
+```mermaid
+flowchart LR
+    subgraph MP["Маркетплейсы"]
+        WB["Wildberries API"]
+        OZ["Ozon Seller и Performance API"]
+    end
+
+    Beat["Celery Beat<br/>планировщик"] --> Worker
+    MP -- "сбор данных" --> Worker["Celery workers<br/>коллекторы · трансформации · витрины<br/>биддер · репрайсер · отзывы"]
+    Worker -. "ставки, цены, ответы<br/>(по умолчанию симуляция)" .-> MP
+    Worker <--> Redis[("Redis<br/>брокер · блокировки")]
+    Worker --> CH[("ClickHouse<br/>raw → stg → mrt<br/>+ хранилище истории")]
+    CH --> API["FastAPI бэкенд<br/>REST · авторизация · аудит"]
+    API --> Nginx["Nginx<br/>вход по TLS"]
+    Nginx --> UI["React SPA<br/>/ui"]
+    CH --> MB["Metabase"]
+    Worker --> TG["Уведомления в Telegram"]
+    API --> WH["Вебхуки"]
 ```
 
-`make install` создаёт venv, устанавливает зависимости, собирает фронтенд и применяет миграции.
-`make run` запускает Backend (uvicorn), Celery Worker и Celery Beat в одном терминале.
+| Компонент | Технологии | Роль |
+|---|---|---|
+| **Бэкенд** | FastAPI, Uvicorn | REST API, веб-интерфейс, health, метрики |
+| **Воркеры** | Celery 5.6 | Сбор, трансформации, витрины, автоматизация, действия на маркетплейсах |
+| **Планировщик** | Celery Beat | Периодические задачи |
+| **Хранилище** | ClickHouse 26.3 LTS | OLAP-хранилище, витрины и история |
+| **Брокер** | Redis 8 | Брокер Celery и распределённые блокировки |
+| **Фронтенд** | React 19, Vite, Tailwind CSS 4, Recharts | Одностраничный интерфейс под `/ui` |
+| **Прокси** | Nginx | Единственная публичная точка входа, TLS |
+| **BI** | Metabase | Произвольный SQL и дашборды под read-only пользователем |
 
-Для production используйте systemd:
+**Поток данных.** Коллекторы пишут сырые ответы API с нормализованными ключами в таблицы `raw_*`
+(повторная загрузка идемпотентна), трансформации строят единую модель обеих площадок в `stg_*`,
+а витрины `mrt_*` хранят агрегаты, которые читают API и дашборды. Водяные знаки в `sys_watermarks`
+делают сбор инкрементальным, а `sys_task_runs` ведёт журнал каждого запуска. Подробнее —
+[docs/architecture.md](docs/architecture.md).
 
-```bash
-sudo make install-systemd
+<details>
+<summary><b>Структура репозитория</b></summary>
+
+```text
+BormoStats/
+├── backend/            FastAPI: маршруты api/v1, сервисы, SQL-запросы, модели
+├── workers/            Celery: расписание, задачи, SQL-трансформации и витрины
+├── collectors/         Клиенты API WB, Ozon и конкурентов, парсеры, ретраи и circuit breaker
+├── warehouse/          Миграции ClickHouse (с откатами) и эталонный DDL
+├── frontend/           React SPA, E2E-тесты Playwright, генератор скриншотов README
+├── automation/         Движок правил на YAML и действия в Telegram
+├── browser_extension/  Оверлей с аналитикой конкурентов на страницах товаров WB / Ozon
+├── infra/              Docker Compose, Nginx, ClickHouse, Redis, конфигурация Prometheus
+├── dashboards/         Дашборды Metabase / Grafana
+├── scripts/            Бутстрап, бэкапы, бэкфилл и утилиты оператора
+├── tests/              Модульные, интеграционные (Docker) тесты и фикстуры
+└── docs/               Документация по эксплуатации, безопасности и устройству
 ```
 
----
-
-## 🖥️ Веб-интерфейс
-
-Встроенное React SPA доступно по адресу `https://localhost:18443/ui/`. Интерфейс полностью переведён на русский и английский языки с переключением в один клик. Включает:
-
-- **Dashboard** — Обзор работы с ключевыми метриками, графиками и виджетом задач
-- **Sales** — Аналитика продаж по дням с фильтрами
-- **Stocks** — Текущие остатки по складам
-- **Funnel** — Воронка конверсии (просмотры → корзина → заказы)
-- **Ads** — Метрики эффективности рекламы
-- **Биддер** — Управление ставками РК с ползунками CPM/позиции
-- **Репрайсер** — Правила динамического ценообразования с break-even таблицей
-- **P&L** — Отчёт о прибылях и убытках с разбивкой расходов
-- **ABC/XYZ** — Анализ ассортимента с бейджами (AX = Лидер, CZ = Неликвид)
-- **KPIs** — Ключевые показатели эффективности за период
-- **PIM** — Каталог товаров: бренды, категории, SEO, AI-генерация описаний
-- **Интеграции** — Загрузка остатков на WB/Ozon, webhook подписки, логи
-- **Watermarks** — Курсоры водяных знаков инкрементальной загрузки (admin)
-- **Task Runs** — Аудит задач воркеров (admin)
-- **Admin Actions** — Бэкфилл, трансформации, управление marts, обслуживание
-- **System** — Здоровье сервиса, готовность, Prometheus метрики
-
-> 🔐 Входите с **персональным API-ключом пользователя** (Настройки → API-ключ). Ключ хранится только в
-> sessionStorage вкладки и отправляется с каждым запросом; кнопка «Выйти» очищает его. Мастер-ключ
-> платформы (`ADMIN_API_KEY`) тоже работает, но предназначен для операторов.
-
-### Интернационализация
-
-- Два языка: русский и английский
-- Переключение через кнопку в боковой панели или иконку в хедере
-- Язык сохраняется в localStorage
-- ~250 ключей перевода покрывают навигацию, заголовки, метрики, фильтры, статусы, ошибки, админские действия и подсказки
-
----
+</details>
 
 ## 📡 API
 
-### Аутентификация и изоляция организаций
+Все эндпоинты находятся под `/api/v1` и требуют заголовок `X-API-Key`. Контракт OpenAPI доступен
+авторизованным клиентам по адресу `/api/v1/openapi.json`.
 
-Все эндпоинты `/api/v1/*` требуют заголовок `X-API-Key` (анонимное чтение можно включить только
-для локальной разработки через `PUBLIC_READ_API=true`). Есть два вида ключей:
+- **Пользовательские ключи** (`bsk_<id>_<secret>`) показываются один раз и хранятся как scrypt-хеш с солью.
+  Организация и роль берутся из ключа — запрос не может выбрать чужого арендатора. У ключей есть срок
+  действия, ротация и отзыв.
+- **Мастер-ключ платформы** (`ADMIN_API_KEY`) — только для операторов: админ-операции и работа с
+  любой организацией через `X-Organization-Id`. Ограничьте его своими сетями через `ADMIN_ALLOWED_NETWORKS`.
 
-- **Ключи пользователей** (`bsk_<id>_<secret>`) выдаются через `POST /api/v1/users` и
-  `POST /api/v1/users/{id}/rotate-key` и показываются **один раз**; хранится только соль и scrypt-хеш.
-  Организация и роль (`owner`, `admin`, `manager`, `analyst`, `viewer`) берутся из ключа — тело или
-  параметры запроса не могут выбрать чужую организацию.
-- **Мастер-ключ платформы** (`ADMIN_API_KEY`) для операторов: служебные эндпоинты (`/admin`,
-  `/organizations`, `/costs`, `/ai`) и работа с конкретной организацией через заголовок
-  `X-Organization-Id`. Ограничьте его сетями через `ADMIN_ALLOWED_NETWORKS`.
+```bash
+curl -k -H "X-API-Key: $BORMOSTATS_KEY" \
+  "https://localhost:18443/api/v1/sales/daily?marketplace=wb&date_from=2026-10-01&date_to=2026-10-18"
+```
 
-Ключи могут истекать (`api_key_ttl_days`), отзываться (`POST /users/{id}/revoke-key`) и отзываться
-массово (`POST /users/revoke-all-keys`). Каждый изменяющий запрос пишется в `sys_audit_log`
-(кто, организация, маршрут, статус, `X-Request-ID`). OpenAPI-контракт доступен аутентифицированным
-клиентам по адресу `/api/v1/openapi.json`.
+<details>
+<summary><b>Обзор эндпоинтов</b></summary>
 
-### Аналитические эндпоинты
-
-| Метод | Путь | Описание |
-|---|---|---|
-| `GET` | `/api/v1/sales/daily` | Ежедневные продажи |
-| `GET` | `/api/v1/stocks/current` | Текущие остатки |
-| `GET` | `/api/v1/funnel/daily` | Ежедневная воронка (просмотры → корзина → заказы) |
-| `GET` | `/api/v1/ads/daily` | Ежедневная реклама |
-| `GET` | `/api/v1/kpis` | Ключевые показатели эффективности |
-| `GET` | `/api/v1/abc-xyz` | ABC/XYZ анализ ассортимента |
-| `GET` | `/api/v1/pnl` | Отчёт о прибылях и убытках |
-| `GET` | `/api/v1/organizations` | Управление организациями (multi-tenant) |
-| `GET` | `/api/v1/users/me` | Профиль текущего пользователя |
-| `GET` | `/api/v1/accounts` | Список аккаунтов (переключатель) |
-| `GET` | `/api/v1/bidder/...` | Правила биддера и статус кампаний |
-| `GET` | `/api/v1/repricer/...` | Правила репрайсера и break-even |
-| `GET` | `/api/v1/insights/tasks` | Рекомендательные задачи |
-| `PATCH` | `/api/v1/insights/tasks/{id}` | Обновить статус задачи |
-| `GET` | `/api/v1/pim/products` | PIM каталог товаров |
-| `PATCH` | `/api/v1/pim/products/{mp}/{aid}/{pid}` | Обновить PIM данные товара |
-| `POST` | `/api/v1/pim/products/generate-description` | AI-генерация описания |
-| `POST` | `/api/v1/pim/products/bulk-update` | Массовое обогащение товаров |
-| `GET` | `/api/v1/pim/brands` | Справочник брендов |
-| `POST` | `/api/v1/pim/brands` | Создать бренд |
-| `PATCH` | `/api/v1/pim/brands/{id}` | Обновить бренд |
-| `DELETE` | `/api/v1/pim/brands/{id}` | Удалить бренд |
-| `GET` | `/api/v1/pim/categories` | Справочник категорий |
-| `POST` | `/api/v1/pim/categories` | Создать категорию |
-| `PATCH` | `/api/v1/pim/categories/{id}` | Обновить категорию |
-| `DELETE` | `/api/v1/pim/categories/{id}` | Удалить категорию |
-| `POST` | `/api/v1/integrations/stock/update` | Отправить остатки в WB/Ozon |
-| `GET` | `/api/v1/integrations/subscriptions` | Webhook подписки |
-| `POST` | `/api/v1/integrations/subscriptions` | Создать webhook подписку |
-| `DELETE` | `/api/v1/integrations/subscriptions/{id}` | Удалить webhook подписку |
-| `GET` | `/api/v1/integrations/logs` | Попытки доставки webhook (статус, ретраи, dead letter) |
-| `PATCH` | `/api/v1/integrations/subscriptions/{id}` | Изменить подписку |
-| `POST` | `/api/v1/integrations/subscriptions/{id}/rotate-secret` | Сменить секрет подписи |
-| `POST` | `/api/v1/integrations/subscriptions/{id}/test` | Тестовая доставка |
-| `GET` | `/api/v1/integrations/events` | Поддерживаемые типы событий |
-| `GET` | `/api/v1/bidder/actions`, `/api/v1/repricer/actions` | Журнал смоделированных и применённых изменений ставок и цен |
-| `POST` | `/api/v1/users/{id}/rotate-key`, `/revoke-key` | Ротация или отзыв ключа пользователя |
-
-Правила биддера и репрайсера создаются в режиме **dry-run**: изменения только моделируются и
-записываются в журнал. Отключение dry-run требует scope `execute:marketplace`, а реальная отправка на
-маркетплейс — ещё и глобального переключателя `MARKETPLACE_ACTIONS_ENABLED=true`. Webhooks подписываются
-(`X-BormoStats-Signature`, HMAC-SHA256 от `timestamp.body`) — см. [docs/webhooks.md](docs/webhooks.md).
-
-**Параметры запроса:**
-- `marketplace` — фильтр по маркетплейсу (`wb` или `ozon`)
-- `account_id` — ID аккаунта
-- `date_from` / `date_to` — диапазон дат (макс. 92 дня)
-- `limit` / `offset` — пагинация
-
-**Формат ошибки:** `{"detail":"...","error":{"code":"...","message":"..."}}`
-
-### Admin эндпоинты
-
-Требуют мастер-ключ платформы (`ADMIN_API_KEY`) в `X-API-Key`.
-
-| Метод | Путь | Описание |
-|---|---|---|
-| `GET` | `/api/v1/admin/watermarks` | Текущие водяные знаки (курсоры инкрементальной загрузки) |
-| `POST` | `/api/v1/admin/backfill` | Запуск бэкфилла данных |
-| `POST` | `/api/v1/admin/transforms/recent` | Запуск трансформаций за последний период |
-| `POST` | `/api/v1/admin/transforms/backfill` | Бэкфилл трансформаций |
-| `POST` | `/api/v1/admin/marts/recent` | Перестроить marts за последний период |
-| `POST` | `/api/v1/admin/marts/backfill` | Бэкфилл marts |
-| `POST` | `/api/v1/admin/maintenance/run-automation` | Запуск правил автоматизации |
-| `POST` | `/api/v1/admin/maintenance/prune-raw` | Очистка старых сырых данных |
-| `GET` | `/api/v1/admin/task-runs` | Журнал выполнения задач |
-
----
-
-## ⚙️ Конфигурация
-
-### Обязательные переменные окружения
-
-| Переменная | Описание |
+| Раздел | Эндпоинты |
 |---|---|
-| `BOOTSTRAP_CH_ADMIN_USER` | Администратор ClickHouse (для миграций) |
-| `BOOTSTRAP_CH_ADMIN_PASSWORD` | Пароль администратора ClickHouse |
-| `CH_USER` | Пользователь ClickHouse для приложения |
-| `CH_PASSWORD` | Пароль ClickHouse для приложения |
-| `ADMIN_API_KEY` | Ключ администратора (сгенерировать: `openssl rand -hex 32`) |
-| `WB_TOKEN_STATISTICS` | API токен статистики Wildberries |
-| `WB_TOKEN_ANALYTICS` | API токен аналитики Wildberries |
-| `OZON_CLIENT_ID` | Client ID Ozon |
-| `OZON_API_KEY` | API ключ Ozon |
+| Аналитика | `GET /sales/daily`, `/funnel/daily`, `/ads/daily`, `/stocks/current`, `/kpis`, `/abc-xyz`, `/pnl`, `/freshness` |
+| Финансы | `GET /finance/daily`, `/finance/balance` |
+| Цены | `GET /pricing/breakdown`, `/pricing/compare`; `PUT /pricing/target/{mp}/{offer}`; `POST /pricing/targets/import`, `/pricing/targets/keep`, `/pricing/costs/import` |
+| Репрайсер и биддер | `/repricer/rules`, `/repricer/breakeven`, `/bidder/campaigns`, `/bidder/rules`, `/{bidder,repricer}/actions` |
+| Отзывы | `GET /reviews`, `/reviews/summary`; `POST /reviews/{mp}/{id}/draft`, `/reviews/{mp}/{id}/reply`; шаблоны и настройки |
+| История | `GET /history/repos`, `/history/state`, `/history/commits`, `/history/snapshot`, `/history/changes` |
+| Инсайты | `GET /insights/tasks`, `PATCH /insights/tasks/{id}` |
+| PIM | `/pim/products`, `/pim/brands`, `/pim/categories`, `POST /pim/products/generate-description` |
+| Интеграции | `POST /integrations/stock/update`; `/integrations/subscriptions` (CRUD, ротация секрета, тест); `/integrations/logs` |
+| Выгрузки | `POST /exports`, `GET /exports/{id}`, `/exports/{id}/download` |
+| Пользователи и организации | `POST /auth/login`, `/auth/logout`; `GET /users/me`; `/users`, `/users/{id}/rotate-key`, `/revoke-key`; `/organizations`, `/accounts` |
+| Админ *(мастер-ключ)* | `GET /admin/watermarks`, `/admin/task-runs`; `POST /admin/backfill`, `/admin/transforms/*`, `/admin/marts/*`, `/admin/maintenance/*` |
 
-### Опциональные переменные
+Общие параметры запроса: `marketplace` (`wb` / `ozon`), `account_id`, `date_from` / `date_to`
+(до 92 дней), `limit` / `offset`. Формат ошибки:
+`{"detail": "...", "error": {"code": "...", "message": "..."}}`.
 
-| Переменная | Описание | По умолчанию |
+</details>
+
+> [!IMPORTANT]
+> Правила биддера и репрайсера создаются в режиме **симуляции**: изменения только моделируются и
+> записываются в журнал. Для боевого режима нужны и право `execute:marketplace` на правиле, и
+> `MARKETPLACE_ACTIONS_ENABLED=true` на сервере. Подробнее — [docs/marketplace_actions.md](docs/marketplace_actions.md).
+
+## 🔧 Настройка
+
+Все настройки берутся из `.env`; шаблоны с комментариями — [`.env.example`](.env.example) и
+`.env.{dev,stage,prod}.example`. `make init` сам генерирует все секреты.
+
+<details>
+<summary><b>Маркетплейсы и функции</b></summary>
+
+| Переменная | Назначение |
+|---|---|
+| `WB_TOKEN_STATISTICS`, `WB_TOKEN_ANALYTICS` | Продажи, заказы, остатки, воронка WB *(обязательно для WB)* |
+| `WB_TOKEN_FINANCE` | Баланс и отчёты о реализации WB (по умолчанию — токен статистики) |
+| `WB_TOKEN_MARKETPLACE`, `WB_TOKEN_PRICES`, `WB_TOKEN_PROMOTION` | API записи WB: остатки, цены, ставки рекламы |
+| `WB_TOKEN_CONTENT`, `WB_TOKEN_FEEDBACKS` | История карточек; отзывы и ответы на них |
+| `OZON_CLIENT_ID`, `OZON_API_KEY` | Ozon Seller API *(обязательно для Ozon)* |
+| `OZON_PERF_CLIENT_ID`, `OZON_PERF_CLIENT_SECRET` | Ozon Performance API (реклама) |
+| `TG_BOT_TOKEN`, `TG_CHAT_ID` | Уведомления и дайджесты в Telegram |
+| `AI_API_URL`, `AI_API_KEY`, `AI_MODEL` | Любой OpenAI-совместимый API для описаний и ответов на отзывы |
+| `COMPETITOR_TRACKED_NM_IDS`, `COMPETITOR_TRACKED_OZON_IDS`, `COMPETITOR_TRACKED_KEYWORDS` | Необязательное отслеживание конкурентов |
+| `MARKETPLACE_ACTIONS_ENABLED` | Глобальный выключатель боевых изменений ставок и цен (по умолчанию `false`) |
+| `HISTORY_ENABLED` | Архив всех изменений карточек и загруженных строк (по умолчанию `true`) |
+
+</details>
+
+<details>
+<summary><b>Безопасность и эксплуатация</b></summary>
+
+| Переменная | Назначение | По умолчанию |
 |---|---|---|
-| `OZON_PERF_CLIENT_ID` / `OZON_PERF_CLIENT_SECRET` | OAuth-клиент Ozon Performance API (для рекламы; создаётся в рекламном кабинете) | — |
-| `TG_BOT_TOKEN` | Токен Telegram бота для уведомлений | — |
-| `TG_CHAT_ID` | ID чата Telegram для уведомлений | — |
-| `CH_RO_USER` / `CH_RO_PASSWORD` | Пользователь ClickHouse только для чтения (Metabase) | — |
-| `CH_HTTP_HOST_PORT` | HTTP порт ClickHouse на хосте | `18123` |
-| `BACKEND_HOST_PORT` | HTTP порт бэкенда на хосте | `18080` |
-| `BACKEND_TLS_HOST_PORT` | HTTPS порт бэкенда на хосте | `18443` |
-| `METABASE_HOST_PORT` | Порт Metabase на хосте | `13000` |
-| `STACK_NAME` | Имя стека Docker Compose | `bormostats` |
-| `REDIS_USERNAME` / `REDIS_PASSWORD` | ACL-пользователь Redis (пароль обязателен для Compose) | `bormostats` / — |
-| `WEBHOOK_SECRET_KEY` | Шифрование секретов webhook (обязателен в stage/prod) | — |
-| `ADMIN_ALLOWED_NETWORKS` | Сети (CIDR), из которых разрешён `ADMIN_API_KEY` | любые |
-| `METRICS_BEARER_TOKEN` | Bearer-токен для `/metrics` | — |
-| `MARKETPLACE_ACTIONS_ENABLED` | Глобальный переключатель реальных изменений ставок/цен | `false` |
-| `WB_TOKEN_MARKETPLACE` / `WB_TOKEN_PRICES` / `WB_TOKEN_PROMOTION` | Токены WB для записи (остатки / цены / ставки) | — |
-| `WORKER_CONCURRENCY` / `WORKER_QUEUES` | Размер воркера Celery и его очереди | `4` / все |
-| `CH_QUERY_TIMEOUT_SECONDS` | Лимит времени запроса ClickHouse для API | `30` |
-| `BACKUP_DIR` / `BACKUP_RETENTION_DAYS` / `BACKUP_GPG_RECIPIENT` | Настройки `make backup` | `./backups` / `14` / — |
+| `ADMIN_API_KEY` | Мастер-ключ платформы | генерируется |
+| `ADMIN_ALLOWED_NETWORKS` | CIDR, из которых разрешён мастер-ключ | любые |
+| `WEBHOOK_SECRET_KEY` | Шифрует секреты подписи вебхуков (AES-GCM) | генерируется |
+| `METRICS_BEARER_TOKEN` | Bearer-токен для `/metrics` | генерируется |
+| `CH_RO_USER`, `CH_RO_PASSWORD` | Read-only пользователь ClickHouse для Metabase | — |
+| `CH_QUERY_TIMEOUT_SECONDS` | Серверный лимит времени запросов API | `30` |
+| `WORKER_CONCURRENCY`, `WORKER_QUEUES` | Размер воркера и его очереди | `4` / все |
+| `BACKUP_DIR`, `BACKUP_RETENTION_DAYS`, `BACKUP_GPG_RECIPIENT` | Настройки `make backup` | `./backups` / `14` / — |
 
-### Порты по умолчанию
+</details>
+
+<details>
+<summary><b>Порты по умолчанию</b></summary>
 
 | Сервис | Порт | Доступ |
 |---|---|---|
-| Backend HTTP (nginx) | `18080` | Публичный |
-| Backend HTTPS (nginx) | `18443` | Публичный |
-| Metabase | `13000` | Только локальный |
-| ClickHouse HTTP | `18123` | Только локальный |
-| Worker метрики | `19101` | Только локальный |
-| Beat метрики | `19102` | Только локальный |
+| Nginx HTTP → редирект на HTTPS | `18080` | публичный |
+| Nginx HTTPS (интерфейс + API) | `18443` | публичный |
+| Metabase | `13000` | loopback |
+| ClickHouse HTTP | `18123` | loopback |
+| Метрики worker / beat | `19101` / `19102` | loopback |
 
-> 💡 Измените привязку портов в `.env`, если они конфликтуют с существующими сервисами.
+Если порты заняты другими сервисами, поменяйте их в `.env`.
 
----
+</details>
 
 ## 🛡️ Безопасность
 
-### Усиление безопасности во время выполнения
+- Контейнеры работают не от root, с read-only файловой системой, `no-new-privileges` и `tmpfs` для `/tmp`.
+- Единственная публичная точка входа — Nginx; ClickHouse, Redis, Metabase и метрики остаются во внутренних сетях или на loopback.
+- Приложение ходит в ClickHouse отдельным пользователем, а не бутстрап-администратором.
+- Секреты в логах маскируются; для токенов маркетплейсов описана ротация ([docs/credential_rotation.md](docs/credential_rotation.md)).
+- Зависимости зафиксированы с хешами, образы — по digest, в CI работают `pip-audit`, `npm audit`, Grype и генерация SBOM.
 
-- Все контейнеры приложения работают от непривилегированного пользователя (`app`, uid/gid `10001`)
-- `read_only: true` — файловые системы контейнеров только для чтения
-- `no-new-privileges` — запрещено повышение привилегий
-- `tmpfs` для `/tmp` — только временное хранилище для записи
-- Публичная точка входа — **только** nginx reverse proxy; бэкенд никогда не выставляется напрямую
-- Порты только локального доступа (ClickHouse, Metabase, метрики) на изолированной сети `ops`
-- Redis работает в приватной Docker сети без опубликованных портов
+Нашли уязвимость? Пожалуйста, **не** создавайте публичный issue — сообщите о ней приватно, как описано
+в [SECURITY.md](SECURITY.md).
 
-### Принцип наименьших привилегий
-
-- Admin API ограничен типизированным белым списком эндпоинтов
-- Ключ администратора в веб-интерфейсе хранится в памяти сессии (в пределах вкладки)
-- ClickHouse приложения использует выделенного пользователя (не bootstrap admin)
-- Worker и Beat изолированы от публичной сети
-- Опциональный пользователь ClickHouse только для чтения для Metabase
-
-### Смена учётных данных
-
-Подробные инструкции в `docs/credential_rotation.md`:
-- Токены WB (истекают через 180 дней)
-- Client ID / API Key Ozon
-- Admin API Key
-- Учётные данные ClickHouse
-- Telegram секреты
-
-### Сообщение об уязвимостях
-
-Пожалуйста, не создавайте публичные issue для уязвимостей безопасности. Используйте [GitHub Private Vulnerability Reporting](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability) или свяжитесь с мейнтейнерами напрямую. Подробнее в `SECURITY.md`.
-
----
-
-## 🧪 Тестирование
+## 🧪 Разработка
 
 ```bash
-# Запуск всех тестов
-make test
+python3 -m venv .venv && ./.venv/bin/pip install -r requirements-dev.txt
+make init ENV=dev
 
-# Полная проверка (lint + format + typecheck + test)
-make check
-
-# Нагрузочный smoke тест
-make perf-smoke
-
-# Валидация Docker Compose
-make docker-config
+make lint            # Ruff
+make format-check    # Ruff format
+make typecheck       # MyPy, строгий режим
+make test            # pytest: модульные + интеграционные с ClickHouse/Redis в Docker
+make check-frontend  # npm audit + продакшен-сборка интерфейса
+cd frontend && npm run test:e2e   # E2E smoke-тесты Playwright
 ```
 
-### Структура тестов
+CI на каждый push запускает те же проверки, а также сборку Docker-образов, тесты правил алертов
+Prometheus, тесты браузерного расширения и отчёт по цепочке поставок.
 
-- `tests/unit/` — Модульные тесты (парсеры, валидация, бизнес-логика)
-- `tests/integration/` — Интеграционные тесты (admin API, полные сценарии)
-- `tests/fixtures/` — JSON фикстуры (например, `ozon_cancelled_posting.json`)
+**Как пересоздать скриншоты README** — стек и ключи не нужны: API подменяется моками, а браузеру
+запрещены любые запросы, кроме локального preview-сервера:
 
-Покрытие: модульные тесты, отдельный набор для воркеров, интеграционные тесты на ClickHouse/Redis в Docker, E2E smoke-тесты Playwright и тесты расширения браузера.
-
----
-
-## 📂 Структура репозитория
-
+```bash
+cd frontend && npm run build && npm run screenshots   # → docs/screenshots/{en,ru}/*.png
 ```
-BormoStats/
-├── .github/                    # CI/CD, шаблоны issue/PR, Dependabot
-│   └── workflows/ci.yml        # 4-задачный пайплайн GitHub Actions
-│
-├── backend/                    # FastAPI + Uvicorn
-│   ├── app/
-│   │   ├── main.py             # Точка входа: роутеры, health, метрики
-│   │   ├── api/v1/             # REST API маршруты (sales, stocks, funnel, ads, kpis, bidder, repricer, pnl, abc-xyz, insights, pim, integrations, admin)
-│   │   ├── core/               # Конфигурация, зависимости, логирование, rate limiting
-│   │   ├── db/                 # ClickHouse клиент + SQL запросы
-│   │   ├── models/             # Pydantic модели запросов/ответов
-│   │   ├── services/           # Бизнес-логика (MetricsService, AdminService, PimService, InsightsService, IntegrationsService)
-│   │   └── ui/                 # Встроенный веб-интерфейс (собранное SPA)
-│   └── Dockerfile              # Multi-stage сборка (Node → Python)
-│
-├── workers/                    # Celery воркеры
-│   ├── app/
-│   │   ├── celery_app.py       # Конфигурация Celery приложения
-│   │   ├── beat_schedule.py    # Расписание периодических задач
-│   │   ├── tasks/              # wb_collect, ozon_collect, transforms, marts, maintenance, bidder, repricer, insights
-│   │   ├── sql/                # SQL трансформации и mart определения
-│   │   └── utils/              # Блокировки, водяные знаки, метрики, качество данных
-│   └── Dockerfile
-│
-├── frontend/                   # React 19 SPA
-│   ├── src/                    # Компоненты, страницы, утилиты
-│   ├── vite.config.js
-│   └── package.json
-│
-├── collectors/                 # API клиенты маркетплейсов
-│   ├── wb/                     # Wildberries: клиент, эндпоинты, парсеры
-│   ├── ozon/                   # Ozon: клиент, эндпоинты, парсеры, обработка ошибок
-│   └── common/                 # HTTP клиент, retry, circuit breaker, маскировка
-│
-├── warehouse/                  # Схема ClickHouse и миграции
-│   ├── migrations/             # Последовательные SQL миграции (0001–0020)
-│   ├── apply_migrations.py
-│   └── ddl/                    # Справочные DDL
-│
-├── infra/                      # Инфраструктура
-│   ├── docker/                 # Docker Compose, ClickHouse, Nginx конфиги
-│   ├── monitoring/             # Prometheus конфиг + правила оповещений
-│   └── nginx/                  # Конфиг обратного прокси + TLS сертификаты
-│
-├── automation/                 # Движок YAML правил автоматизации
-│   ├── engine.py               # AST-оценщик правил (без exec/eval)
-│   ├── actions/                # Исполнитель Telegram действий
-│   └── rules/                  # bad_acos, low_stock, no_sales_7d, turnover_alert, stagnant_stock, bad_ad_efficiency, daily_digest
-│
-├── scripts/                    # Утилиты оператора
-│   ├── bootstrap.sh            # Полная инициализация стека
-│   ├── run_local.sh            # Запуск Docker одной командой
-│   ├── backfill.py             # Ручной бэкфилл данных
-│   └── provision_clickhouse_users.py
-│
-├── tests/                      # Модульные и интеграционные тесты (Docker)
-│   ├── unit/                   # Модульные тесты
-│   ├── integration/            # Интеграционные тесты
-│   └── fixtures/               # JSON фикстуры API
-│
-├── docs/                       # Операционная документация
-│   ├── architecture.md         # Архитектура и потоки данных
-│   ├── environments.md         # Модель dev/stage/prod
-│   ├── observability.md        # Метрики, оповещения, Grafana
-│   ├── disaster_recovery.md    # Резервное копирование, RPO/RTO
-│   ├── credential_rotation.md  # Процедуры смены секретов
-│   ├── troubleshooting.md      # Диагностика проблем
-│   ├── runbooks.md             # Процедуры оператора
-│   └── ...                     # Управление релизами, политика миграций и т.д.
-│
-├── screenshots/                # Скриншоты интерфейса для README
-├── .github/                    # CI/CD workflows
-├── Makefile                    # Корневой Makefile
-├── pyproject.toml              # Конфигурация Python проекта
-├── requirements.txt            # Фиксированные production зависимости
-├── requirements-dev.txt        # Зависимости для разработки
-├── .env.example                # Шаблон окружения
-├── docker-compose.yml          # Полное описание стека
-├── README.md                   # Английская версия
-├── README.ru.md                # Русская версия (этот файл)
-├── CONTRIBUTING.md
-├── SECURITY.md
-├── CODE_OF_CONDUCT.md
-└── LICENSE
-```
-
----
 
 ## 📖 Документация
 
-| Документ | Содержание |
+| Тема | Документы |
 |---|---|
-| [Архитектура](docs/architecture.md) | Системная архитектура и потоки данных |
-| [Окружения](docs/environments.md) | Модель dev/stage/prod окружений |
-| [Наблюдаемость](docs/observability.md) | Prometheus метрики, Grafana, оповещения |
-| [Аварийное восстановление](docs/disaster_recovery.md) | Резервное копирование, RPO/RTO, процедуры |
-| [Смена секретов](docs/credential_rotation.md) | Процедуры ротации секретов |
-| [Политика миграций](docs/migration_policy.md) | Политика миграций БД |
-| [Производительность](docs/performance.md) | Целевые показатели и бенчмарки |
-| [Runbooks](docs/runbooks.md) | Процедуры оператора |
-| [Диагностика](docs/troubleshooting.md) | Руководство по диагностике проблем |
-| [Управление релизами](docs/release_management.md) | Версионирование и развёртывание |
-| [Безопасность цепочки поставок](docs/supply_chain_security.md) | Безопасность зависимостей и SBOM |
+| Устройство | [Архитектура](docs/architecture.md) · [Каталог данных](docs/data_catalog.md) · [Хранилище истории](docs/history.md) · [Окружения](docs/environments.md) |
+| Безопасность | [Аутентификация](docs/authentication.md) · [Ротация секретов](docs/credential_rotation.md) · [Цепочка поставок](docs/supply_chain_security.md) |
+| Функции | [Действия на маркетплейсах](docs/marketplace_actions.md) · [Вебхуки](docs/webhooks.md) · [Metabase](docs/metabase.md) |
+| Эксплуатация | [Ранбуки](docs/runbooks.md) · [Диагностика](docs/troubleshooting.md) · [Аварийное восстановление](docs/disaster_recovery.md) · [Наблюдаемость](docs/observability.md) · [Prometheus](docs/prometheus.md) · [Производительность](docs/performance.md) |
+| Релизы | [Журнал изменений](CHANGELOG.md) · [Управление релизами](docs/release_management.md) · [Политика миграций](docs/migration_policy.md) |
 
----
+> Документация в `docs/` написана в основном на английском.
 
 ## 🤝 Участие в разработке
 
-Мы приветствуем вклад! Пожалуйста, ознакомьтесь с [CONTRIBUTING.md](CONTRIBUTING.md) для подробных правил.
-
-### Быстрый старт для контрибьюторов
-
-```bash
-python3 -m venv .venv
-./.venv/bin/pip install -r requirements-dev.txt
-make init ENV=dev
-# Затем укажите WB_TOKEN_STATISTICS, WB_TOKEN_ANALYTICS и ключи OZON_*
-```
-
-### Перед отправкой PR
-
-```bash
-make lint           # Ruff линтинг
-make format-check   # Ruff проверка форматирования
-make typecheck      # MyPy строгая типизация
-make test           # pytest (модульные + интеграционные на Docker)
-```
-
-### Политика зависимостей
-
-- `requirements.txt` и `requirements-dev.txt` — **полностью фиксированные** версии
-- Docker образы в Docker Compose **фиксированы по digest**
-- Обновление зависимостей требует чистого virtualenv и полного прогона тестов
-- CI запускает pip-audit, сканирование Docker образов и генерацию SBOM на каждый push
-- Dependabot автоматически создаёт PR для обновления зависимостей еженедельно
-
----
+Будем рады вашему вкладу! Сначала прочитайте [CONTRIBUTING.md](CONTRIBUTING.md), а перед крупными
+изменениями откройте issue. Сообщения об ошибках и предложения принимаются через
+[шаблоны issue](https://github.com/Bormotoon/BormoStats/issues/new/choose). Участвуя в проекте, вы
+соглашаетесь соблюдать [Кодекс поведения](CODE_OF_CONDUCT.md).
 
 ## ❤️ Поддержать проект
 
-BormoStats бесплатен и self-hosted. Если он помогает вашему бизнесу на маркетплейсах — поддержите разработку:
+BormoStats бесплатный, открытый и развивается в свободное время автора. Если он помогает вашему
+бизнесу на маркетплейсах, поддержите разработку:
 
-[![Поддержать BormoStats](docs/images/donate_banner_ru.png)](https://dalink.to/bormotoon)
+[![Поддержать BormoStats](docs/images/donate_banner_ru.png)](https://www.donationalerts.com/r/bormotoon)
 
----
+Звезда ⭐ на GitHub тоже помогает — так проект легче найти другим продавцам.
 
 ## 📜 Лицензия
 
-[MIT](LICENSE) — можно свободно использовать, модифицировать и распространять.
+BormoStats распространяется по лицензии [GNU General Public License v3.0](LICENSE). Его можно
+использовать, изучать, изменять и распространять; изменённые версии при распространении должны
+выходить под той же лицензией.
+
+Wildberries и Ozon — товарные знаки их правообладателей. BormoStats — независимый проект, не связанный
+с маркетплейсами и не одобренный ими.
 
 ---
 
 <div align="center">
 
-**Сделано с ❤️ для продавцов маркетплейсов, которые ценят приватность своих данных.**
+Сделано с ❤️ для продавцов, которые хотят владеть своими данными.
 
-[![GitHub stars](https://img.shields.io/github/stars/Bormotoon/BormoStats?style=social)](https://github.com/Bormotoon/BormoStats)
-[![GitHub issues](https://img.shields.io/github/issues/Bormotoon/BormoStats?style=social)](https://github.com/Bormotoon/BormoStats/issues)
+[🌐 Страница проекта](https://xn--80abidn3bem.xn--p1ai/projects/bormostats/) ·
+[🐛 Сообщить об ошибке](https://github.com/Bormotoon/BormoStats/issues/new/choose) ·
+[💬 Предложить идею](https://github.com/Bormotoon/BormoStats/issues/new/choose) ·
+[☕ Поддержать](https://www.donationalerts.com/r/bormotoon)
 
 </div>

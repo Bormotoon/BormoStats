@@ -1,175 +1,171 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="screenshots/dashboard.png">
-  <img src="screenshots/dashboard.png" alt="BormoStats Dashboard" width="100%">
-</picture>
-
 <div align="center">
 
-# 📊 BormoStats
+<img src="docs/images/logo.png" alt="BormoStats logo" width="128" height="128">
 
-**Self-hosted marketplace analytics for Wildberries & Ozon sellers**
+# BormoStats
+
+**Self-hosted analytics, pricing and automation for Wildberries & Ozon sellers.**<br>
+Your sales, money, stock, ads and reviews in one place — on your own server, under your own keys.
 
 [![CI](https://github.com/Bormotoon/BormoStats/actions/workflows/ci.yml/badge.svg)](https://github.com/Bormotoon/BormoStats/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/badge/python-3.14-%233776AB?logo=python)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.135-%23009688?logo=fastapi)](https://fastapi.tiangolo.com/)
-[![React](https://img.shields.io/badge/React-19-%2361DAFB?logo=react)](https://react.dev/)
-[![ClickHouse](https://img.shields.io/badge/ClickHouse-26.x-%23FCC624?logo=clickhouse)](https://clickhouse.com/)
-[![License](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
-[![Docker](https://img.shields.io/badge/docker-multi--stage-%232496ED?logo=docker)](https://docker.com/)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](/CONTRIBUTING.md)
+[![Release](https://img.shields.io/github/v/release/Bormotoon/BormoStats?label=release&color=0E7490)](https://github.com/Bormotoon/BormoStats/releases/latest)
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
+[![Last commit](https://img.shields.io/github/last-commit/Bormotoon/BormoStats?color=6D28D9)](https://github.com/Bormotoon/BormoStats/commits/main)
+<br>
+[![Python 3.14](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.135-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![React 19](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)](https://react.dev/)
+[![ClickHouse](https://img.shields.io/badge/ClickHouse-26.3_LTS-FFCC01?logo=clickhouse&logoColor=black)](https://clickhouse.com/)
+[![Celery](https://img.shields.io/badge/Celery-5.6-37814A?logo=celery&logoColor=white)](https://docs.celeryq.dev/)
+[![Redis 8](https://img.shields.io/badge/Redis-8-FF4438?logo=redis&logoColor=white)](https://redis.io/)
+[![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](infra/docker/docker-compose.yml)
+<br>
+[![Donate](https://img.shields.io/badge/%E2%9D%A4-Support%20the%20project-E53935)](https://www.donationalerts.com/r/bormotoon)
 [![педобраз.рф](https://img.shields.io/badge/%D0%BF%D0%B5%D0%B4%D0%BE%D0%B1%D1%80%D0%B0%D0%B7.%D1%80%D1%84-project_page-D64500)](https://xn--80abidn3bem.xn--p1ai/projects/bormostats/)
-[![Donate](https://img.shields.io/badge/%E2%9D%A4-Support%20the%20project-E53935)](https://dalink.to/bormotoon)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
----
+**English** · [Русский](README.ru.md)
 
-<p align="center">
-  <a href="README.ru.md"><strong>Русский</strong></a> •
-  <strong>English</strong>
-</p>
+[Features](#-features) ·
+[Screenshots](#-screenshots) ·
+[Quick start](#-quick-start) ·
+[Architecture](#-architecture) ·
+[API](#-api) ·
+[Configuration](#-configuration) ·
+[Docs](#-documentation) ·
+[Contributing](#-contributing)
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Architecture](#-architecture) • [Screenshots](#-screenshots) • [API](#-api) • [Configuration](#-configuration) • [Documentation](#-documentation) • [Contributing](#-contributing)
-
-🌐 **Project page:** [педобраз.рф/projects/bormostats](https://xn--80abidn3bem.xn--p1ai/projects/bormostats/)
+🌐 Project page: **[педобраз.рф/projects/bormostats](https://xn--80abidn3bem.xn--p1ai/projects/bormostats/)**
 
 </div>
 
----
+<br>
 
-## 🚀 Features
+<p align="center">
+  <img src="docs/screenshots/en/dashboard.png" alt="BormoStats dashboard: tasks of the day, health, revenue, balances, revenue and ad spend trends" width="100%">
+</p>
 
-| Capability | Description |
-|---|---|
-| **Automated Data Collection** | Incremental collection of sales, orders, stocks, funnels, ads, and finances from WB & Ozon APIs |
-| **Analytics Warehouse** | Three-layer data warehouse in ClickHouse (raw → staging → marts) |
-| **REST API** | FastAPI backend with endpoints for sales, stocks, funnels, ads, and KPIs |
-| **Modern Web UI** | Built-in React 19 SPA with dark theme, dashboards, and admin panel |
-| **BI Dashboards** | Metabase integration for custom dashboards and ad-hoc SQL queries |
-| **Telegram Alerts** | YAML-defined automation rules: high ACOS, low stock, no sales |
-| **Bidder** | Automated bid management for WB/Ozon ad campaigns with CPM/position rules |
-| **Repricer** | Dynamic pricing with margin validation and break-even analysis |
-| **P&L** | Full profit & loss statements with indirect expense tracking |
-| **ABC/XYZ** | Automated assortment analysis (revenue contribution + demand stability) |
-| **Actionable Insights** | Daily anomaly detection → task queue with Telegram digest |
-| **PIM** | Product enrichment: brands, categories, SEO, AI-generated descriptions |
-| **Webhooks** | Stock update integration endpoint (1C/МойСклад compatible), webhook subscriptions |
-| **Admin API** | Backfill, transforms, watermarks, task audit, and maintenance operations |
-| **Observability** | Prometheus metrics, Grafana dashboards, alert rules |
-| **Supply Chain Security** | pip-audit, Docker image scanning (Grype), SBOM generation (SPDX) |
-
-### Project Boundaries
-
-- ✅ Collects data **only** from your own seller accounts
-- ✅ Fully self-hosted — no data sent to third parties
-- ❌ Does not scrape competitor data or marketplace catalogues
-- ❌ Does not provide market-wide analytics
+> [!NOTE]
+> Every screenshot in this README shows a **fictional demo shop** generated by
+> [`frontend/scripts/readme-screenshots.mjs`](frontend/scripts/readme-screenshots.mjs) against a mocked API.
+> No real seller data is shown.
 
 ---
 
-## 🖼️ Screenshots
+## 💡 Why BormoStats
 
-| Page | Preview | Description |
-|---|---|---|
-| **Dashboard** | ![Dashboard](screenshots/dashboard.png) | Operational overview: service health, revenue, sales qty, ad cost, stock units, revenue/ad spend trends, top products table |
-| **Sales** | ![Sales](screenshots/sales.png) | Daily sales analytics: aggregated revenue, qty, returns, payout — trend chart and full data table with marketplace/account filters |
-| **Stocks** | ![Stocks](screenshots/stocks.png) | Current inventory: total stock count, low-stock alerts, warehouse breakdown, top products bar chart |
-| **Funnel** | ![Funnel](screenshots/funnel.png) | Conversion funnel: views, adds-to-cart, orders — with CR order/cart averages, daily orders trend |
-| **Ads** | ![Ads](screenshots/ads.png) | Advertising performance: cost, revenue, clicks, orders, ACOS, ROMI — dual trend charts (cost vs revenue by day) |
-| **KPIs** | ![KPIs](screenshots/kpis.png) | 30-day KPIs: revenue, qty, returns, ad cost aggregated by marketplace/account with bar chart |
-| **Watermarks** | ![Watermarks](screenshots/watermarks.png) | Admin — ingestion watermarks cursor table showing data source sync status (wb_sales, ozon_postings, etc.) |
-| **Task Runs** | ![Task Runs](screenshots/taskRuns.png) | Admin — worker task audit log with run status, rows ingested, error messages |
-| **Admin Actions** | ![Admin Actions](screenshots/adminActions.png) | Admin — backfill, transform, and maintenance operations panel with day-range input and response viewer |
-| **System** | ![System](screenshots/system.png) | Service health, readiness, and Prometheus metrics sample
+Seller cabinets on Wildberries and Ozon each show a slice of the picture: one report for sales, another
+for payouts, a third for ads, and none of them across both marketplaces. Analytics SaaS fixes that by
+asking for your API keys and keeping your data on its servers.
 
----
+BormoStats is the self-hosted alternative. It pulls everything from the **official seller APIs** of your
+own accounts into a ClickHouse warehouse on your machine and gives you a web UI, a REST API, BI
+dashboards and Telegram alerts on top of it — plus tools that act: a repricer that keeps the price the
+buyer sees, an ad bidder, and AI-assisted replies to reviews. Anything that writes to a marketplace
+starts in **dry-run** and needs a global switch to go live.
 
-## 🏗️ Architecture
+## ✨ Features
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    CELERY BEAT (Scheduler)                          │
-│    Schedules collectors, transforms, marts, automation, pruning    │
-└────────────┬────────────────┬──────────────────┬───────────────────┘
-             │                │                  │
-             ▼                ▼                  ▼
-┌─────────────────┐ ┌─────────────────┐ ┌───────────────────────────┐
-│  WB Collector   │ │  Ozon Collector │ │  Transforms & Marts       │
-│  (API client)   │ │  (API client)   │ │  (SQL transformations)   │
-└────────┬────────┘ └────────┬────────┘ └─────────────┬─────────────┘
-         │                   │                        │
-         ▼                   ▼                        ▼
-┌──────────────────────────────────────────────────────────────────────┐
-│                     CLICKHOUSE (Data Warehouse)                       │
-│    raw_* → stg_* → mrt_*  |  sys_watermarks  |  sys_task_runs       │
-└─────────────────────────────┬────────────────────────────────────────┘
-                              │
-                              ▼
-┌───────────────────────────────────────────────────────┐
-│              FastAPI Backend                           │
-│  /api/v1/* (analytics)  /api/v1/admin/* (admin)      │
-│  /ui (web UI)  /metrics (Prometheus)                  │
-└─────────────────────────┬─────────────────────────────┘
-                          │
-                          ▼
-┌──────────────────────────────┐  ┌──────────────┐
-│  Nginx Reverse Proxy (TLS)  │  │   Metabase   │
-│  → public entry point        │  │  (BI dashboards)│
-└──────────────────────────────┘  └──────────────┘
-```
+<table>
+<tr>
+<td width="50%" valign="top">
 
-### Components
+### 📊 Analytics
 
-| Component | Technology | Purpose |
-|---|---|---|
-| **Backend** | FastAPI + Uvicorn | REST API, web UI, health/ready/metrics |
-| **Worker** | Celery | Data collection, transforms, marts, automation |
-| **Beat** | Celery Beat | Periodic task scheduler |
-| **ClickHouse** | ClickHouse 26.x | OLAP analytics warehouse |
-| **Redis** | Redis 7.x | Celery broker + distributed locks |
-| **Nginx** | Nginx 1.27 | Reverse proxy with TLS termination |
-| **Metabase** | Metabase | BI platform for dashboards |
-| **Prometheus** | Prometheus | Metrics collection and alerting |
+- **Sales, funnel, stocks, ads** for WB and Ozon in one schema, with per-account filters
+- **Finance**: balances, accruals broken down by commission, logistics, storage, penalties, payouts
+- **P&L** by month with cost of goods and indirect expenses
+- **ABC/XYZ** assortment analysis (revenue share × demand stability)
+- **KPIs** over 30 days and an ops **dashboard** with tasks of the day
+- **Excel everywhere**: per-column filters, sorting and `.xlsx` export of any table
 
-### Data Pipeline
+</td>
+<td width="50%" valign="top">
 
-Data flows through three processing layers:
+### 🤖 Automation
 
-1. **Raw layer** (`raw_*`) — Raw API responses with JSON payloads and normalized key fields for idempotent ingestion
-2. **Staging layer** (`stg_*`) — Canonical normalized model with unified schema across WB and Ozon
-3. **Mart layer** (`mrt_*`) — Aggregated BI views ready for dashboards and API consumption
+- **Prices & repricer**: full price breakdown (discounts, commission, logistics, margin, break-even); keep the *buyer* price you set, upload targets from Excel
+- **Bidder**: CPM / position rules for WB and Ozon campaigns
+- **Reviews**: AI drafts, templates per rating, optional auto-replies to rating-only reviews
+- **Insights**: daily anomaly detection → task list and Telegram digest
+- **YAML rules engine**: high ACOS, low stock, no sales, stagnant stock… (no `eval`)
 
-### Tech Stack
+</td>
+</tr>
+<tr>
+<td valign="top">
 
-| Category | Technologies |
-|---|---|
-| **Language** | Python 3.14 |
-| **Web Framework** | FastAPI 0.135, Uvicorn 0.41 |
-| **Task Queue** | Celery 5.6, Redis 7.2 |
-| **Storage** | ClickHouse 26.x (clickhouse-connect 0.13) |
-| **Frontend** | React 19, Vite 8, Tailwind CSS 4, Recharts 3, Motion |
-| **HTTP Client** | httpx 0.28 |
-| **Validation** | Pydantic 2.12, pydantic-settings 2.13 |
-| **Metrics** | prometheus_client 0.24 |
-| **Logging** | structlog 25.5 (structured JSON) |
-| **Automation** | PyYAML 6.0 (YAML rules engine) |
-| **BI** | Metabase (Docker) |
-| **Infrastructure** | Docker Compose, Nginx, Prometheus, Grafana |
-| **Linting** | Ruff 0.15 |
-| **Typing** | MyPy 1.19 (strict mode) |
-| **Tests** | pytest 9.0, pytest-asyncio |
-| **Security** | pip-audit, Anchore Grype, SPDX SBOM |
+### 🗄️ Data platform
 
----
+- **Incremental collectors** with watermarks, retries, circuit breaker and secret redaction
+- **Three-layer warehouse**: `raw_*` → `stg_*` → `mrt_*` in ClickHouse
+- **History store**: git-like archive of every product-card change and ingested row — ask “what was the price on March 3?”
+- **Metabase** for ad-hoc SQL and custom dashboards
+- **PIM**, **webhooks** (HMAC-signed) and a stock-update endpoint for 1C / МойСклад
 
-## ⚡ Quick Start
+</td>
+<td valign="top">
 
-### Prerequisites
+### 🛡️ Built for production
 
-- Active Wildberries and/or Ozon seller accounts with API tokens
-- **make** (for convenience commands)
+- **Multi-tenant**: organizations, roles (`owner` … `viewer`), per-user API keys stored as scrypt hashes
+- **Audit log** of every mutating request
+- **Hardened containers**: non-root, read-only FS, `no-new-privileges`, TLS-only entry point
+- **Prometheus** metrics and alert rules, structured JSON logs
+- **Supply chain**: hash-locked deps, digest-pinned images, pip-audit, Grype, SPDX SBOM
 
-### Option A: Docker (recommended)
+</td>
+</tr>
+</table>
 
-Requires **Docker** & **Docker Compose v2**.
+### Project boundaries
+
+- ✅ Collects data from **your own** seller accounts through the official APIs
+- ✅ Fully self-hosted — nothing is sent to third parties (the optional AI features call the OpenAI-compatible endpoint *you* configure)
+- ✅ Optional competitor tracking covers only the SKUs and keywords you list explicitly
+- ❌ No marketplace-wide catalog scraping, no market-share analytics
+
+## 📸 Screenshots
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/en/sales.png" alt="Sales page"><br><sub><b>Sales</b> — revenue, units, returns and payout by day, with a per-product table and Excel export</sub></td>
+<td width="50%"><img src="docs/screenshots/en/finance.png" alt="Finance page"><br><sub><b>Finance</b> — balances of both cabinets and how the accrual adds up, item by item</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/en/pricing.png" alt="Prices page"><br><sub><b>Prices</b> — from list price to the buyer's price, fees, margin and break-even; desired prices kept by the repricer</sub></td>
+<td><img src="docs/screenshots/en/reviews.png" alt="Reviews page"><br><sub><b>Reviews</b> — unanswered reviews from both marketplaces, AI drafts, templates and auto-replies</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/en/stocks.png" alt="Stocks page"><br><sub><b>Stocks</b> — units by warehouse, top products and low-stock highlights</sub></td>
+<td><img src="docs/screenshots/en/ads.png" alt="Ads page"><br><sub><b>Ads</b> — spend, ad revenue, clicks, orders, ACOS and ROMI per campaign and day</sub></td>
+</tr>
+</table>
+
+<details>
+<summary><b>More screenshots</b> — funnel, bidder, P&amp;L, ABC/XYZ, KPIs, system</summary>
+<br>
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/en/funnel.png" alt="Funnel page"><br><sub><b>Funnel</b> — views → cart → orders with conversion rates</sub></td>
+<td width="50%"><img src="docs/screenshots/en/bidder.png" alt="Bidder page"><br><sub><b>Bidder</b> — target / max CPM and position per campaign, dry-run toggle and change log</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/en/pnl.png" alt="P&L page"><br><sub><b>P&amp;L</b> — gross, operating and net profit with the expense structure</sub></td>
+<td><img src="docs/screenshots/en/abcXyz.png" alt="ABC/XYZ page"><br><sub><b>ABC/XYZ</b> — leaders, stars and illiquid stock at a glance</sub></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/en/kpis.png" alt="KPIs page"><br><sub><b>KPIs</b> — 30-day revenue, units, returns and ad cost per account</sub></td>
+<td><img src="docs/screenshots/en/system.png" alt="System page"><br><sub><b>System</b> — liveness, readiness and dependency latency</sub></td>
+</tr>
+</table>
+</details>
+
+The UI is bilingual (Russian / English) and switches on the fly.
+
+## 🚀 Quick start
+
+**You need:** Docker with Compose v2, `make`, and API tokens of a Wildberries and/or Ozon seller account.
 
 ```bash
 git clone https://github.com/Bormotoon/BormoStats.git
@@ -177,467 +173,300 @@ cd BormoStats
 make init ENV=dev        # or ENV=stage / ENV=prod
 ```
 
-`make init` copies `.env.<env>.example` to `.env` and generates strong random values for
-`CH_PASSWORD`, `BOOTSTRAP_CH_ADMIN_PASSWORD`, `REDIS_PASSWORD`, `ADMIN_API_KEY`,
-`WEBHOOK_SECRET_KEY` and `METRICS_BEARER_TOKEN`. Then set the marketplace credentials:
+`make init` copies `.env.<env>.example` to `.env` and fills every secret (ClickHouse, Redis, admin key,
+webhook and metrics tokens) with strong random values. Add your marketplace tokens to `.env`:
 
 | Variable | Where to get it |
 |---|---|
-| `WB_TOKEN_STATISTICS` | Wildberries → Seller portal → Settings → API (category “Statistics”) |
-| `WB_TOKEN_ANALYTICS` | Wildberries → Seller portal → Settings → API (category “Analytics”) |
-| `OZON_CLIENT_ID` | Ozon → Settings → API |
-| `OZON_API_KEY` | Ozon → Settings → API |
+| `WB_TOKEN_STATISTICS`, `WB_TOKEN_ANALYTICS` | WB seller portal → Settings → API access (“Statistics”, “Analytics”) |
+| `OZON_CLIENT_ID`, `OZON_API_KEY` | Ozon Seller → Settings → API keys |
+| `OZON_PERF_CLIENT_ID`, `OZON_PERF_CLIENT_SECRET` | Ozon ad cabinet → Settings → API *(optional, for ads)* |
+
+Then start the stack:
 
 ```bash
 make up
 ```
 
-This starts ClickHouse, Redis, Backend, Worker, Beat, Nginx (TLS), Metabase — all containerized.
+| What | Where |
+|---|---|
+| 🖥️ Web UI | <https://localhost:18443/ui/> *(self-signed certificate)* |
+| ❤️ Health check | `curl -k https://localhost:18443/health/live` |
+| 📈 Metabase | <http://localhost:13000> *(loopback only)* |
 
-> 💡 First build takes 3–5 minutes. Subsequent builds use Docker layer caching.
+> [!TIP]
+> The first build takes 3–5 minutes; later builds reuse the Docker layer cache. Data starts flowing on the
+> next scheduler tick — use **Admin → Backfill** (or `POST /api/v1/admin/backfill`) to load history right away.
 
-```bash
-# Health check (HTTP on 18080 redirects to HTTPS on 18443; the cert is self-signed)
-curl -k https://localhost:18443/health/live
+<details>
+<summary><b>Run without Docker (bare metal)</b></summary>
 
-# Web UI
-open https://localhost:18443/ui/
-
-# Metabase BI
-open http://localhost:13000
-```
-
-### Option B: OS (bare metal)
-
-Requires **Python 3.14+**, **Node.js 22+**, **ClickHouse**, and **Redis** installed on the host.
+Requires **Python 3.14+**, **Node.js 22+**, **ClickHouse** and **Redis** on the host.
 
 ```bash
-git clone https://github.com/Bormotoon/BormoStats.git
-cd BormoStats
 make init ENV=dev
+# set the marketplace tokens, point CH_HOST / REDIS_URL at your services
+# (clear REDIS_USERNAME if your Redis has no ACL user)
+make install   # venv, dependencies, frontend build, migrations
+make run       # backend + Celery worker + Celery beat in one terminal
 ```
 
-Fill in the marketplace credentials as above and point `CH_HOST` / `REDIS_URL` to your local
-services (clear `REDIS_USERNAME` if your Redis has no ACL user), then:
+For a server, install the bundled systemd units with `sudo make install-systemd`.
 
-```bash
-make install
-make run
+</details>
+
+<details>
+<summary><b>Useful make targets</b></summary>
+
+| Command | What it does |
+|---|---|
+| `make up` / `make down` / `make logs` / `make ps` | Manage the Docker stack |
+| `make migrate` / `make migrate-status` | Apply / inspect ClickHouse migrations |
+| `make backup` / `make restore-check` | Back up ClickHouse; verify a backup restores |
+| `make check` | Lint, format check, strict typing, migration manifest and tests |
+| `make check-tokens` | Validate marketplace credentials and smoke-check API access |
+| `make perf-smoke` | Quick load smoke test of the API |
+
+Run `make help` for the full list.
+
+</details>
+
+## 🧩 Architecture
+
+```mermaid
+flowchart LR
+    subgraph MP["Marketplaces"]
+        WB["Wildberries API"]
+        OZ["Ozon Seller + Performance API"]
+    end
+
+    Beat["Celery Beat<br/>scheduler"] --> Worker
+    MP -- "collect" --> Worker["Celery workers<br/>collectors · transforms · marts<br/>bidder · repricer · reviews"]
+    Worker -. "bids, prices, replies<br/>(dry-run by default)" .-> MP
+    Worker <--> Redis[("Redis<br/>broker · locks")]
+    Worker --> CH[("ClickHouse<br/>raw → stg → mrt<br/>+ history store")]
+    CH --> API["FastAPI backend<br/>REST · auth · audit"]
+    API --> Nginx["Nginx<br/>TLS entry point"]
+    Nginx --> UI["React SPA<br/>/ui"]
+    CH --> MB["Metabase"]
+    Worker --> TG["Telegram alerts"]
+    API --> WH["Webhooks"]
 ```
 
-`make install` creates a venv, installs deps, builds the frontend, and applies migrations.
-`make run` starts Backend (uvicorn), Celery Worker, and Celery Beat in a single terminal.
+| Component | Technology | Role |
+|---|---|---|
+| **Backend** | FastAPI, Uvicorn | REST API, web UI, health, metrics |
+| **Workers** | Celery 5.6 | Collection, transforms, marts, automation, marketplace actions |
+| **Scheduler** | Celery Beat | Periodic tasks |
+| **Warehouse** | ClickHouse 26.3 LTS | OLAP storage, marts and the history store |
+| **Broker** | Redis 8 | Celery broker and distributed locks |
+| **Frontend** | React 19, Vite, Tailwind CSS 4, Recharts | Single-page web UI served under `/ui` |
+| **Proxy** | Nginx | The only public entry point, TLS termination |
+| **BI** | Metabase | Ad-hoc SQL and dashboards on a read-only user |
 
-For production, use the provided systemd units:
+**Data flow.** Collectors write raw API responses with normalized keys to `raw_*` tables (idempotent
+re-ingestion), transforms build a single cross-marketplace model in `stg_*`, and marts (`mrt_*`) hold the
+aggregates the API and dashboards read. Watermarks in `sys_watermarks` make collection incremental, and
+`sys_task_runs` keeps an audit of every run. See [docs/architecture.md](docs/architecture.md).
 
-```bash
-sudo make install-systemd
+<details>
+<summary><b>Repository layout</b></summary>
+
+```text
+BormoStats/
+├── backend/            FastAPI app: api/v1 routes, services, SQL queries, models
+├── workers/            Celery app, beat schedule, tasks, SQL transforms and marts
+├── collectors/         WB, Ozon and competitor API clients, parsers, HTTP retry/circuit breaker
+├── warehouse/          ClickHouse migrations (with rollbacks) and reference DDL
+├── frontend/           React SPA, Playwright E2E tests, README screenshot generator
+├── automation/         YAML rules engine and Telegram actions
+├── browser_extension/  Competitor overlay for WB / Ozon product pages
+├── infra/              Docker Compose, Nginx, ClickHouse, Redis, Prometheus config
+├── dashboards/         Metabase / Grafana dashboards
+├── scripts/            Bootstrap, backup, backfill and operator utilities
+├── tests/              Unit, integration (Docker) and fixture-based tests
+└── docs/               Operations, security and design documentation
 ```
 
----
-
-## 🖥️ Web UI
-
-The built-in React SPA is available at `https://localhost:18443/ui/`. It features:
-
-- **Dashboard** — Operational overview with key metrics, charts, and task widget
-- **Sales** — Daily sales analytics with filters
-- **Stocks** — Current stock levels by warehouse
-- **Funnel** — Conversion funnel (views → cart → orders)
-- **Ads** — Advertising performance metrics
-- **Bidder** — Ad campaign bid management with CPM/position sliders
-- **Repricer** — Dynamic pricing rules with break-even table
-- **P&L** — Profit & loss statement with expense breakdown
-- **ABC/XYZ** — Assortment analysis with badge classification (AX = Leader, CZ = Illiquid)
-- **KPIs** — Key performance indicators over time
-- **PIM** — Product catalog enrichment: brands, categories, SEO, AI description generation
-- **Integrations** — Stock upload to WB/Ozon, webhook subscriptions, webhook logs
-- **Watermarks** — Ingestion watermark cursors (admin)
-- **Task Runs** — Worker task audit log (admin)
-- **Admin Actions** — Backfill, transform, mart management, maintenance operations
-- **System** — Service health, readiness, Prometheus metrics
-
-> 🔐 Sign in with a **personal user API key** (Settings → API key). The key is kept in the tab's
-> session storage only and is sent with every request; “Sign out” clears it. The platform master key
-> (`ADMIN_API_KEY`) also works, but should be reserved for operators.
-
----
+</details>
 
 ## 📡 API
 
-### Authentication and tenancy
+Every endpoint lives under `/api/v1` and requires an `X-API-Key` header. The OpenAPI contract is served
+to authenticated callers at `/api/v1/openapi.json`.
 
-Every `/api/v1/*` endpoint requires `X-API-Key` (anonymous reads can be re-enabled for local
-development only with `PUBLIC_READ_API=true`). Two kinds of keys exist:
+- **User keys** (`bsk_<id>_<secret>`) are shown once and stored as salted scrypt hashes. The organization
+  and role come from the key — a request can never pick another tenant. Keys expire, rotate and revoke.
+- **Platform master key** (`ADMIN_API_KEY`) is for operators only: admin operations and cross-tenant work
+  via `X-Organization-Id`. Restrict it to your networks with `ADMIN_ALLOWED_NETWORKS`.
 
-- **User keys** (`bsk_<id>_<secret>`) are issued by `POST /api/v1/users` and
-  `POST /api/v1/users/{id}/rotate-key` and shown **once**; only a salted scrypt hash is stored.
-  The caller's organization and role (`owner`, `admin`, `manager`, `analyst`, `viewer`) come from
-  the key — request bodies and query strings can never select another tenant.
-- **Platform master key** (`ADMIN_API_KEY`) for operators: ops endpoints (`/admin`, `/organizations`,
-  `/costs`, `/ai`) and cross-tenant work via the `X-Organization-Id` header. Restrict it with
-  `ADMIN_ALLOWED_NETWORKS`.
+```bash
+curl -k -H "X-API-Key: $BORMOSTATS_KEY" \
+  "https://localhost:18443/api/v1/sales/daily?marketplace=wb&date_from=2026-10-01&date_to=2026-10-18"
+```
 
-Keys can expire (`api_key_ttl_days`), be revoked (`POST /users/{id}/revoke-key`) and revoked in bulk
-(`POST /users/revoke-all-keys`). Every mutating request is written to `sys_audit_log` with actor,
-organization, route, status and `X-Request-ID`. The OpenAPI contract is served to authenticated
-callers at `/api/v1/openapi.json`.
+<details>
+<summary><b>Endpoint overview</b></summary>
 
-### Analytics Endpoints
-
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/v1/sales/daily` | Daily sales |
-| `GET` | `/api/v1/stocks/current` | Current stock levels |
-| `GET` | `/api/v1/funnel/daily` | Daily funnel (views → cart → orders) |
-| `GET` | `/api/v1/ads/daily` | Daily advertising |
-| `GET` | `/api/v1/kpis` | Key performance indicators |
-| `GET` | `/api/v1/history/repos` | What the history store holds (entities, commits per repo) |
-| `GET` | `/api/v1/history/commits` | Commit log of a product or archived statistics record |
-| `GET` | `/api/v1/history/commits/{commit_id}` | One commit: recorded document and changed fields |
-| `GET` | `/api/v1/history/snapshot` | A product or record as it was at a given time |
-| `GET` | `/api/v1/history/changes` | Field-level change history (e.g. every price change) |
-| `GET` | `/api/v1/abc-xyz` | ABC/XYZ assortment analysis |
-| `GET` | `/api/v1/pnl` | Profit & loss statement |
-| `GET` | `/api/v1/organizations` | Multi-tenant organization management |
-| `GET` | `/api/v1/users/me` | Current user profile |
-| `GET` | `/api/v1/accounts` | Account switcher list |
-| `GET` | `/api/v1/bidder/...` | Bidder rules & campaign status |
-| `GET` | `/api/v1/repricer/...` | Repricer rules & break-even data |
-| `GET` | `/api/v1/insights/tasks` | Actionable recommendation tasks |
-| `PATCH` | `/api/v1/insights/tasks/{id}` | Update task status |
-| `GET` | `/api/v1/pim/products` | PIM product catalog |
-| `PATCH` | `/api/v1/pim/products/{mp}/{aid}/{pid}` | Update single product PIM data |
-| `POST` | `/api/v1/pim/products/generate-description` | AI description generation |
-| `POST` | `/api/v1/pim/products/bulk-update` | Bulk product enrichment |
-| `GET` | `/api/v1/pim/brands` | Brand reference list |
-| `POST` | `/api/v1/pim/brands` | Create brand |
-| `PATCH` | `/api/v1/pim/brands/{id}` | Update brand |
-| `DELETE` | `/api/v1/pim/brands/{id}` | Delete brand |
-| `GET` | `/api/v1/pim/categories` | Category reference list |
-| `POST` | `/api/v1/pim/categories` | Create category |
-| `PATCH` | `/api/v1/pim/categories/{id}` | Update category |
-| `DELETE` | `/api/v1/pim/categories/{id}` | Delete category |
-| `POST` | `/api/v1/integrations/stock/update` | Push stock to WB/Ozon APIs |
-| `GET` | `/api/v1/integrations/subscriptions` | Webhook subscriptions |
-| `POST` | `/api/v1/integrations/subscriptions` | Create webhook subscription (signing secret returned once) |
-| `PATCH` | `/api/v1/integrations/subscriptions/{id}` | Update webhook subscription |
-| `POST` | `/api/v1/integrations/subscriptions/{id}/rotate-secret` | Rotate signing secret |
-| `POST` | `/api/v1/integrations/subscriptions/{id}/test` | Send a test delivery |
-| `DELETE` | `/api/v1/integrations/subscriptions/{id}` | Delete webhook subscription |
-| `GET` | `/api/v1/integrations/events` | Supported webhook event types |
-| `GET` | `/api/v1/integrations/logs` | Webhook delivery attempts (status, retries, dead letter) |
-| `GET` | `/api/v1/bidder/actions`, `/api/v1/repricer/actions` | Audit trail of simulated/applied bid and price changes |
-| `POST` | `/api/v1/users/{id}/rotate-key`, `/revoke-key` | Rotate or revoke a user API key |
-
-Bidder and repricer rules are created in **dry-run** mode: changes are only simulated and recorded.
-Disabling dry-run needs the `execute:marketplace` scope, and live writes additionally require the
-global switch `MARKETPLACE_ACTIONS_ENABLED=true`. Webhooks are signed (`X-BormoStats-Signature`,
-HMAC-SHA256 over `timestamp.body`) — see [docs/webhooks.md](docs/webhooks.md).
-
-**Query Parameters:**
-- `marketplace` — filter by marketplace (`wb` or `ozon`)
-- `account_id` — account ID
-- `date_from` / `date_to` — date range (max 92 days)
-- `limit` / `offset` — pagination
-
-**Error Format:** `{"detail":"...","error":{"code":"...","message":"..."}}`
-
-### Admin Endpoints
-
-Require the platform master key (`ADMIN_API_KEY`) in `X-API-Key`.
-
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/api/v1/admin/watermarks` | Current watermarks (incremental collection cursors) |
-| `POST` | `/api/v1/admin/backfill` | Trigger data backfill |
-| `POST` | `/api/v1/admin/transforms/recent` | Run transforms for recent period |
-| `POST` | `/api/v1/admin/transforms/backfill` | Backfill transforms |
-| `POST` | `/api/v1/admin/marts/recent` | Rebuild marts for recent period |
-| `POST` | `/api/v1/admin/marts/backfill` | Backfill marts |
-| `POST` | `/api/v1/admin/maintenance/run-automation` | Run automation rules |
-| `POST` | `/api/v1/admin/maintenance/prune-raw` | Prune old raw data |
-| `GET` | `/api/v1/admin/task-runs` | Task run audit log |
-
----
-
-## ⚙️ Configuration
-
-### Required Environment Variables
-
-| Variable | Description |
+| Area | Endpoints |
 |---|---|
-| `BOOTSTRAP_CH_ADMIN_USER` | ClickHouse admin user (for migrations) |
-| `BOOTSTRAP_CH_ADMIN_PASSWORD` | ClickHouse admin password |
-| `CH_USER` | ClickHouse application user |
-| `CH_PASSWORD` | ClickHouse application password |
-| `ADMIN_API_KEY` | Admin API key (generate: `openssl rand -hex 32`) |
-| `WB_TOKEN_STATISTICS` | WB statistics API token |
-| `WB_TOKEN_ANALYTICS` | WB analytics API token |
-| `OZON_CLIENT_ID` | Ozon client ID |
-| `OZON_API_KEY` | Ozon API key |
+| Analytics | `GET /sales/daily`, `/funnel/daily`, `/ads/daily`, `/stocks/current`, `/kpis`, `/abc-xyz`, `/pnl`, `/freshness` |
+| Finance | `GET /finance/daily`, `/finance/balance` |
+| Prices | `GET /pricing/breakdown`, `/pricing/compare`; `PUT /pricing/target/{mp}/{offer}`; `POST /pricing/targets/import`, `/pricing/targets/keep`, `/pricing/costs/import` |
+| Repricer & bidder | `/repricer/rules`, `/repricer/breakeven`, `/bidder/campaigns`, `/bidder/rules`, `/{bidder,repricer}/actions` |
+| Reviews | `GET /reviews`, `/reviews/summary`; `POST /reviews/{mp}/{id}/draft`, `/reviews/{mp}/{id}/reply`; templates and settings |
+| History | `GET /history/repos`, `/history/state`, `/history/commits`, `/history/snapshot`, `/history/changes` |
+| Insights | `GET /insights/tasks`, `PATCH /insights/tasks/{id}` |
+| PIM | `/pim/products`, `/pim/brands`, `/pim/categories`, `POST /pim/products/generate-description` |
+| Integrations | `POST /integrations/stock/update`; `/integrations/subscriptions` (CRUD, rotate secret, test); `/integrations/logs` |
+| Exports | `POST /exports`, `GET /exports/{id}`, `/exports/{id}/download` |
+| Users & orgs | `POST /auth/login`, `/auth/logout`; `GET /users/me`; `/users`, `/users/{id}/rotate-key`, `/revoke-key`; `/organizations`, `/accounts` |
+| Admin *(master key)* | `GET /admin/watermarks`, `/admin/task-runs`; `POST /admin/backfill`, `/admin/transforms/*`, `/admin/marts/*`, `/admin/maintenance/*` |
 
-### Optional Variables
+Common query parameters: `marketplace` (`wb` / `ozon`), `account_id`, `date_from` / `date_to`
+(up to 92 days), `limit` / `offset`. Errors look like
+`{"detail": "...", "error": {"code": "...", "message": "..."}}`.
 
-| Variable | Description | Default |
+</details>
+
+> [!IMPORTANT]
+> Bidder and repricer rules are created in **dry-run**: changes are simulated and logged only. Going live
+> takes both the `execute:marketplace` scope on the rule and `MARKETPLACE_ACTIONS_ENABLED=true` on the
+> server. Details in [docs/marketplace_actions.md](docs/marketplace_actions.md).
+
+## 🔧 Configuration
+
+All settings come from `.env`; the annotated templates are [`.env.example`](.env.example) and
+`.env.{dev,stage,prod}.example`. `make init` generates every secret for you.
+
+<details>
+<summary><b>Marketplace and feature variables</b></summary>
+
+| Variable | Purpose |
+|---|---|
+| `WB_TOKEN_STATISTICS`, `WB_TOKEN_ANALYTICS` | WB sales, orders, stocks, funnel *(required for WB)* |
+| `WB_TOKEN_FINANCE` | WB balance and realization reports (defaults to the statistics token) |
+| `WB_TOKEN_MARKETPLACE`, `WB_TOKEN_PRICES`, `WB_TOKEN_PROMOTION` | WB write APIs: stocks, prices, ad bids |
+| `WB_TOKEN_CONTENT`, `WB_TOKEN_FEEDBACKS` | Product-card history; reviews and replies |
+| `OZON_CLIENT_ID`, `OZON_API_KEY` | Ozon Seller API *(required for Ozon)* |
+| `OZON_PERF_CLIENT_ID`, `OZON_PERF_CLIENT_SECRET` | Ozon Performance API (ads) |
+| `TG_BOT_TOKEN`, `TG_CHAT_ID` | Telegram alerts and digests |
+| `AI_API_URL`, `AI_API_KEY`, `AI_MODEL` | Any OpenAI-compatible endpoint for descriptions and review replies |
+| `COMPETITOR_TRACKED_NM_IDS`, `COMPETITOR_TRACKED_OZON_IDS`, `COMPETITOR_TRACKED_KEYWORDS` | Optional competitor tracking |
+| `MARKETPLACE_ACTIONS_ENABLED` | Global kill switch for live bid / price changes (default `false`) |
+| `HISTORY_ENABLED` | Archive every product-card change and ingested row (default `true`) |
+
+</details>
+
+<details>
+<summary><b>Security and operations variables</b></summary>
+
+| Variable | Purpose | Default |
 |---|---|---|
-| `OZON_PERF_CLIENT_ID` / `OZON_PERF_CLIENT_SECRET` | Ozon Performance API OAuth client (for ads; issued in the ad cabinet) | — |
-| `TG_BOT_TOKEN` | Telegram bot token for alerts | — |
-| `TG_CHAT_ID` | Telegram chat ID for alerts | — |
-| `CH_RO_USER` / `CH_RO_PASSWORD` | Read-only ClickHouse user for Metabase | — |
-| `CH_HTTP_HOST_PORT` | ClickHouse HTTP host port | `18123` |
-| `BACKEND_HOST_PORT` | Backend HTTP host port | `18080` |
-| `BACKEND_TLS_HOST_PORT` | Backend HTTPS host port | `18443` |
-| `METABASE_HOST_PORT` | Metabase host port | `13000` |
-| `STACK_NAME` | Docker Compose stack name | `bormostats` |
-| `REDIS_USERNAME` / `REDIS_PASSWORD` | Redis ACL user (password required by Compose) | `bormostats` / — |
-| `WEBHOOK_SECRET_KEY` | Encrypts webhook signing secrets at rest (required in stage/prod) | — |
-| `ADMIN_ALLOWED_NETWORKS` | CIDRs allowed to use `ADMIN_API_KEY` | any |
-| `METRICS_BEARER_TOKEN` | Bearer token required on `/metrics` | — |
-| `MARKETPLACE_ACTIONS_ENABLED` | Global kill switch for live bid/price changes | `false` |
-| `WB_TOKEN_MARKETPLACE` / `WB_TOKEN_PRICES` / `WB_TOKEN_PROMOTION` | WB write-API tokens (stocks / prices / bids); `WB_TOKEN_PRICES` also feeds price history | — |
-| `WB_TOKEN_CONTENT` | WB Content API token for product-card history | — |
-| `HISTORY_ENABLED` | Archive every ingested row and product-card change ([docs/history.md](docs/history.md)) | `true` |
-| `WORKER_CONCURRENCY` / `WORKER_QUEUES` | Celery worker size and consumed queues | `4` / all |
-| `CH_QUERY_TIMEOUT_SECONDS` | Server-side ClickHouse query limit for the API | `30` |
-| `BACKUP_DIR` / `BACKUP_RETENTION_DAYS` / `BACKUP_GPG_RECIPIENT` | `make backup` settings | `./backups` / `14` / — |
+| `ADMIN_API_KEY` | Platform master key | generated |
+| `ADMIN_ALLOWED_NETWORKS` | CIDRs allowed to use the master key | any |
+| `WEBHOOK_SECRET_KEY` | Encrypts webhook signing secrets at rest (AES-GCM) | generated |
+| `METRICS_BEARER_TOKEN` | Bearer token required on `/metrics` | generated |
+| `CH_RO_USER`, `CH_RO_PASSWORD` | Read-only ClickHouse user for Metabase | — |
+| `CH_QUERY_TIMEOUT_SECONDS` | Server-side limit for API queries | `30` |
+| `WORKER_CONCURRENCY`, `WORKER_QUEUES` | Worker size and consumed queues | `4` / all |
+| `BACKUP_DIR`, `BACKUP_RETENTION_DAYS`, `BACKUP_GPG_RECIPIENT` | `make backup` settings | `./backups` / `14` / — |
 
-### Default Ports
+</details>
 
-| Service | Port | Scope |
+<details>
+<summary><b>Default ports</b></summary>
+
+| Service | Port | Exposure |
 |---|---|---|
-| Backend HTTP (nginx) | `18080` | Public |
-| Backend HTTPS (nginx) | `18443` | Public |
-| Metabase | `13000` | Loopback |
-| ClickHouse HTTP | `18123` | Loopback |
-| Worker metrics | `19101` | Loopback |
-| Beat metrics | `19102` | Loopback |
+| Nginx HTTP → HTTPS redirect | `18080` | public |
+| Nginx HTTPS (UI + API) | `18443` | public |
+| Metabase | `13000` | loopback |
+| ClickHouse HTTP | `18123` | loopback |
+| Worker / Beat metrics | `19101` / `19102` | loopback |
 
-> 💡 Change port mappings in `.env` if they conflict with existing services.
+Change the mappings in `.env` if they clash with other services.
 
----
+</details>
 
 ## 🛡️ Security
 
-### Runtime Hardening
+- Containers run as a non-root user with read-only file systems, `no-new-privileges` and `tmpfs` for `/tmp`.
+- Nginx is the only public entry point; ClickHouse, Redis, Metabase and metrics stay on private networks or loopback.
+- The application uses a dedicated ClickHouse user, never the bootstrap admin.
+- Secrets in logs are redacted; marketplace tokens have documented rotation ([docs/credential_rotation.md](docs/credential_rotation.md)).
+- Dependencies are hash-locked, images are pinned by digest, and CI runs `pip-audit`, `npm audit`, Grype and SBOM generation.
 
-- All application containers run as non-root user (`app`, uid/gid `10001`)
-- `read_only: true` — container filesystems are read-only
-- `no-new-privileges` — privilege escalation disabled
-- `tmpfs` for `/tmp` — writable temp storage only
-- Public entry point is **only** nginx reverse proxy; backend is never exposed directly
-- Loopback-only ports (ClickHouse, Metabase, metrics) on isolated `ops` network
-- Redis runs on a private Docker network with no published ports
+Found a vulnerability? Please **don't** open a public issue — report it privately as described in
+[SECURITY.md](SECURITY.md).
 
-### Least Privilege Principle
-
-- Admin API restricted to a typed allowlist of endpoints
-- Admin key in web UI stored in session memory (tab-scoped)
-- ClickHouse application uses a dedicated user (not bootstrap admin)
-- Worker and beat isolated from public network
-- Optional read-only ClickHouse user for Metabase
-
-### Credential Rotation
-
-Detailed instructions in `docs/credential_rotation.md`:
-- WB tokens (expire after 180 days)
-- Ozon Client ID / API Key
-- Admin API Key
-- ClickHouse credentials
-- Telegram secrets
-
-### Vulnerability Reporting
-
-Please do **not** file public issues for security vulnerabilities. Use [GitHub Private Vulnerability Reporting](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability) or contact maintainers directly. See `SECURITY.md` for details.
-
----
-
-## 🧪 Testing
+## 🧪 Development
 
 ```bash
-# Run all tests
-make test
+python3 -m venv .venv && ./.venv/bin/pip install -r requirements-dev.txt
+make init ENV=dev
 
-# Full check suite (lint + format + typecheck + test)
-make check
-
-# Load smoke test
-make perf-smoke
-
-# Validate Docker Compose config
-make docker-config
+make lint            # Ruff
+make format-check    # Ruff format
+make typecheck       # MyPy, strict
+make test            # pytest: unit + ClickHouse/Redis integration via Docker
+make check-frontend  # npm audit + production build of the web UI
+cd frontend && npm run test:e2e   # Playwright E2E smoke tests
 ```
 
-### Test Structure
+CI runs the same checks plus Docker image builds, Prometheus alert-rule tests, browser-extension tests and
+a supply-chain report on every push.
 
-- `tests/unit/` — Unit tests (parsers, validation, business logic)
-- `tests/integration/` — Integration tests (admin API, full scenarios)
-- `tests/fixtures/` — JSON fixtures (e.g., `ozon_cancelled_posting.json`)
+**Regenerating the README screenshots** — no stack or keys needed, the API is mocked and the browser is
+blocked from reaching anything but the local preview server:
 
-Coverage: unit tests, a worker suite, Docker-based ClickHouse/Redis integration tests, Playwright E2E smoke tests and browser-extension tests.
-
----
-
-## 📂 Repository Structure
-
+```bash
+cd frontend && npm run build && npm run screenshots   # → docs/screenshots/{en,ru}/*.png
 ```
-BormoStats/
-├── .github/                    # CI/CD, issue/PR templates, Dependabot
-│   └── workflows/ci.yml        # 4-job GitHub Actions pipeline
-│
-├── backend/                    # FastAPI + Uvicorn
-│   ├── app/
-│   │   ├── main.py             # Entry point: routers, health, metrics
-│   │   ├── api/v1/             # REST API routes (sales, stocks, funnel, ads, kpis, bidder, repricer, pnl, abc-xyz, insights, pim, integrations, admin)
-│   │   ├── core/               # Config, deps, logging, rate limiting
-│   │   ├── db/                 # ClickHouse client + SQL queries
-│   │   ├── models/             # Pydantic request/response models
-│   │   ├── services/           # Business logic (MetricsService, AdminService, PimService, InsightsService, IntegrationsService)
-│   │   └── ui/                 # Embedded web UI (built SPA)
-│   └── Dockerfile              # Multi-stage build (Node → Python)
-│
-├── workers/                    # Celery workers
-│   ├── app/
-│   │   ├── celery_app.py       # Celery application config
-│   │   ├── beat_schedule.py    # Periodic task schedule
-│   │   ├── tasks/              # wb_collect, ozon_collect, transforms, marts, maintenance, bidder, repricer, insights
-│   │   ├── sql/                # SQL transforms and mart definitions
-│   │   └── utils/              # Locking, watermarks, metrics, data quality
-│   └── Dockerfile
-│
-├── frontend/                   # React 19 SPA
-│   ├── src/                    # Components, pages, utilities
-│   ├── vite.config.js
-│   └── package.json
-│
-├── collectors/                 # Marketplace API clients
-│   ├── wb/                     # Wildberries: client, endpoints, parsers
-│   ├── ozon/                   # Ozon: client, endpoints, parsers, error handling
-│   └── common/                 # HTTP client, retry, circuit breaker, redaction
-│
-├── warehouse/                  # ClickHouse schema and migrations
-│   ├── migrations/             # Sequential SQL migrations (0001–0020)
-│   ├── apply_migrations.py
-│   └── ddl/                    # Reference DDL
-│
-├── infra/                      # Infrastructure
-│   ├── docker/                 # Docker Compose, ClickHouse, Nginx config
-│   ├── monitoring/             # Prometheus config + alert rules
-│   └── nginx/                  # Reverse proxy config + TLS certs
-│
-├── automation/                 # YAML automation rules engine
-│   ├── engine.py               # AST-based rule evaluator (no exec/eval)
-│   ├── actions/                # Telegram action executor
-│   └── rules/                  # bad_acos, low_stock, no_sales_7d, turnover_alert, stagnant_stock, bad_ad_efficiency, daily_digest
-│
-├── scripts/                    # Operator utilities
-│   ├── bootstrap.sh            # Full stack initialization
-│   ├── run_local.sh            # One-command Docker launcher
-│   ├── backfill.py             # Manual data backfill
-│   └── provision_clickhouse_users.py
-│
-├── tests/                      # Unit and Docker-based integration tests
-│   ├── unit/                   # Unit tests
-│   ├── integration/            # Integration tests
-│   └── fixtures/               # JSON API fixtures
-│
-├── docs/                       # Operational documentation
-│   ├── architecture.md         # Architecture and data flows
-│   ├── environments.md         # Dev/stage/prod model
-│   ├── observability.md        # Metrics, alerts, Grafana
-│   ├── disaster_recovery.md    # Backups, RPO/RTO
-│   ├── credential_rotation.md  # Secret rotation procedures
-│   ├── troubleshooting.md      # Problem diagnosis
-│   ├── runbooks.md             # Operator procedures
-│   └── ...                     # Release management, migration policy, etc.
-│
-├── screenshots/                # UI screenshots for README
-├── .github/                    # CI/CD workflows
-├── Makefile                    # Root Makefile
-├── pyproject.toml              # Python project config
-├── requirements.txt            # Pinned production dependencies
-├── requirements-dev.txt        # Development dependencies
-├── .env.example                # Environment template
-├── docker-compose.yml          # Full stack definition
-├── README.md                   # English (default)
-├── README.ru.md                # Русская версия
-├── CONTRIBUTING.md
-├── SECURITY.md
-├── CODE_OF_CONDUCT.md
-└── LICENSE
-```
-
----
 
 ## 📖 Documentation
 
-| Document | Contents |
+| Topic | Documents |
 |---|---|
-| [Architecture](docs/architecture.md) | System architecture and data flows |
-| [Environments](docs/environments.md) | Dev/stage/prod environment model |
-| [Observability](docs/observability.md) | Prometheus metrics, Grafana, alerts |
-| [Disaster Recovery](docs/disaster_recovery.md) | Backups, RPO/RTO, recovery procedures |
-| [Credential Rotation](docs/credential_rotation.md) | Secret rotation procedures |
-| [Migration Policy](docs/migration_policy.md) | Database migration policy |
-| [Performance](docs/performance.md) | Performance targets and benchmarks |
-| [Runbooks](docs/runbooks.md) | Operator runbooks |
-| [Troubleshooting](docs/troubleshooting.md) | Problem diagnosis guide |
-| [Release Management](docs/release_management.md) | Versioning and deployment |
-| [Supply Chain Security](docs/supply_chain_security.md) | Dependency security and SBOM |
-
----
+| Design | [Architecture](docs/architecture.md) · [Data catalog](docs/data_catalog.md) · [History store](docs/history.md) · [Environments](docs/environments.md) |
+| Security | [Authentication](docs/authentication.md) · [Credential rotation](docs/credential_rotation.md) · [Supply chain](docs/supply_chain_security.md) |
+| Features | [Marketplace actions](docs/marketplace_actions.md) · [Webhooks](docs/webhooks.md) · [Metabase](docs/metabase.md) |
+| Operations | [Runbooks](docs/runbooks.md) · [Troubleshooting](docs/troubleshooting.md) · [Disaster recovery](docs/disaster_recovery.md) · [Observability](docs/observability.md) · [Prometheus](docs/prometheus.md) · [Performance](docs/performance.md) |
+| Releases | [Changelog](CHANGELOG.md) · [Release management](docs/release_management.md) · [Migration policy](docs/migration_policy.md) |
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first and open an issue before
+large changes. Bug reports and feature requests go through the
+[issue templates](https://github.com/Bormotoon/BormoStats/issues/new/choose). By taking part you agree to
+follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
-### Quick Start for Contributors
+## ❤️ Support the project
 
-```bash
-python3 -m venv .venv
-./.venv/bin/pip install -r requirements-dev.txt
-make init ENV=dev
-# Then set WB_TOKEN_STATISTICS, WB_TOKEN_ANALYTICS and OZON_* keys
-```
+BormoStats is free, open source and built in the author's spare time. If it helps your marketplace
+business, consider supporting development:
 
-### Before Submitting a PR
+[![Support BormoStats](docs/images/donate_banner.png)](https://www.donationalerts.com/r/bormotoon)
 
-```bash
-make lint           # Ruff linting
-make format-check   # Ruff format check
-make typecheck      # MyPy strict typing
-make test           # pytest (unit + Docker-based integration)
-```
-
-### Dependency Policy
-
-- `requirements.txt` and `requirements-dev.txt` are **fully pinned** versions
-- Docker images in Docker Compose are **pinned by digest**
-- Dependency updates require a clean virtualenv and full test suite run
-- CI runs pip-audit, Docker image scanning, and SBOM generation on every push
-- Dependabot automatically creates PRs for dependency updates weekly
-
----
-
-## ❤️ Support the Project
-
-BormoStats is free and self-hosted. If it helps your marketplace business — support development:
-
-[![Support BormoStats](docs/images/donate_banner.png)](https://dalink.to/bormotoon)
-
----
+A ⭐ on GitHub helps too — it makes the project easier for other sellers to find.
 
 ## 📜 License
 
-[MIT](LICENSE) — feel free to use, modify, and distribute.
+BormoStats is licensed under the [GNU General Public License v3.0](LICENSE). You may use, study, modify
+and share it; distributed modified versions must be released under the same license.
+
+Wildberries and Ozon are trademarks of their respective owners. BormoStats is an independent project and
+is not affiliated with or endorsed by either marketplace.
 
 ---
 
 <div align="center">
 
-**Built with ❤️ for marketplace sellers who value their data privacy.**
+Made with ❤️ for marketplace sellers who want to own their data.
 
-[![GitHub stars](https://img.shields.io/github/stars/Bormotoon/BormoStats?style=social)](https://github.com/Bormotoon/BormoStats)
-[![GitHub issues](https://img.shields.io/github/issues/Bormotoon/BormoStats?style=social)](https://github.com/Bormotoon/BormoStats/issues)
+[🌐 Project page](https://xn--80abidn3bem.xn--p1ai/projects/bormostats/) ·
+[🐛 Report a bug](https://github.com/Bormotoon/BormoStats/issues/new/choose) ·
+[💬 Request a feature](https://github.com/Bormotoon/BormoStats/issues/new/choose) ·
+[☕ Donate](https://www.donationalerts.com/r/bormotoon)
 
 </div>
