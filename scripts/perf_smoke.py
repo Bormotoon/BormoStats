@@ -52,10 +52,10 @@ from app.utils.runtime import get_ch_client as get_worker_ch_client, get_redis_c
 from warehouse import apply_migrations
 
 CLICKHOUSE_IMAGE = (
-    "clickhouse/clickhouse-server@sha256:"
-    "51beb66e790213a53ddacacf133d3067106f5aa0c446c5b40b9b0c3ae0cd39fc"
+    "clickhouse/clickhouse-server:26.3.55.2@sha256:"
+    "003f61d1adff8e119dbed052d19f48a19e26a97a707aee5ca55c7145cade01a4"
 )
-REDIS_IMAGE = "redis@sha256:ee64a64eaab618d88051c3ade8f6352d11531fcf79d9a4818b9b183d8c1d18ba"
+REDIS_IMAGE = "redis:8.10.2@sha256:2c2dff791878316e3b083188be0d578423b24813cdda5de0e80ea4f7b3e6bfd6"
 TRUNCATE_TABLES = (
     "sys_watermarks",
     "sys_task_runs",

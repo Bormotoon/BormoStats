@@ -34,3 +34,9 @@ updates:
     directory: "/infra/docker"
     schedule:
       interval: "weekly"
+    ignore:
+      # The production host (Intel i7-3770) has no AVX2; ClickHouse builds after 26.3 need
+      # x86-64-v3 and die with "Illegal instruction" (26.8 checked). Keep the 26.3 LTS
+      # patch releases; lift this when the server is replaced.
+      - dependency-name: "clickhouse/clickhouse-server"
+        versions: [">= 26.4"]
