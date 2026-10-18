@@ -13,5 +13,5 @@ python-dateutil==2.9.0.post0
 PyYAML==6.0.3
 redis==7.2.1
 structlog==25.5.0
-tzdata==2025.3
+tzdata==2026.5
 uvicorn[standard]==0.41.0
