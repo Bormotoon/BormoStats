@@ -118,3 +118,60 @@ test("a cross-origin API base is rejected in production builds", async ({ page }
   await baseInput.blur();
   await expect(page.getByRole("alert")).toContainText(/VITE_ALLOWED_API_ORIGINS/);
 });
+
+function priceRow(offerId, target) {
+  return {
+    marketplace: "wb", account_id: "default", offer_id: offerId, product_id: offerId, title: `Товар ${offerId}`, image_url: null,
+    list_price: 1000, seller_discount_pct: 50, seller_price: 500, mp_discount_pct: 20, mp_discount_scope: "product",
+    mp_discount_samples: 5, buyer_price: 400, commission_pct: 30, commission_rub: 150, acquiring_rub: 0, logistics_rub: 70,
+    fees_rub: 220, cost_price: null, margin_rub: null, margin_pct: null, breakeven_price: null, min_price: null,
+    auto_actions_enabled: null, price_seen_at: null, rule_id: target ? `r-${offerId}` : null, mode: target ? "buyer_price" : null,
+    target_price: target, rule_is_active: target ? true : null, rule_dry_run: target ? true : null, target_gap_pct: null,
+  };
+}
+
+async function templateSheet(page, button) {
+  const [download] = await Promise.all([page.waitForEvent("download"), button.click()]);
+  const bytes = await (await download.createReadStream()).toArray();
+  // the zip is stored uncompressed, so the sheet's XML is readable as is
+  const text = Buffer.concat(bytes).toString("utf8");
+  return text.slice(text.indexOf("<sheetData>"), text.indexOf("</sheetData>"));
+}
+
+test("price templates hold only the headers and an upload marks the loaded articles", async ({ page }) => {
+  await mockApi(page);
+  let imported = false;
+  await page.route("**/api/v1/pricing/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/breakdown")) return json(route, 200, [priceRow("btn1", null), priceRow("btn2", imported ? 450 : null)]);
+    if (path.endsWith("/status")) return json(route, 200, { marketplace_actions_enabled: true });
+    if (path.endsWith("/targets/import")) {
+      expect(route.request().postDataJSON()).toEqual({ marketplace: "wb", text: "Артикул продавца\tЖелаемая цена\nbtn2\t450" });
+      imported = true;
+      return json(route, 200, { imported: 1, errors: [], not_found: [], updated: ["btn2"] });
+    }
+    return json(route, 200, []);
+  });
+  await signInWithKey(page);
+  await page.goto("#/pricing");
+
+  const prices = await templateSheet(page, page.getByRole("button", { name: "Шаблон Excel" }));
+  expect(prices.match(/<c /g)).toHaveLength(2);
+  expect(prices).toContain("Артикул продавца");
+  expect(prices).toContain("Желаемая цена для МП (WB)");
+
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "цены.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("Артикул продавца;Желаемая цена\nbtn2;450\n"),
+  });
+  await expect(page.getByText("загружено из файла")).toHaveCount(1);
+  await expect(page.getByLabel("Желаемая цена btn2")).toHaveValue("450");
+  await page.getByLabel(/Показать только загруженные \(1\)/).check();
+  await expect(page.getByLabel("Желаемая цена btn1")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Себестоимость" }).click();
+  const costs = await templateSheet(page, page.getByRole("button", { name: "Шаблон Excel" }));
+  expect(costs.match(/<c /g)).toHaveLength(2);
+  expect(costs).toContain("Себестоимость");
+});

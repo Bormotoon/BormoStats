@@ -1,7 +1,14 @@
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import pytest
-from app.services.pricing_service import _breakdown_row, _compare_row, parse_article_table
+from app.services.pricing_service import (
+    PricingService,
+    _breakdown_row,
+    _compare_row,
+    parse_article_table,
+)
 
 
 def test_cost_table_accepts_spreadsheet_pastes() -> None:
@@ -32,6 +39,15 @@ def test_cost_table_accepts_spreadsheet_pastes() -> None:
 def test_cost_table_reports_bad_lines(line: str, error: str) -> None:
     costs, errors = parse_article_table(line, "цена")
     assert costs == {} and errors == [error]
+
+
+def test_cost_import_of_a_filled_template_lists_the_articles() -> None:
+    ch = MagicMock()
+    text = "\n".join(["Артикул продавца;Себестоимость", "btn2\t95", "btn1\t120,5", "btn3\t"])
+    result = PricingService(ch, "org").import_costs(text)
+    assert (result.imported, result.errors, result.updated) == (2, [], ["btn1", "btn2"])
+    rows = ch.insert.call_args.args[1]
+    assert [(r[1], r[2]) for r in rows] == [("btn2", 95.0), ("btn1", 120.5)]
 
 
 def _row(**overrides: object) -> dict[str, object]:

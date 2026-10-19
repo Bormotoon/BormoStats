@@ -217,7 +217,10 @@ class PricingService:
         found = {card["offer_id"] for card in cards}
         not_found = sorted(offer for offer in prices if offer not in found)
         return TargetPriceImportResult(
-            imported=len(found), errors=errors, not_found=not_found[:_MAX_IMPORT_ERRORS]
+            imported=len(found),
+            errors=errors,
+            not_found=not_found[:_MAX_IMPORT_ERRORS],
+            updated=sorted(found),
         )
 
     def keep_prices(self, marketplace: str, keep: bool) -> int:
@@ -275,7 +278,9 @@ class PricingService:
 
     def import_costs(self, text: str) -> OfferCostImportResult:
         costs, errors = parse_article_table(text, "себестоимость")
-        return OfferCostImportResult(imported=self.set_costs(costs), errors=errors)
+        return OfferCostImportResult(
+            imported=self.set_costs(costs), errors=errors, updated=sorted(costs)
+        )
 
 
 def parse_article_table(text: str, value_name: str) -> tuple[dict[str, float], list[str]]:

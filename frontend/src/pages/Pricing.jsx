@@ -135,12 +135,13 @@ function DiscountCell({ row }) {
   );
 }
 
-function TargetCell({ row, onSave }) {
+function TargetCell({ row, onSave, fromFile }) {
   const gap = row.target_gap_pct;
   const off = gap !== null && gap !== undefined && Math.abs(gap) > GAP_WARN_PCT;
   return (
     <div className="space-y-1">
       <EditableNumber value={row.target_price} onSave={(v) => onSave(row, v)} label={`Желаемая цена ${row.offer_id}`} />
+      {fromFile && <span className="block text-[11px] leading-tight font-medium text-[var(--color-primary)] whitespace-nowrap">загружено из файла</span>}
       {row.rule_id && (
         <div className="text-[11px] leading-tight text-[var(--color-on-surface-variant)]">
           {MODE_SHORT[row.mode] && <span className="block">{MODE_SHORT[row.mode]}</span>}
@@ -223,7 +224,18 @@ function FileImportButton({ onText, busy, children }) {
   );
 }
 
-function ImportResult({ result, what }) {
+/** Shows only the articles of the last upload, which are also highlighted in the table. */
+function LoadedToggle({ count, on, onChange }) {
+  if (!count) return null;
+  return (
+    <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
+      <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} className="accent-[var(--color-primary)]" />
+      Показать только загруженные ({count})
+    </label>
+  );
+}
+
+function ImportResult({ result, what, onlyLoaded, setOnlyLoaded }) {
   if (!result) return null;
   return (
     <div className="text-sm space-y-1" role="status">
@@ -232,6 +244,12 @@ function ImportResult({ result, what }) {
         {result.errors.length > 0 && <span className="text-red-600"> · ошибок: {result.errors.length}</span>}
         {result.not_found?.length > 0 && <span className="text-amber-700"> · нет на площадке: {result.not_found.length}</span>}
       </p>
+      {result.updated?.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <span className="text-xs text-[var(--color-on-surface-variant)]">Загруженные строки подсвечены в таблице ниже.</span>
+          {setOnlyLoaded && <LoadedToggle count={result.updated.length} on={onlyLoaded} onChange={setOnlyLoaded} />}
+        </div>
+      )}
       {result.errors.length > 0 && (
         <ul className="text-xs text-red-700 font-mono list-disc pl-5">
           {result.errors.map((e) => <li key={e}>{e}</li>)}
@@ -245,7 +263,7 @@ function ImportResult({ result, what }) {
 }
 
 /** Desired prices of one marketplace: a template, an upload and whether they are kept live. */
-function TargetsPanel({ marketplace, rows, onImported, actionsEnabled }) {
+function TargetsPanel({ marketplace, rows, onImported, actionsEnabled, onlyLoaded, setOnlyLoaded }) {
   const label = MARKETPLACES.find((m) => m.id === marketplace)?.label || marketplace;
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
@@ -259,27 +277,19 @@ function TargetsPanel({ marketplace, rows, onImported, actionsEnabled }) {
   const live = withTarget.filter((r) => r.rule_is_active && !r.rule_dry_run).length;
   const priceColumn = `Желаемая цена для МП (${label})`;
 
-  const downloadTemplate = () => {
-    const articles = [...new Map(rows.map((r) => [r.offer_id, r])).values()].sort((a, b) => a.offer_id.localeCompare(b.offer_id));
-    downloadXlsx(
-      `Желаемые цены ${label}`,
-      `Желаемые цены ${label}`,
-      [
-        { label: "Артикул продавца", type: "text", width: 30 },
-        { label: priceColumn, type: "money", width: 22 },
-        { label: "Название (не загружается)", type: "text", width: 50 },
-        { label: "Цена для покупателя сейчас (не загружается)", type: "money", width: 24 },
-      ],
-      articles.map((r) => [r.offer_id, r.mode === "buyer_price" ? r.target_price : null, r.title, r.buyer_price])
-    );
-  };
+  // only the headers: the seller pastes their own articles and prices under them
+  const downloadTemplate = () =>
+    downloadXlsx(`Желаемые цены ${label}`, `Желаемые цены ${label}`, [
+      { label: "Артикул продавца", type: "text", width: 30 },
+      { label: priceColumn, type: "money", width: 28 },
+    ], []);
 
   const upload = async (text) => {
     setBusy(true);
     const res = await safeCall(() => request("/api/v1/pricing/targets/import", { method: "POST", admin: true, body: { marketplace, text } }));
     setBusy(false);
     setResult(res.ok ? res.data : { imported: 0, errors: [res.error] });
-    if (res.ok && res.data.imported) onImported();
+    onImported(res.ok ? res.data.updated : []);
   };
 
   const keep = async (value) => {
@@ -304,17 +314,18 @@ function TargetsPanel({ marketplace, rows, onImported, actionsEnabled }) {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className={buttonClass} onClick={downloadTemplate} disabled={!rows.length}>
+          <button type="button" className={buttonClass} onClick={downloadTemplate}>
             <FileXls size={16} aria-hidden="true" /> Шаблон Excel
           </button>
           <FileImportButton onText={upload} busy={busy}>Загрузить из Excel</FileImportButton>
         </div>
       </div>
       <p className="text-xs text-[var(--color-on-surface-variant)]">
-        Файл для {label} из двух столбцов: «Артикул продавца» и «{priceColumn}». Первая строка с заголовками пропускается,
-        пустая цена не меняет текущую. Цены других площадок загружаются отдельным файлом на своей вкладке.
+        В шаблоне для {label} только заголовки «Артикул продавца» и «{priceColumn}». Вставьте под них два столбца из своей
+        таблицы — в любом порядке и сколько угодно артикулов — и загрузите файл: цена встанет к своему артикулу. Артикулы,
+        которых нет в файле, и пустые цены не меняются. Цены других площадок загружаются отдельным файлом на своей вкладке.
       </p>
-      <ImportResult result={result} what="Загружено цен" />
+      <ImportResult result={result} what="Загружено цен" onlyLoaded={onlyLoaded} setOnlyLoaded={setOnlyLoaded} />
 
       <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-[var(--color-outline-variant)]">
         <button
@@ -344,15 +355,29 @@ function TargetsPanel({ marketplace, rows, onImported, actionsEnabled }) {
 function Breakdown({ rows, setRows, onError, onReload, actionsEnabled }) {
   const [marketplace, setMarketplace] = useState("wb");
   const [query, setQuery] = useState("");
+  // articles of the last desired-price upload on this marketplace, highlighted in the table
+  const [loaded, setLoaded] = useState(new Set());
+  const [onlyLoaded, setOnlyLoaded] = useState(false);
+  useEffect(() => {
+    setLoaded(new Set());
+    setOnlyLoaded(false);
+  }, [marketplace]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows.filter(
       (r) =>
         r.marketplace === marketplace &&
+        (!onlyLoaded || loaded.has(r.offer_id)) &&
         (!q || r.offer_id.toLowerCase().includes(q) || (r.title || "").toLowerCase().includes(q))
     );
-  }, [rows, marketplace, query]);
+  }, [rows, marketplace, query, onlyLoaded, loaded]);
+
+  const onImported = (offers) => {
+    setLoaded(new Set(offers));
+    setOnlyLoaded(false);
+    if (offers.length) onReload();
+  };
 
   const seenAt = visible[0]?.price_seen_at;
 
@@ -427,8 +452,10 @@ function Breakdown({ rows, setRows, onError, onReload, actionsEnabled }) {
       <TargetsPanel
         marketplace={marketplace}
         rows={rows.filter((r) => r.marketplace === marketplace)}
-        onImported={onReload}
+        onImported={onImported}
         actionsEnabled={actionsEnabled}
+        onlyLoaded={onlyLoaded}
+        setOnlyLoaded={setOnlyLoaded}
       />
 
       <div className="flex items-start gap-2 text-xs text-[var(--color-on-surface-variant)]">
@@ -466,8 +493,12 @@ function Breakdown({ rows, setRows, onError, onReload, actionsEnabled }) {
             <tbody className="divide-y divide-[var(--color-outline-variant)]">
               {visible.map((row) => {
                 const loss = row.margin_rub !== null && row.margin_rub < 0;
+                const fromFile = loaded.has(row.offer_id);
                 return (
-                  <tr key={`${row.account_id}:${row.offer_id}`} className="hover:bg-[var(--color-surface-container)]/60">
+                  <tr
+                    key={`${row.account_id}:${row.offer_id}`}
+                    className={fromFile ? "bg-[var(--color-primary-container)]/50" : "hover:bg-[var(--color-surface-container)]/60"}
+                  >
                     <td className={tdClass}>
                       <div className="flex items-center gap-2">
                         {row.image_url && (
@@ -484,7 +515,7 @@ function Breakdown({ rows, setRows, onError, onReload, actionsEnabled }) {
                     <td className={tdClass}><Money value={row.seller_price} /></td>
                     <td className={tdClass}><DiscountCell row={row} /></td>
                     <td className={tdClass}><Money value={row.buyer_price} className="font-semibold" /></td>
-                    <td className={tdClass}><TargetCell row={row} onSave={saveTarget} /></td>
+                    <td className={tdClass}><TargetCell row={row} onSave={saveTarget} fromFile={fromFile} /></td>
                     <td className={tdClass}>
                       <EditableNumber value={row.cost_price} onSave={(v) => saveCost(row, v)} label={`Себестоимость ${row.offer_id}`} />
                     </td>
@@ -549,11 +580,14 @@ function Compare({ rows }) {
   );
 }
 
-function Costs({ onImported, articles }) {
+function Costs({ onImported }) {
   const [costs, setCosts] = useState([]);
   const [text, setText] = useState("");
   const [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [onlyLoaded, setOnlyLoaded] = useState(false);
+  const loaded = useMemo(() => new Set(result?.updated ?? []), [result]);
+  const shown = onlyLoaded ? costs.filter((c) => loaded.has(c.offer_id)) : costs;
 
   const load = () =>
     safeCall(() => request("/api/v1/pricing/costs", { admin: true })).then((res) => setCosts(res.ok ? res.data : []));
@@ -567,6 +601,7 @@ function Costs({ onImported, articles }) {
     const res = await safeCall(() => request("/api/v1/pricing/costs/import", { method: "POST", admin: true, body: { text: body } }));
     setBusy(false);
     setResult(res.ok ? res.data : { imported: 0, errors: [res.error] });
+    setOnlyLoaded(false);
     if (res.ok && res.data.imported) {
       setText("");
       load();
@@ -575,21 +610,12 @@ function Costs({ onImported, articles }) {
   };
   const handleImport = () => importText(text);
 
-  const downloadTemplate = () => {
-    const known = new Map(costs.map((c) => [c.offer_id, c.cost_price_rub]));
-    const all = [...new Map(articles.map((r) => [r.offer_id, r.title])).entries()].sort(([a], [b]) => a.localeCompare(b));
-    for (const offer of known.keys()) if (!all.some(([a]) => a === offer)) all.push([offer, null]);
-    downloadXlsx(
-      "Себестоимость",
-      "Себестоимость",
-      [
-        { label: "Артикул продавца", type: "text", width: 30 },
-        { label: "Себестоимость", type: "money", width: 18 },
-        { label: "Название (не загружается)", type: "text", width: 50 },
-      ],
-      all.map(([offer, title]) => [offer, known.get(offer) ?? null, title])
-    );
-  };
+  // only the headers: the seller pastes their own articles and costs under them
+  const downloadTemplate = () =>
+    downloadXlsx("Себестоимость", "Себестоимость", [
+      { label: "Артикул продавца", type: "text", width: 30 },
+      { label: "Себестоимость", type: "money", width: 18 },
+    ], []);
 
   const handleDelete = async (offerId) => {
     const res = await safeCall(() => request(`/api/v1/pricing/costs/${encodeURIComponent(offerId)}`, { method: "DELETE", admin: true }));
@@ -609,9 +635,10 @@ function Costs({ onImported, articles }) {
           </div>
         </div>
         <p className="text-xs text-[var(--color-on-surface-variant)]">
-          Файл Excel (.xlsx) или CSV из двух столбцов: «Артикул продавца» и «Себестоимость». Себестоимость одна для артикула на
-          всех площадках, поэтому загружается один раз; повторная загрузка обновляет значения, пустые ячейки пропускаются.
-          Можно и просто вставить два столбца из таблицы в поле ниже.
+          В шаблоне только заголовки «Артикул продавца» и «Себестоимость». Вставьте под них два столбца из своей таблицы —
+          в любом порядке и сколько угодно артикулов — и загрузите файл (.xlsx или CSV). Себестоимость одна для артикула на
+          всех площадках, поэтому загружается один раз; повторная загрузка обновляет значения, артикулы не из файла и пустые
+          ячейки не меняются. Можно и просто вставить два столбца из таблицы в поле ниже.
         </p>
         <textarea
           className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline)] bg-[var(--color-surface)] text-sm min-h-[140px] font-mono"
@@ -628,9 +655,10 @@ function Costs({ onImported, articles }) {
             <UploadSimple size={14} /> Загрузить
           </button>
           {result && (
-            <span className="text-sm">
+            <span className="text-sm" role="status">
               Загружено: {result.imported}
               {result.errors.length > 0 && <span className="text-red-600"> · ошибок: {result.errors.length}</span>}
+              {result.updated?.length > 0 && <span className="text-[var(--color-on-surface-variant)]"> · подсвечены в списке ниже</span>}
             </span>
           )}
         </div>
@@ -644,7 +672,10 @@ function Costs({ onImported, articles }) {
       </div>
 
       <section className="md3-card-elevated p-4">
-        <h3 className="text-sm font-semibold mb-3">Себестоимость по артикулам ({costs.length})</h3>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <h3 className="text-sm font-semibold">Себестоимость по артикулам ({costs.length})</h3>
+          <LoadedToggle count={loaded.size} on={onlyLoaded} onChange={setOnlyLoaded} />
+        </div>
         {costs.length === 0 ? (
           <p className="text-sm text-[var(--color-on-surface-variant)]">Пока пусто. Без себестоимости маржа не считается.</p>
         ) : (
@@ -659,8 +690,8 @@ function Costs({ onImported, articles }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--color-outline-variant)]">
-                {costs.map((c) => (
-                  <tr key={c.offer_id}>
+                {shown.map((c) => (
+                  <tr key={c.offer_id} className={loaded.has(c.offer_id) ? "bg-[var(--color-primary-container)]/50" : ""}>
                     <td className={`${tdClass} font-mono text-xs`}>{c.offer_id}</td>
                     <td className={tdClass}><Money value={c.cost_price_rub} /></td>
                     <td className={`${tdClass} text-xs text-[var(--color-on-surface-variant)]`}>{formatAsOf(c.updated_at)}</td>
@@ -727,7 +758,7 @@ export default function Pricing() {
       </div>
       {tab === "breakdown" && <Breakdown rows={breakdown} setRows={setBreakdown} onError={setError} onReload={load} actionsEnabled={actionsEnabled} />}
       {tab === "compare" && <Compare rows={compare} />}
-      {tab === "costs" && <Costs onImported={load} articles={breakdown} />}
+      {tab === "costs" && <Costs onImported={load} />}
     </div>
   );
 }

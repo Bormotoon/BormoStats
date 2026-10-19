@@ -5,6 +5,18 @@ All notable changes to this project are documented here. The project follows
 
 ## [Unreleased]
 
+### Changed
+
+- Prices, from the customer's wishes of 2026-10-18: the "Шаблон Excel" of desired prices (per
+  marketplace) and of cost prices hold only the two headers — "Артикул продавца" and the price
+  or cost — with no prefilled articles, titles or current prices, so the seller pastes their
+  own two columns under them. The article column is formatted as text and the value column as
+  money. The template of desired prices downloads before the catalogue is loaded too.
+- After an upload the loaded articles are highlighted in the price table (marked "загружено из
+  файла") and in the cost list, with a "Показать только загруженные" filter. The import
+  results of `POST /pricing/targets/import` and `POST /pricing/costs/import` list them in
+  `updated`.
+
 ## [1.2.0] — 2026-10-18
 
 Collectors moved to the current marketplace APIs; several methods they used were switched off

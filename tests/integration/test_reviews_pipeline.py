@@ -169,7 +169,12 @@ def test_desired_prices_import_and_keep(integration_runtime: Any, api_client: An
             "/api/v1/pricing/targets/import", json={"marketplace": "wb", "text": text}
         )
         assert result.status_code == 200, result.text
-        assert result.json() == {"imported": 1, "errors": [], "not_found": ["ghost"]}
+        assert result.json() == {
+            "imported": 1,
+            "errors": [],
+            "not_found": ["ghost"],
+            "updated": ["btn1"],
+        }
         again = api_client.post(
             "/api/v1/pricing/targets/import", json={"marketplace": "wb", "text": "btn1;460"}
         )

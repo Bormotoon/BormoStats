@@ -94,6 +94,9 @@ class OfferCostImport(BaseModel):
 class OfferCostImportResult(BaseModel):
     imported: int
     errors: list[str]
+    updated: list[str] = Field(
+        default_factory=list, description="Articles whose cost was set, sorted"
+    )
 
 
 class TargetPriceImport(BaseModel):
@@ -108,6 +111,9 @@ class TargetPriceImportResult(BaseModel):
     errors: list[str]
     not_found: list[str] = Field(
         default_factory=list, description="Articles with no card on the marketplace"
+    )
+    updated: list[str] = Field(
+        default_factory=list, description="Articles whose desired price was set, sorted"
     )
 
 

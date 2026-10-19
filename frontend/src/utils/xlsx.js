@@ -1,8 +1,9 @@
 // Minimal .xlsx writer and reader, no dependencies.
 //
 // Writing: one sheet, a bold frozen header with an autofilter, dates as real Excel dates
-// (dd.mm.yyyy), money and percentages as numbers with a format. The zip is stored without
-// compression, which Excel, LibreOffice and Google Sheets all open.
+// (dd.mm.yyyy), money and percentages as numbers with a format. Each column carries its format
+// too, so values pasted under the header of an empty template keep it (articles stay text).
+// The zip is stored without compression, which Excel, LibreOffice and Google Sheets all open.
 // Reading: the first sheet of a workbook as rows of strings, for imports of two-column tables.
 // Inflating uses the browser's DecompressionStream("deflate-raw").
 
@@ -83,7 +84,9 @@ function columnName(index) {
 }
 
 // style ids of styles.xml below
-const STYLE = { text: 0, header: 1, date: 2, money: 3, number: 4, integer: 5, percent: 6 };
+const STYLE = { text: 0, header: 1, date: 2, money: 3, number: 4, integer: 5, percent: 6, textColumn: 7 };
+// the format of a whole column: text as "@", so "000123" or a long numeric article is not a number
+const COLUMN_STYLE = { text: STYLE.textColumn, date: STYLE.date, money: STYLE.money, number: STYLE.number, integer: STYLE.integer, percent: STYLE.percent };
 
 /** "2026-10-18" (or a timestamp starting with it) as an Excel serial day, else null. */
 function excelDay(value) {
@@ -115,7 +118,7 @@ const STYLES_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
 <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-<cellXfs count="7">
+<cellXfs count="8">
 <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
 <xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
 <xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>
@@ -123,6 +126,7 @@ const STYLES_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <xf numFmtId="166" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>
 <xf numFmtId="3" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>
 <xf numFmtId="10" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>
+<xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>
 </cellXfs>
 </styleSheet>`;
 
@@ -135,7 +139,11 @@ export function buildXlsx(sheetName, columns, rows) {
   const lastCol = columnName(Math.max(columns.length - 1, 0));
   const lastRow = rows.length + 1;
   const cols = columns
-    .map((col, i) => `<col min="${i + 1}" max="${i + 1}" width="${col.width || (col.type === "text" ? 28 : 14)}" customWidth="1"/>`)
+    .map((col, i) => {
+      const style = COLUMN_STYLE[col.type ?? "text"];
+      const width = col.width || (col.type === "text" ? 28 : 14);
+      return `<col min="${i + 1}" max="${i + 1}" width="${width}"${style ? ` style="${style}"` : ""} customWidth="1"/>`;
+    })
     .join("");
   const header = `<row r="1">${columns
     .map((col, i) => `<c r="${columnName(i)}1" s="${STYLE.header}" t="inlineStr"><is><t>${xmlEscape(col.label)}</t></is></c>`)
