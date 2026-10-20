@@ -15,7 +15,7 @@ from app.models.pricing import (
     TargetPriceImportResult,
     TargetPriceSet,
 )
-from app.models.repricer import PriceRule, PriceRuleCreate, PriceRuleUpdate
+from app.models.repricer import PriceRule, PriceRuleCreate, PriceRuleUpdate, default_fallback
 from app.services.repricer_service import RepricerService
 from app.services.tenancy import account_scope_sql, ensure_account_access
 from clickhouse_connect.driver import Client
@@ -142,7 +142,7 @@ class PricingService:
                 min_price=data.min_price or 0,
                 max_price=data.max_price or 0,
                 max_step_pct=data.max_step_pct or 10,
-                no_discount_fallback=data.no_discount_fallback or "",
+                no_discount_fallback=data.no_discount_fallback,
                 dry_run=True,
             )
         )
@@ -213,6 +213,7 @@ class PricingService:
                         product_id=card["offer_id"],
                         mode="buyer_price",
                         target_price=price,
+                        no_discount_fallback=default_fallback(marketplace),
                         dry_run=True,
                         created_at=now,
                         updated_at=now,

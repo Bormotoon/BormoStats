@@ -29,7 +29,7 @@ function discountUsable(row) {
 const FALLBACKS = [
   { id: "", label: "ждать продаж", note: "" },
   { id: "account_median", label: "по медиане кабинета", note: "пока нет продаж — по скидке-медиане кабинета", only: "wb" },
-  { id: "seller_price", label: "как цену продавца", note: "пока нет продаж — держит как цену продавца" },
+  { id: "seller_price", label: "как цену продавца", note: "до 3 продаж — держит как цену продавца" },
 ];
 function fallbacksFor(marketplace) {
   return FALLBACKS.filter((f) => !f.only || f.only === marketplace);

@@ -13,6 +13,15 @@ All notable changes to this project are documented here. The project follows
   the discount is measured. Off by default — the rule waits for sales, as before. Chosen per
   card under the desired price ("без продаж: …"), and in `PUT /pricing/target/{mp}/{offer}`.
 
+### Changed
+
+- Repricer on Ozon: a desired-price rule on a card with fewer than 3 sales keeps the desired
+  price as the seller's price (`seller_price`) instead of waiting for sales; from the 3rd sale
+  it prices on the card's measured discount. New Ozon rules get it (from the file upload, the
+  prices page and `POST /repricer/rules` without `no_discount_fallback`) and migration 0037
+  moves the waiting Ozon rules to it. "ждать продаж" can still be chosen per card; WB rules
+  wait for sales by default, as before.
+
 ### Fixed
 
 - Prices: a rule that waits for sales to measure the discount is shown as "не действует: ждёт
@@ -30,6 +39,8 @@ All notable changes to this project are documented here. The project follows
 
 - `0035_price_rule_fallback`: `dim_price_rule.no_discount_fallback`.
 - `0036_ozon_no_account_median`: Ozon rules with `account_median` move to `seller_price`.
+- `0037_ozon_rules_seller_price_until_sales`: Ozon rules that waited for sales move to
+  `seller_price`.
 
 ### Changed
 

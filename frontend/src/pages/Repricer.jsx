@@ -16,7 +16,7 @@ const RULE_MODES = {
 // what a buyer-price rule does while the card has too few sales to measure the discount
 const FALLBACK_NOTES = {
   account_median: "без продаж — по медиане кабинета",
-  seller_price: "без продаж — как цена продавца",
+  seller_price: "до 3 продаж — как цена продавца",
 };
 
 export default function Repricer() {

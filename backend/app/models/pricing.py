@@ -75,7 +75,9 @@ class TargetPriceSet(BaseModel):
     max_price: float | None = Field(default=None, ge=0)
     max_step_pct: float | None = Field(default=None, gt=0, le=50)
     no_discount_fallback: NoDiscountFallback | None = Field(
-        default=None, description="Kept as is when omitted; a new rule waits for sales"
+        default=None,
+        description="Kept as is when omitted; a new rule keeps the target as the seller price"
+        " on Ozon until 3 sales measure the discount and waits for them on WB",
     )
 
 

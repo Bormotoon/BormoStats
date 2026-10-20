@@ -221,6 +221,8 @@ def test_price_breakdown_compare_and_target(integration_runtime: Any, api_client
         rule = api_client.put("/api/v1/pricing/target/wb/btn1", json={"target_price": 480})
         assert rule.status_code == 200, rule.text
         assert rule.json()["dry_run"] is True and rule.json()["mode"] == "buyer_price"
+        # a new WB rule waits for sales to measure the discount
+        assert rule.json()["no_discount_fallback"] == ""
         again = api_client.put(
             "/api/v1/pricing/target/wb/btn1", json={"target_price": 450, "max_step_pct": 5}
         )
@@ -240,6 +242,18 @@ def test_price_breakdown_compare_and_target(integration_runtime: Any, api_client
         ).result_rows
         # 450 / 0.8 = 562.5 -> 562, but one step is 5 % of 500
         assert action == [("btn1", 500.0, 525.0, 1, "simulated")]
+
+        # a new Ozon rule keeps the desired price as the seller price until 3 sales
+        imported = api_client.post(
+            "/api/v1/pricing/targets/import", json={"marketplace": "ozon", "text": "btn1;690"}
+        )
+        assert imported.json()["imported"] == 1, imported.text
+        ozon = next(
+            r
+            for r in api_client.get("/api/v1/pricing/breakdown").json()
+            if r["marketplace"] == "ozon"
+        )
+        assert (ozon["target_price"], ozon["no_discount_fallback"]) == (690, "seller_price")
 
         # a fallback for a card without sales is kept when the price changes, and shown
         fallback = api_client.put(

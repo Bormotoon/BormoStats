@@ -11,7 +11,9 @@ says what to keep (``mode``):
   ``no_discount_fallback`` says to use the account's median discount (``account_median``, WB
   only) or to keep ``target`` as the seller price (``seller_price``) meanwhile. On Ozon the
   discount is mostly Ozon's "баллы за скидки", given per card (new cards get next to none),
-  so an ``account_median`` rule there keeps ``target`` as the seller price instead;
+  so an ``account_median`` rule there keeps ``target`` as the seller price instead, and a new
+  Ozon rule gets ``seller_price``: the desired price is the seller's until 3 sales measure the
+  card's discount, then the rule prices on that discount;
 * ``seller_price`` — the seller's price after the seller's discount;
 * ``margin``       — break-even price plus ``target_margin_percent``.
 

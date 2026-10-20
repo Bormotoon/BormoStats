@@ -40,7 +40,7 @@ A price rule names a card by **supplier article** (`product_id` = WB `vendorCode
 
 | `mode` | Seller price the rule sets |
 |---|---|
-| `buyer_price` | `target_price / (1 − marketplace discount)`: keeps what the buyer pays after WB SPP or Ozon's co-financed discounts. Acts on a discount measured on **3+ of the card's own sales** (`mp_discount_scope = product`); on WB, whose SPP is much the same across a seller's cards, also on the account's median over 10+ orders (`account`). Ozon's discounts vary between cards (14–70 % on real data), so its account median is shown but not acted upon |
+| `buyer_price` | `target_price / (1 − marketplace discount)`: keeps what the buyer pays after WB SPP or Ozon's discounts. Acts on a discount measured on **3+ of the card's own sales** (`mp_discount_scope = product`). Until then `no_discount_fallback` decides: wait for sales (`""`, the WB default), use the account's median over 10+ orders (`account_median`, WB only — its SPP is much the same across a seller's cards) or keep `target_price` as the seller price (`seller_price`, the Ozon default since migration 0037) |
 | `seller_price` | `target_price`: the price after the seller's discount |
 | `margin` | break-even × (1 + `target_margin_percent`); needs a cost price |
 
@@ -57,6 +57,45 @@ Then, in order:
 WB receives the list price for the new seller price with the card's current discount; Ozon
 receives the new price with the crossed-out price scaled by the same factor (Ozon reads
 `old_price: 0` as "no discount").
+
+## Ozon: what the buyer pays (findings of 2026-10-20)
+
+Checked on the live account, in the seller cabinet and as a buyer on ozon.ru:
+
+- **The discount is Ozon's "баллы за скидки", per card.** In the finance accruals
+  `commission.bonus` is "Баллы за скидки": Ozon lowers the buyer price at its own expense and
+  pays the seller the difference in points (1 pt = 1 ₽, spent on Ozon services);
+  `sale_price` is what the buyer paid in money, `coinvestment` (~0.5 %) is "Программы
+  партнёров". The share differs per card and changes over time: 45–55 % on old cards with
+  sales, ~35 % on some of them right now, ~3 % on cards created a week earlier, 0 without
+  sales. An account median says nothing about a card, so Ozon never uses it (migration 0036).
+- **The current buyer price is not available to us.** `/v5/product/info/prices` gives
+  `price`, `old_price`, `min_price` and `marketing_seller_price` (the seller's price with the
+  seller's own promotions); `/v3/product/info/list` has no buyer price either.
+  `/v1/product/prices/details` has it but is open only with the Premium PRO subscription
+  (~25 000 ₽ a month), which the seller does not buy — it answers "no access to this method".
+  ozon.ru shows an antibot captcha to an automated browser, so a buyer price is checked by
+  hand, at checkout.
+- **A median over past sales lags the current discount.** `pukly10klbr10black` measured 67 %
+  on its 3 sales, so the repricer set 1171 ₽ for a desired 387 ₽; the buyer paid 758 ₽ at
+  checkout (~35 %). The page's "Цена для покупателя" on Ozon is an estimate from history,
+  not the shelf price.
+- **Rule chosen by the seller:** an Ozon desired-price rule keeps the desired price as the
+  seller's price until the card has 3 sales, then prices on the card's measured discount
+  (`no_discount_fallback = seller_price`, default for new Ozon rules; migration 0037 moved the
+  rules that waited for sales). On rollout 173 old cards whose manual prices were ~2× the
+  desired price started stepping down to it; while Ozon still gives them points, buyers pay
+  less than the desired price until 3 sales measure the discount.
+- **Pace:** the catalogue snapshot is taken hourly (`:27`), and after a live change a rule
+  waits for the next snapshot, so a card moves by `max_step_pct` (10 %) about once an hour; at
+  most `MARKETPLACE_ACTIONS_MAX_PER_RUN` (100) prices are written per 10-minute run, the rest
+  are `deferred` to the next runs.
+- **The card's own `min_price` on Ozon** is not sent by the repricer. Whether Ozon accepts a
+  price below it was not checked: the seller removed `min_price` (600 ₽) from the
+  `btn25pgf051050*` cards whose desired price is ~400 ₽.
+- **When a buyer cannot find or order a card,** look at stocks before prices: a card with no
+  stock (`has_stock: false`) is not shown in search; a 404 at checkout of a card with FBO
+  stock is a delivery/warehouse matter, not the price.
 
 ## Going live checklist
 

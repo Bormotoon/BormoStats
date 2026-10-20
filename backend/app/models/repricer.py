@@ -28,6 +28,12 @@ def check_fallback(marketplace: str, fallback: str | None) -> None:
         )
 
 
+def default_fallback(marketplace: str) -> str:
+    """The fallback a new desired-price rule gets: an Ozon card keeps the desired price as the
+    seller's price until 3 sales measure its discount, a WB card waits for them."""
+    return "seller_price" if marketplace == "ozon" else ""
+
+
 class PriceRule(BaseModel):
     rule_id: str
     marketplace: str
@@ -55,7 +61,9 @@ class PriceRuleCreate(BaseModel):
     mode: PriceMode = "margin"
     target_price: float = Field(default=0, ge=0, le=10_000_000)
     max_step_pct: float = Field(default=10, gt=0, le=50)
-    no_discount_fallback: NoDiscountFallback = ""
+    no_discount_fallback: NoDiscountFallback | None = Field(
+        default=None, description="Omitted: 'seller_price' on Ozon, waiting for sales on WB"
+    )
     min_price: float = Field(default=0, ge=0)
     max_price: float = Field(default=0, ge=0)
     target_margin_percent: float = Field(default=0, ge=0, le=100)

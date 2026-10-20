@@ -13,6 +13,7 @@ from app.models.repricer import (
     PriceRuleCreate,
     PriceRuleUpdate,
     check_fallback,
+    default_fallback,
 )
 from app.services.marketplace_actions import list_marketplace_actions
 from app.services.tenancy import account_scope_sql, ensure_account_access
@@ -95,7 +96,11 @@ class RepricerService:
             mode=data.mode,
             target_price=data.target_price,
             max_step_pct=data.max_step_pct,
-            no_discount_fallback=data.no_discount_fallback,
+            no_discount_fallback=(
+                default_fallback(data.marketplace)
+                if data.no_discount_fallback is None
+                else data.no_discount_fallback
+            ),
             min_price=data.min_price,
             max_price=data.max_price,
             target_margin_percent=data.target_margin_percent,

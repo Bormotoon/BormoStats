@@ -137,6 +137,14 @@ def test_no_discount_fallbacks() -> None:
     assert (own.price, own.fallback) == (500, "")
 
 
+def test_seller_price_until_three_sales_then_the_measured_discount() -> None:
+    rule = _price_rule(no_discount_fallback="seller_price")
+    two = desired_price(rule, _snap(mp_discount_samples=2))
+    assert (two.price, two.fallback) == (400, "seller_price")
+    three = desired_price(rule, _snap(mp_discount_samples=3))
+    assert (three.price, three.fallback) == (500, "")  # 400 / (1 - 20 %)
+
+
 def test_ozon_never_prices_on_the_accounts_median() -> None:
     # Ozon gives its discount per card: an account_median rule keeps the target as seller price
     ozon_median = _price_rule(no_discount_fallback="account_median")
