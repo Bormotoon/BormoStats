@@ -24,17 +24,21 @@ function discountUsable(row) {
   if (row.mp_discount_scope === "product") return row.mp_discount_samples >= 3;
   return row.mp_discount_scope === "account" && row.marketplace === "wb" && row.mp_discount_samples >= 10;
 }
-// what a buyer-price rule does while the card's discount cannot be measured (no_discount_fallback)
+// what a buyer-price rule does while the card's discount cannot be measured (no_discount_fallback);
+// the account's median only on WB: Ozon's discounts ("баллы за скидки") are given per card
 const FALLBACKS = [
   { id: "", label: "ждать продаж", note: "" },
-  { id: "account_median", label: "по медиане кабинета", note: "пока нет продаж — по скидке-медиане кабинета" },
+  { id: "account_median", label: "по медиане кабинета", note: "пока нет продаж — по скидке-медиане кабинета", only: "wb" },
   { id: "seller_price", label: "как цену продавца", note: "пока нет продаж — держит как цену продавца" },
 ];
+function fallbacksFor(marketplace) {
+  return FALLBACKS.filter((f) => !f.only || f.only === marketplace);
+}
 /** Whether a buyer-price rule has a discount to act on: the card's own or its fallback. */
 function ruleCanAct(row) {
   if (row.mode !== "buyer_price" || discountUsable(row)) return true;
   if (row.no_discount_fallback === "seller_price") return true;
-  return row.no_discount_fallback === "account_median" && row.mp_discount_pct !== null && row.mp_discount_pct !== undefined;
+  return row.no_discount_fallback === "account_median" && row.marketplace === "wb" && row.mp_discount_pct !== null && row.mp_discount_pct !== undefined;
 }
 /** The price a rule keeps on the card now: the buyer's, or the seller's under that fallback. */
 function keptPrice(row) {
@@ -138,12 +142,18 @@ function withCost(row, cost) {
 
 function DiscountCell({ row }) {
   if (row.mp_discount_pct === null || row.mp_discount_pct === undefined) {
-    return <span title="Нет продаж за последние 30–60 дней, скидку не на чем измерить"><Dash /></span>;
+    const title =
+      row.marketplace === "ozon"
+        ? "Нет продаж товара за 60 дней. Скидку Ozon («баллы за скидки») Ozon даёт каждому товару свою, у новых её почти нет — на витрине, скорее всего, цена со скидкой продавца"
+        : "Нет продаж за последние 30 дней, скидку не на чем измерить";
+    return <span title={title}><Dash /></span>;
   }
   const estimate = row.mp_discount_scope !== "product";
   const title = estimate
     ? `Оценка: у товара мало недавних продаж, взята медиана по кабинету (${row.mp_discount_samples} продаж)`
-    : `Медиана по ${row.mp_discount_samples} последним продажам товара`;
+    : row.marketplace === "ozon"
+      ? `Медиана по ${row.mp_discount_samples} последним продажам товара: скидка Ozon за его счёт («баллы за скидки»). Ozon меняет её, сейчас на витрине она может быть другой`
+      : `Медиана по ${row.mp_discount_samples} последним продажам товара`;
   return (
     <span title={title} className={`font-mono whitespace-nowrap ${estimate ? "text-[var(--color-on-surface-variant)]" : ""}`}>
       {estimate ? "≈ " : ""}
@@ -162,7 +172,8 @@ function TargetCell({ row, onSave, onFallback, fromFile }) {
   const gap = row.target_gap_pct;
   const off = gap !== null && gap !== undefined && Math.abs(gap) > GAP_WARN_PCT;
   const noDiscount = row.mode === "buyer_price" && !discountUsable(row);
-  const fallback = FALLBACKS.find((f) => f.id === (row.no_discount_fallback || "")) || FALLBACKS[0];
+  const fallbacks = fallbacksFor(row.marketplace);
+  const fallback = fallbacks.find((f) => f.id === (row.no_discount_fallback || "")) || fallbacks[0];
   return (
     <div className="space-y-1">
       <EditableNumber value={row.target_price} onSave={(v) => onSave(row, v)} label={`Желаемая цена ${row.offer_id}`} />
@@ -189,7 +200,7 @@ function TargetCell({ row, onSave, onFallback, fromFile }) {
                 title="Что делать, пока скидку маркетплейса не на чем измерить"
                 onChange={(e) => onFallback(row, e.target.value)}
               >
-                {FALLBACKS.map((f) => (
+                {fallbacks.map((f) => (
                   <option key={f.id} value={f.id}>
                     без продаж: {f.label}
                   </option>
@@ -603,7 +614,8 @@ function Compare({ rows }) {
   return (
     <div className="space-y-3">
       <p className="text-xs text-[var(--color-on-surface-variant)]">
-        Цена для покупателя — после скидки маркетплейса. Товары сопоставлены по артикулу продавца. Яндекс Маркет появится после
+        Цена для покупателя — после скидки маркетплейса, измеренной на продажах товара; на Ozon без продаж — прочерк, там на
+        витрине обычно цена со скидкой продавца. Товары сопоставлены по артикулу продавца. Яндекс Маркет появится после
         подключения. В фильтрах цен можно писать «&gt; 500», «&lt; 300» или «200-400».
       </p>
       <DataTable

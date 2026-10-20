@@ -8,8 +8,10 @@ says what to keep (``mode``):
   discount measured on the card's recent sales (``mrt_price_current``); on WB, whose SPP is
   much the same across a seller's cards, the account's median is used for a card with too
   few orders. While the discount cannot be measured the rule waits, unless its
-  ``no_discount_fallback`` says to use the account's median discount (``account_median``) or
-  to keep ``target`` as the seller price (``seller_price``) meanwhile;
+  ``no_discount_fallback`` says to use the account's median discount (``account_median``, WB
+  only) or to keep ``target`` as the seller price (``seller_price``) meanwhile. On Ozon the
+  discount is mostly Ozon's "баллы за скидки", given per card (new cards get next to none),
+  so an ``account_median`` rule there keeps ``target`` as the seller price instead;
 * ``seller_price`` — the seller's price after the seller's discount;
 * ``margin``       — break-even price plus ``target_margin_percent``.
 
@@ -233,13 +235,17 @@ def desired_price(rule: PriceRule, snap: PriceSnapshot) -> PriceDecision:
             price = rule.target_price / (1 - discount / 100)
         elif (
             rule.no_discount_fallback == FALLBACK_ACCOUNT_MEDIAN
+            and rule.marketplace in ACCOUNT_DISCOUNT_MARKETPLACES
             and discount is not None
             and 0 <= discount < MAX_DISCOUNT_PCT
         ):
-            # the mart falls back to the account's median for a card without its own sales
+            # the mart gives a WB card with too few orders the account's median
             fallback = FALLBACK_ACCOUNT_MEDIAN
             price = rule.target_price / (1 - discount / 100)
-        elif rule.no_discount_fallback == FALLBACK_SELLER_PRICE:
+        elif rule.no_discount_fallback == FALLBACK_SELLER_PRICE or (
+            rule.no_discount_fallback == FALLBACK_ACCOUNT_MEDIAN
+            and rule.marketplace not in ACCOUNT_DISCOUNT_MARKETPLACES
+        ):
             fallback = FALLBACK_SELLER_PRICE
             price = rule.target_price
         else:

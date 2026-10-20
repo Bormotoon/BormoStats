@@ -7,7 +7,13 @@ from typing import Any
 
 from app.db.ch import PARTITION_LOCAL_FINAL, insert_values_sql, utc_now
 from app.models.marketplace_actions import MarketplaceAction
-from app.models.repricer import BreakevenRow, PriceRule, PriceRuleCreate, PriceRuleUpdate
+from app.models.repricer import (
+    BreakevenRow,
+    PriceRule,
+    PriceRuleCreate,
+    PriceRuleUpdate,
+    check_fallback,
+)
 from app.services.marketplace_actions import list_marketplace_actions
 from app.services.tenancy import account_scope_sql, ensure_account_access
 from clickhouse_connect.driver import Client
@@ -79,6 +85,7 @@ class RepricerService:
 
     def create_rule(self, data: PriceRuleCreate) -> PriceRule:
         ensure_account_access(self._ch, self._org, data.marketplace, data.account_id)
+        check_fallback(data.marketplace, data.no_discount_fallback)
         now = utc_now()
         rule = PriceRule(
             rule_id=str(uuid.uuid4()),
@@ -104,6 +111,7 @@ class RepricerService:
         existing = self.get_rule(rule_id)
         if existing is None:
             return None
+        check_fallback(existing.marketplace, data.no_discount_fallback)
         now = utc_now()
         rule = existing.model_copy(
             update={

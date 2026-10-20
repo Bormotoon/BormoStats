@@ -125,15 +125,28 @@ def test_no_discount_fallbacks() -> None:
     no_sales = _snap(mp_discount_scope="account", mp_discount_samples=0, mp_discount_pct=50.0)
     # by default the rule waits for the card's own sales
     assert desired_price(_price_rule(), no_sales).reason == "no_discount_data"
-    median = desired_price(_price_rule(no_discount_fallback="account_median"), no_sales)
+    wb_median = _price_rule(marketplace="wb", no_discount_fallback="account_median")
+    median = desired_price(wb_median, no_sales)
     assert (median.price, median.fallback) == (800, "account_median")
     seller = desired_price(_price_rule(no_discount_fallback="seller_price"), no_sales)
     assert (seller.price, seller.fallback) == (400, "seller_price")
     # the account's median is needed for it; the card's own discount wins over a fallback
     nothing = _snap(mp_discount_pct=None, mp_discount_scope="")
-    assert desired_price(_price_rule(no_discount_fallback="account_median"), nothing).price is None
+    assert desired_price(wb_median, nothing).price is None
     own = desired_price(_price_rule(no_discount_fallback="seller_price"), _snap())
     assert (own.price, own.fallback) == (500, "")
+
+
+def test_ozon_never_prices_on_the_accounts_median() -> None:
+    # Ozon gives its discount per card: an account_median rule keeps the target as seller price
+    ozon_median = _price_rule(no_discount_fallback="account_median")
+    for snap in (
+        _snap(mp_discount_scope="account", mp_discount_samples=0, mp_discount_pct=50.0),
+        _snap(mp_discount_pct=None, mp_discount_scope=""),
+        _snap(mp_discount_samples=2),
+    ):
+        decision = desired_price(ozon_median, snap)
+        assert (decision.price, decision.fallback) == (400, "seller_price")
 
 
 def test_other_modes_and_bounds() -> None:

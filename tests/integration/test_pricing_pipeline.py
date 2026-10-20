@@ -256,6 +256,12 @@ def test_price_breakdown_compare_and_target(integration_runtime: Any, api_client
             if r["marketplace"] == "ozon"
         )
         assert ozon["no_discount_fallback"] == "seller_price"
+        # Ozon gives its discount per card: the account's median is refused there
+        median = api_client.put(
+            "/api/v1/pricing/target/ozon/btn1",
+            json={"target_price": 720, "no_discount_fallback": "account_median"},
+        )
+        assert median.status_code == 422, median.text
     finally:
         client.command("TRUNCATE TABLE sys_marketplace_actions")
         client.close()

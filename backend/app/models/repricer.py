@@ -11,6 +11,21 @@ PriceMode = Literal["buyer_price", "seller_price", "margin"]
 # what a buyer_price rule does while the card's marketplace discount cannot be measured:
 # wait (""), use the account's median discount, or keep the target as the seller price
 NoDiscountFallback = Literal["", "account_median", "seller_price"]
+# where the account's median discount says something about a card without sales: WB's SPP is
+# much the same across a seller's cards, Ozon's "баллы за скидки" are given per card
+ACCOUNT_MEDIAN_MARKETPLACES = frozenset({"wb"})
+
+
+class FallbackNotAllowedError(ValueError):
+    """A no_discount_fallback the rule's marketplace does not support."""
+
+
+def check_fallback(marketplace: str, fallback: str | None) -> None:
+    if fallback == "account_median" and marketplace not in ACCOUNT_MEDIAN_MARKETPLACES:
+        raise FallbackNotAllowedError(
+            f"no_discount_fallback 'account_median' is not available on {marketplace}:"
+            " its discounts vary between cards"
+        )
 
 
 class PriceRule(BaseModel):

@@ -50,6 +50,7 @@ from app.core.ratelimit import setup_rate_limiter
 from app.core.security import constant_time_equals
 from app.core.static_files import CachedStaticFiles
 from app.models.api import ApiError, ApiErrorResponse
+from app.models.repricer import FallbackNotAllowedError
 from app.services.integrations_service import InvalidSubscriptionError
 from app.services.tenancy import AccountAccessError
 from fastapi import FastAPI, HTTPException, Request
@@ -309,6 +310,16 @@ async def account_access_exception_handler(
 @app.exception_handler(InvalidSubscriptionError)
 async def invalid_subscription_exception_handler(
     request: Request, exc: InvalidSubscriptionError
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=422,
+        content=_error_payload(code="validation_error", message=str(exc)),
+    )
+
+
+@app.exception_handler(FallbackNotAllowedError)
+async def fallback_not_allowed_exception_handler(
+    request: Request, exc: FallbackNotAllowedError
 ) -> JSONResponse:
     return JSONResponse(
         status_code=422,

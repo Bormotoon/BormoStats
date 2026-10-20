@@ -8,11 +8,13 @@
 -- not in the price APIs, so it is measured on recent sales, as a median per product:
 --   WB    1 - finishedPrice / priceWithDisc over orders (raw_wb_orders), not cancelled
 --   Ozon  1 - sale_price / seller_price over sale accruals (raw_ozon_finance_ops)
--- The last 7 (WB) / 14 (Ozon) days are used when they hold 3+ sales, else 30 / 60 days. A
--- product without sales gets the account's median (mp_discount_scope = 'account', an estimate);
--- on WB also one with fewer than 3 orders, since WB's SPP is much the same across a seller's
--- cards while Ozon's discounts vary per card. mp_discount_samples counts the sales behind the
--- value (the account's for an account median).
+-- The last 7 (WB) / 14 (Ozon) days are used when they hold 3+ sales, else 30 / 60 days. On WB
+-- a product with fewer than 3 orders gets the account's median (mp_discount_scope = 'account',
+-- an estimate), since WB's SPP is much the same across a seller's cards. Ozon's discount is
+-- left empty for a product without its own sales: it is mostly Ozon's "баллы за скидки", which
+-- Ozon gives per card (from 0 to ~55% on one account; new cards get next to none), so the
+-- account's median says nothing about such a card. mp_discount_samples counts the sales behind
+-- the value (the account's for an account median).
 --
 -- Fees per unit at the current seller price:
 --   commission_pct  WB: (commission + acquiring) / sales of the product over 60 days of the
@@ -185,9 +187,6 @@ WITH
   (
     SELECT
       account_id,
-      if(countIf(recent) >= 10,
-        quantileExactIf(0.5)((1 - sale_price / seller_price) * 100, recent),
-        quantileExact(0.5)((1 - sale_price / seller_price) * 100)) AS discount_pct,
       countIf(scheme = 'Fbs') > countIf(scheme = 'Fbo') AS is_fbs,
       sumIf(delivery_rub, delivery_rub > 0) AS delivery_sum,
       sumIf(qty, delivery_rub > 0) AS delivery_units
@@ -255,9 +254,8 @@ WITH
       if(c.old_price > c.seller_price, (1 - c.seller_price / c.old_price) * 100, 0)
         AS seller_discount_pct,
       c.seller_price AS seller_price,
-      if(d.samples > 0, d.discount_pct, oa.discount_pct) AS mp_discount_pct,
-      multiIf(d.samples > 0, 'product', oa.discount_pct IS NOT NULL, 'account', '')
-        AS mp_discount_scope,
+      if(d.samples > 0, d.discount_pct, NULL) AS mp_discount_pct,
+      if(d.samples > 0, 'product', '') AS mp_discount_scope,
       toUInt32(ifNull(d.samples, 0)) AS mp_discount_samples,
       if(ifNull(oa.is_fbs, 0), c.pct_fbs, c.pct_fbo) AS commission_pct,
       c.acquiring_rub AS acquiring_rub,

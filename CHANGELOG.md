@@ -18,10 +18,18 @@ All notable changes to this project are documented here. The project follows
 - Prices: a rule that waits for sales to measure the discount is shown as "не действует: ждёт
   продаж для замера скидки" instead of "держится на площадке", and the marketplace panel
   counts such rules.
+- Prices and repricer on Ozon: an Ozon card without its own sales no longer gets the account's
+  median discount. Ozon's discount is mostly its "баллы за скидки", which Ozon gives per card
+  — from none to ~55% on one account, next to none on new cards — so the median of ~51% made
+  the repricer double the price of new cards (a desired 399,75 ₽ became 814 ₽ while buyers saw
+  814 ₽). Such a card shows no discount and no buyer price; `account_median` is refused on Ozon
+  (422) and is no longer offered there, and an Ozon rule that had it keeps the desired price
+  as the seller's price.
 
 ### Migrations
 
 - `0035_price_rule_fallback`: `dim_price_rule.no_discount_fallback`.
+- `0036_ozon_no_account_median`: Ozon rules with `account_median` move to `seller_price`.
 
 ### Changed
 
