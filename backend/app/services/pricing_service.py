@@ -38,6 +38,7 @@ _RULES = (
     "SELECT marketplace, account_id, product_id,"
     " argMax(rule_id, updated_at) AS rule_id, argMax(mode, updated_at) AS mode,"
     " argMax(target_price, updated_at) AS target_price,"
+    " argMax(no_discount_fallback, updated_at) AS no_discount_fallback,"
     " argMax(is_active, updated_at) AS is_active, argMax(dry_run, updated_at) AS dry_run"
     " FROM dim_price_rule FINAL GROUP BY marketplace, account_id, product_id"
 )
@@ -47,7 +48,8 @@ _MAX_IMPORT_ERRORS = 50
 _LATEST_RULES = (
     "SELECT r.rule_id AS rule_id, r.marketplace AS marketplace, r.account_id AS account_id,"
     " r.product_id AS product_id, r.mode AS mode, r.target_price AS target_price,"
-    " r.max_step_pct AS max_step_pct, r.min_price AS min_price, r.max_price AS max_price,"
+    " r.max_step_pct AS max_step_pct, r.no_discount_fallback AS no_discount_fallback,"
+    " r.min_price AS min_price, r.max_price AS max_price,"
     " r.target_margin_percent AS target_margin_percent, r.is_active AS is_active,"
     " r.dry_run AS dry_run, r.created_at AS created_at, r.updated_at AS updated_at"
     " FROM dim_price_rule AS r FINAL"
@@ -79,7 +81,8 @@ class PricingService:
         rows = query_dicts(
             self._ch,
             f"SELECT {_PRICE_COLS}, r.rule_id AS rule_id, r.mode AS mode,"
-            " r.target_price AS target_price, r.is_active AS rule_is_active,"
+            " r.target_price AS target_price, r.no_discount_fallback AS no_discount_fallback,"
+            " r.is_active AS rule_is_active,"
             " r.dry_run AS rule_dry_run"
             " FROM mrt_price_current AS p FINAL"
             f" LEFT JOIN ({_RULES}) AS r"
@@ -124,6 +127,7 @@ class PricingService:
                     min_price=data.min_price,
                     max_price=data.max_price,
                     max_step_pct=data.max_step_pct,
+                    no_discount_fallback=data.no_discount_fallback,
                 ),
             )
             if rule is not None:
@@ -138,6 +142,7 @@ class PricingService:
                 min_price=data.min_price or 0,
                 max_price=data.max_price or 0,
                 max_step_pct=data.max_step_pct or 10,
+                no_discount_fallback=data.no_discount_fallback or "",
                 dry_run=True,
             )
         )
@@ -344,11 +349,26 @@ def _opt_float(value: Any) -> float | None:
     return None if value is None else float(value)
 
 
+def _discount_usable(r: dict[str, Any]) -> bool:
+    """Whether the repricer sets a buyer price on the card's measured discount: 3+ of the card's
+    sales, or on WB the account's median over 10+ orders (workers/app/tasks/repricer.py)."""
+    samples = int(r.get("mp_discount_samples") or 0)
+    if r.get("mp_discount_scope") == "product":
+        return samples >= 3
+    return r.get("mp_discount_scope") == "account" and r["marketplace"] == "wb" and samples >= 10
+
+
 def _breakdown_row(r: dict[str, Any]) -> PriceBreakdownRow:
     mode = r.get("mode")
     target = _opt_float(r.get("target_price"))
+    fallback = r.get("no_discount_fallback") or ""
+    if mode == "buyer_price" and fallback == "seller_price" and not _discount_usable(r):
+        # the rule keeps the target as the seller price until the discount is measured
+        mode_kept = "seller_price"
+    else:
+        mode_kept = mode or ""
     kept = {"buyer_price": r.get("buyer_price"), "seller_price": r.get("seller_price")}.get(
-        mode or ""
+        mode_kept
     )
     gap = None
     if target and kept is not None:
@@ -383,6 +403,7 @@ def _breakdown_row(r: dict[str, Any]) -> PriceBreakdownRow:
         rule_id=r.get("rule_id") or None,
         mode=mode or None,
         target_price=target if r.get("rule_id") else None,
+        no_discount_fallback=fallback if r.get("rule_id") else None,
         rule_is_active=None if not r.get("rule_id") else bool(r.get("rule_is_active")),
         rule_dry_run=None if not r.get("rule_id") else bool(r.get("rule_dry_run")),
         target_gap_pct=gap if r.get("rule_id") else None,

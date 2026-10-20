@@ -5,6 +5,24 @@ All notable changes to this project are documented here. The project follows
 
 ## [Unreleased]
 
+### Added
+
+- Repricer: a "desired price" (`buyer_price`) rule can act while its card has too few sales to
+  measure the marketplace's discount (`no_discount_fallback`): by the account's median discount
+  (`account_median`) or keeping the desired price as the seller's price (`seller_price`) until
+  the discount is measured. Off by default — the rule waits for sales, as before. Chosen per
+  card under the desired price ("без продаж: …"), and in `PUT /pricing/target/{mp}/{offer}`.
+
+### Fixed
+
+- Prices: a rule that waits for sales to measure the discount is shown as "не действует: ждёт
+  продаж для замера скидки" instead of "держится на площадке", and the marketplace panel
+  counts such rules.
+
+### Migrations
+
+- `0035_price_rule_fallback`: `dim_price_rule.no_discount_fallback`.
+
 ### Changed
 
 - Prices, from the customer's wishes of 2026-10-18: the "Шаблон Excel" of desired prices (per

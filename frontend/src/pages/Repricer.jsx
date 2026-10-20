@@ -13,6 +13,11 @@ const RULE_MODES = {
   seller_price: "держит цену со скидкой продавца",
   margin: "по марже от безубыточности",
 };
+// what a buyer-price rule does while the card has too few sales to measure the discount
+const FALLBACK_NOTES = {
+  account_median: "без продаж — по медиане кабинета",
+  seller_price: "без продаж — как цена продавца",
+};
 
 export default function Repricer() {
   const { t } = useI18n();
@@ -103,6 +108,7 @@ export default function Repricer() {
                   </h3>
                   <p className="text-xs text-[var(--color-on-surface-variant)] mt-0.5">
                     {rule.account_id} · {RULE_MODES[rule.mode] || rule.mode}
+                    {rule.mode === "buyer_price" && FALLBACK_NOTES[rule.no_discount_fallback] && ` · ${FALLBACK_NOTES[rule.no_discount_fallback]}`}
                     {rule.target_price > 0 && <> · цель {moneyFmt(rule.target_price)}, шаг до {numberFmt(rule.max_step_pct)}%</>}
                   </p>
                 </div>

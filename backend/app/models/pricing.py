@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.models.bidder import ACCOUNT_ID_PATTERN
-from app.models.repricer import PriceMode
+from app.models.repricer import NoDiscountFallback, PriceMode
 from pydantic import BaseModel, Field
 
 OFFER_ID_MAX = 128
@@ -43,6 +43,7 @@ class PriceBreakdownRow(BaseModel):
     rule_id: str | None = None
     mode: str | None = None
     target_price: float | None = None
+    no_discount_fallback: str | None = None
     rule_is_active: bool | None = None
     rule_dry_run: bool | None = None
     target_gap_pct: float | None = Field(
@@ -73,6 +74,9 @@ class TargetPriceSet(BaseModel):
     min_price: float | None = Field(default=None, ge=0)
     max_price: float | None = Field(default=None, ge=0)
     max_step_pct: float | None = Field(default=None, gt=0, le=50)
+    no_discount_fallback: NoDiscountFallback | None = Field(
+        default=None, description="Kept as is when omitted; a new rule waits for sales"
+    )
 
 
 class OfferCost(BaseModel):

@@ -24,6 +24,23 @@ function discountUsable(row) {
   if (row.mp_discount_scope === "product") return row.mp_discount_samples >= 3;
   return row.mp_discount_scope === "account" && row.marketplace === "wb" && row.mp_discount_samples >= 10;
 }
+// what a buyer-price rule does while the card's discount cannot be measured (no_discount_fallback)
+const FALLBACKS = [
+  { id: "", label: "ждать продаж", note: "" },
+  { id: "account_median", label: "по медиане кабинета", note: "пока нет продаж — по скидке-медиане кабинета" },
+  { id: "seller_price", label: "как цену продавца", note: "пока нет продаж — держит как цену продавца" },
+];
+/** Whether a buyer-price rule has a discount to act on: the card's own or its fallback. */
+function ruleCanAct(row) {
+  if (row.mode !== "buyer_price" || discountUsable(row)) return true;
+  if (row.no_discount_fallback === "seller_price") return true;
+  return row.no_discount_fallback === "account_median" && row.mp_discount_pct !== null && row.mp_discount_pct !== undefined;
+}
+/** The price a rule keeps on the card now: the buyer's, or the seller's under that fallback. */
+function keptPrice(row) {
+  if (row.mode === "buyer_price" && !discountUsable(row) && row.no_discount_fallback === "seller_price") return row.seller_price;
+  return row.mode === "buyer_price" ? row.buyer_price : row.mode === "seller_price" ? row.seller_price : null;
+}
 // a kept price this far from the desired one is highlighted
 const GAP_WARN_PCT = 1;
 
@@ -135,9 +152,17 @@ function DiscountCell({ row }) {
   );
 }
 
-function TargetCell({ row, onSave, fromFile }) {
+function ruleStatus(row) {
+  if (!row.rule_is_active) return "правило выключено";
+  if (!ruleCanAct(row)) return "не действует: ждёт продаж для замера скидки";
+  return row.rule_dry_run ? "симуляция" : "держится на площадке";
+}
+
+function TargetCell({ row, onSave, onFallback, fromFile }) {
   const gap = row.target_gap_pct;
   const off = gap !== null && gap !== undefined && Math.abs(gap) > GAP_WARN_PCT;
+  const noDiscount = row.mode === "buyer_price" && !discountUsable(row);
+  const fallback = FALLBACKS.find((f) => f.id === (row.no_discount_fallback || "")) || FALLBACKS[0];
   return (
     <div className="space-y-1">
       <EditableNumber value={row.target_price} onSave={(v) => onSave(row, v)} label={`Желаемая цена ${row.offer_id}`} />
@@ -151,13 +176,26 @@ function TargetCell({ row, onSave, fromFile }) {
               {numberFmt(gap, 1)}%
             </span>
           )}
-          <span className="block">
-            {!row.rule_is_active ? "правило выключено" : row.rule_dry_run ? "симуляция" : "держится на площадке"}
+          <span className="block" title={noDiscount ? "Скидку маркетплейса нужно измерить хотя бы на 3 продажах этого товара" : undefined}>
+            {ruleStatus(row)}
           </span>
-          {row.mode === "buyer_price" && !discountUsable(row) && (
-            <span className="block" title="Скидку маркетплейса нужно измерить хотя бы на 3 продажах этого товара">
-              ждёт продаж для замера скидки
-            </span>
+          {noDiscount && ruleCanAct(row) && fallback.note && <span className="block">{fallback.note}</span>}
+          {(noDiscount || fallback.id) && row.mode === "buyer_price" && (
+            <label className="block pt-0.5">
+              <span className="sr-only">Пока нет продаж для замера скидки {row.offer_id}</span>
+              <select
+                className="max-w-full rounded border border-[var(--color-outline)] bg-[var(--color-surface)] px-1 py-0.5 text-[11px]"
+                value={fallback.id}
+                title="Что делать, пока скидку маркетплейса не на чем измерить"
+                onChange={(e) => onFallback(row, e.target.value)}
+              >
+                {FALLBACKS.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    без продаж: {f.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           )}
         </div>
       )}
@@ -275,6 +313,7 @@ function TargetsPanel({ marketplace, rows, onImported, actionsEnabled, onlyLoade
 
   const withTarget = rows.filter((r) => r.rule_id && r.mode === "buyer_price" && r.target_price);
   const live = withTarget.filter((r) => r.rule_is_active && !r.rule_dry_run).length;
+  const idle = withTarget.filter((r) => r.rule_is_active && !ruleCanAct(r)).length;
   const priceColumn = `Желаемая цена для МП (${label})`;
 
   // only the headers: the seller pastes their own articles and prices under them
@@ -310,7 +349,8 @@ function TargetsPanel({ marketplace, rows, onImported, actionsEnabled, onlyLoade
         <div>
           <h3 className="text-sm font-semibold">Желаемые цены {label}</h3>
           <p className="text-xs text-[var(--color-on-surface-variant)]">
-            Задано: {withTarget.length} · держатся на площадке: {live} · в симуляции: {withTarget.length - live}
+            Задано: {withTarget.length} · на площадке: {live} · в симуляции: {withTarget.length - live}
+            {idle > 0 && ` · не действуют без продаж: ${idle}`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -381,12 +421,12 @@ function Breakdown({ rows, setRows, onError, onReload, actionsEnabled }) {
 
   const seenAt = visible[0]?.price_seen_at;
 
-  const saveTarget = async (row, value) => {
+  const saveTarget = async (row, value, extra = {}) => {
     const res = await safeCall(() =>
       request(`/api/v1/pricing/target/${row.marketplace}/${encodeURIComponent(row.offer_id)}`, {
         method: "PUT",
         admin: true,
-        body: { account_id: row.account_id, target_price: value, mode: "buyer_price" },
+        body: { account_id: row.account_id, target_price: value, mode: "buyer_price", ...extra },
       })
     );
     if (!res.ok) {
@@ -394,25 +434,28 @@ function Breakdown({ rows, setRows, onError, onReload, actionsEnabled }) {
       return false;
     }
     const rule = res.data;
-    const kept = rule.mode === "buyer_price" ? row.buyer_price : rule.mode === "seller_price" ? row.seller_price : null;
     setRows((prev) =>
-      prev.map((r) =>
-        r.marketplace === row.marketplace && r.account_id === row.account_id && r.offer_id === row.offer_id
-          ? {
-              ...r,
-              rule_id: rule.rule_id,
-              mode: rule.mode,
-              target_price: rule.target_price,
-              rule_is_active: rule.is_active,
-              rule_dry_run: rule.dry_run,
-              target_gap_pct: kept === null || kept === undefined ? null : Math.round(((kept - value) / value) * 10000) / 100,
-            }
-          : r
-      )
+      prev.map((r) => {
+        if (r.marketplace !== row.marketplace || r.account_id !== row.account_id || r.offer_id !== row.offer_id) return r;
+        const next = {
+          ...r,
+          rule_id: rule.rule_id,
+          mode: rule.mode,
+          target_price: rule.target_price,
+          no_discount_fallback: rule.no_discount_fallback,
+          rule_is_active: rule.is_active,
+          rule_dry_run: rule.dry_run,
+        };
+        const kept = keptPrice(next);
+        next.target_gap_pct = kept === null || kept === undefined ? null : Math.round(((kept - value) / value) * 10000) / 100;
+        return next;
+      })
     );
     onError("");
     return true;
   };
+
+  const saveFallback = (row, fallback) => saveTarget(row, row.target_price, { no_discount_fallback: fallback });
 
   const saveCost = async (row, value) => {
     const res = await safeCall(() =>
@@ -515,7 +558,7 @@ function Breakdown({ rows, setRows, onError, onReload, actionsEnabled }) {
                     <td className={tdClass}><Money value={row.seller_price} /></td>
                     <td className={tdClass}><DiscountCell row={row} /></td>
                     <td className={tdClass}><Money value={row.buyer_price} className="font-semibold" /></td>
-                    <td className={tdClass}><TargetCell row={row} onSave={saveTarget} fromFile={fromFile} /></td>
+                    <td className={tdClass}><TargetCell row={row} onSave={saveTarget} onFallback={saveFallback} fromFile={fromFile} /></td>
                     <td className={tdClass}>
                       <EditableNumber value={row.cost_price} onSave={(v) => saveCost(row, v)} label={`Себестоимость ${row.offer_id}`} />
                     </td>

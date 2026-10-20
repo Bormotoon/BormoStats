@@ -7,7 +7,9 @@ says what to keep (``mode``):
   Ozon co-financed discounts). The seller price is ``target / (1 - discount)``, with the
   discount measured on the card's recent sales (``mrt_price_current``); on WB, whose SPP is
   much the same across a seller's cards, the account's median is used for a card with too
-  few orders;
+  few orders. While the discount cannot be measured the rule waits, unless its
+  ``no_discount_fallback`` says to use the account's median discount (``account_median``) or
+  to keep ``target`` as the seller price (``seller_price``) meanwhile;
 * ``seller_price`` — the seller's price after the seller's discount;
 * ``margin``       — break-even price plus ``target_margin_percent``.
 
@@ -53,6 +55,9 @@ MODE_BUYER_PRICE = "buyer_price"
 MODE_SELLER_PRICE = "seller_price"
 MODE_MARGIN = "margin"
 MODES = (MODE_BUYER_PRICE, MODE_SELLER_PRICE, MODE_MARGIN)
+# what a buyer-price rule does without a usable discount; "" waits for the card's sales
+FALLBACK_ACCOUNT_MEDIAN = "account_median"
+FALLBACK_SELLER_PRICE = "seller_price"
 
 MIN_PRICE_DELTA = 1.0
 # changes under half a percent are noise: the measured discount moves a little every day
@@ -82,6 +87,7 @@ class PriceRule:
     mode: str = MODE_MARGIN
     target_price: float = 0.0
     max_step_pct: float = DEFAULT_MAX_STEP_PCT
+    no_discount_fallback: str = ""
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> PriceRule:
@@ -98,6 +104,7 @@ class PriceRule:
             mode=str(row.get("mode") or MODE_MARGIN),
             target_price=float(row.get("target_price") or 0),
             max_step_pct=float(row.get("max_step_pct") or DEFAULT_MAX_STEP_PCT),
+            no_discount_fallback=str(row.get("no_discount_fallback") or ""),
         )
 
 
@@ -137,6 +144,8 @@ class PriceDecision:
     price: float | None
     reason: str
     clamped_to_min: bool = False
+    # the no_discount_fallback the price was computed with, "" when none was needed
+    fallback: str = ""
 
 
 def _opt_float(value: Any) -> float | None:
@@ -153,7 +162,8 @@ def fetch_active_rules(client: Client) -> list[PriceRule]:
         " r.marketplace AS marketplace, r.account_id AS account_id,"
         " r.product_id AS product_id, r.min_price AS min_price, r.max_price AS max_price,"
         " r.target_margin_percent AS target_margin_percent, r.dry_run AS dry_run,"
-        " r.mode AS mode, r.target_price AS target_price, r.max_step_pct AS max_step_pct"
+        " r.mode AS mode, r.target_price AS target_price, r.max_step_pct AS max_step_pct,"
+        " r.no_discount_fallback AS no_discount_fallback"
         " FROM dim_price_rule AS r FINAL"
         " INNER JOIN (SELECT marketplace, account_id, organization_id FROM dim_account FINAL) AS a"
         " ON a.marketplace = r.marketplace AND a.account_id = r.account_id"
@@ -214,15 +224,26 @@ def discount_usable(marketplace: str, snap: PriceSnapshot) -> bool:
 
 def desired_price(rule: PriceRule, snap: PriceSnapshot) -> PriceDecision:
     """The seller price the rule asks for, before the step limit."""
+    fallback = ""
     if rule.mode == MODE_BUYER_PRICE:
         discount = snap.mp_discount_pct
-        if (
-            rule.target_price <= 0
-            or discount is None
-            or not discount_usable(rule.marketplace, snap)
-        ):
+        if rule.target_price <= 0:
             return PriceDecision(None, "no_discount_data")
-        price = rule.target_price / (1 - discount / 100)
+        if discount is not None and discount_usable(rule.marketplace, snap):
+            price = rule.target_price / (1 - discount / 100)
+        elif (
+            rule.no_discount_fallback == FALLBACK_ACCOUNT_MEDIAN
+            and discount is not None
+            and 0 <= discount < MAX_DISCOUNT_PCT
+        ):
+            # the mart falls back to the account's median for a card without its own sales
+            fallback = FALLBACK_ACCOUNT_MEDIAN
+            price = rule.target_price / (1 - discount / 100)
+        elif rule.no_discount_fallback == FALLBACK_SELLER_PRICE:
+            fallback = FALLBACK_SELLER_PRICE
+            price = rule.target_price
+        else:
+            return PriceDecision(None, "no_discount_data")
     elif rule.mode == MODE_SELLER_PRICE:
         if rule.target_price <= 0:
             return PriceDecision(None, "no_target")
@@ -241,7 +262,7 @@ def desired_price(rule: PriceRule, snap: PriceSnapshot) -> PriceDecision:
         clamped_to_min = True
     if rule.max_price > 0 and price > rule.max_price:
         price = rule.max_price
-    return PriceDecision(round(price), "ok", clamped_to_min)
+    return PriceDecision(round(price), "ok", clamped_to_min, fallback)
 
 
 def step_limited(current: float, desired: float, max_step_pct: float) -> float:
@@ -258,19 +279,27 @@ def plan_price_change(
     rule: PriceRule, snap: PriceSnapshot | None, *, now: datetime | None = None
 ) -> tuple[PlannedAction | None, str]:
     """Plan the change of the seller price; the second item says why there is none."""
+    action, reason, _ = _plan(rule, snap, now)
+    return action, reason
+
+
+def _plan(
+    rule: PriceRule, snap: PriceSnapshot | None, now: datetime | None
+) -> tuple[PlannedAction | None, str, str]:
+    """``plan_price_change`` plus the no-discount fallback the price was computed with."""
     if snap is None:
-        return None, "no_snapshot"
+        return None, "no_snapshot", ""
     if snap.seller_price <= 0:
-        return None, "no_price"
+        return None, "no_price", ""
     if (now or datetime.now(UTC)) - snap.price_seen_at > MAX_SNAPSHOT_AGE:
-        return None, "stale_snapshot"
+        return None, "stale_snapshot", ""
     decision = desired_price(rule, snap)
     if decision.price is None:
-        return None, decision.reason
+        return None, decision.reason, ""
     price = step_limited(snap.seller_price, decision.price, rule.max_step_pct)
     tolerance = max(MIN_PRICE_DELTA, snap.seller_price * MIN_PRICE_DELTA_PCT / 100)
     if abs(price - snap.seller_price) <= tolerance:
-        return None, "in_tolerance"
+        return None, "in_tolerance", decision.fallback
     action = PlannedAction(
         organization_id=rule.organization_id,
         source="repricer",
@@ -283,7 +312,8 @@ def plan_price_change(
         after_value=price,
         dry_run=rule.dry_run,
     )
-    return action, "clamped_to_min" if decision.clamped_to_min else "planned"
+    reason = "clamped_to_min" if decision.clamped_to_min else "planned"
+    return action, reason, decision.fallback
 
 
 def wb_list_price(seller_price: float, discount_pct: float) -> int:
@@ -340,7 +370,9 @@ def repricer_evaluate_rules() -> dict[str, object]:
                 stats["checked"] += 1
                 try:
                     snap = fetch_snapshot(client, rule)
-                    action, reason = plan_price_change(rule, snap)
+                    action, reason, fallback = _plan(rule, snap, None)
+                    if fallback:
+                        stats[f"fallback_{fallback}"] += 1
                     if action is None or snap is None:
                         stats[reason] += 1
                         continue

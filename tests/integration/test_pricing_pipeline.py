@@ -240,6 +240,22 @@ def test_price_breakdown_compare_and_target(integration_runtime: Any, api_client
         ).result_rows
         # 450 / 0.8 = 562.5 -> 562, but one step is 5 % of 500
         assert action == [("btn1", 500.0, 525.0, 1, "simulated")]
+
+        # a fallback for a card without sales is kept when the price changes, and shown
+        fallback = api_client.put(
+            "/api/v1/pricing/target/ozon/btn1",
+            json={"target_price": 700, "no_discount_fallback": "seller_price"},
+        )
+        assert fallback.status_code == 200, fallback.text
+        assert fallback.json()["no_discount_fallback"] == "seller_price"
+        kept = api_client.put("/api/v1/pricing/target/ozon/btn1", json={"target_price": 720})
+        assert kept.json()["no_discount_fallback"] == "seller_price"
+        ozon = next(
+            r
+            for r in api_client.get("/api/v1/pricing/breakdown").json()
+            if r["marketplace"] == "ozon"
+        )
+        assert ozon["no_discount_fallback"] == "seller_price"
     finally:
         client.command("TRUNCATE TABLE sys_marketplace_actions")
         client.close()

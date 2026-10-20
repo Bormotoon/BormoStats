@@ -121,6 +121,21 @@ def test_wb_may_use_the_accounts_spp() -> None:
     assert desired_price(_price_rule(), account).price is None
 
 
+def test_no_discount_fallbacks() -> None:
+    no_sales = _snap(mp_discount_scope="account", mp_discount_samples=0, mp_discount_pct=50.0)
+    # by default the rule waits for the card's own sales
+    assert desired_price(_price_rule(), no_sales).reason == "no_discount_data"
+    median = desired_price(_price_rule(no_discount_fallback="account_median"), no_sales)
+    assert (median.price, median.fallback) == (800, "account_median")
+    seller = desired_price(_price_rule(no_discount_fallback="seller_price"), no_sales)
+    assert (seller.price, seller.fallback) == (400, "seller_price")
+    # the account's median is needed for it; the card's own discount wins over a fallback
+    nothing = _snap(mp_discount_pct=None, mp_discount_scope="")
+    assert desired_price(_price_rule(no_discount_fallback="account_median"), nothing).price is None
+    own = desired_price(_price_rule(no_discount_fallback="seller_price"), _snap())
+    assert (own.price, own.fallback) == (500, "")
+
+
 def test_other_modes_and_bounds() -> None:
     assert desired_price(_price_rule(mode="seller_price", target_price=450.0), _snap()).price == 450
     assert desired_price(_price_rule(mode="margin"), _snap()).price == 360  # 300 + 20 %
