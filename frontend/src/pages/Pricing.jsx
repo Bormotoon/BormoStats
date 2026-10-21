@@ -18,10 +18,13 @@ const MARKETPLACES = [
 // the desired price is the price the buyer sees on the marketplace, after its discounts;
 // older rules made on the repricer page may keep another price
 const MODE_SHORT = { seller_price: "держит цену со скидкой продавца", margin: "держит маржу" };
-// the repricer keeps a buyer price on a discount measured on 3+ of the card's sales, or on WB on
-// the account's median over 10+ orders (workers/app/tasks/repricer.py)
+// the repricer keeps a buyer price on a discount measured on the card's own sales (3+ on WB, any
+// on Ozon), or on WB on the account's median over 10+ orders (workers/app/tasks/repricer.py)
+function minSamples(marketplace) {
+  return marketplace === "ozon" ? 1 : 3;
+}
 function discountUsable(row) {
-  if (row.mp_discount_scope === "product") return row.mp_discount_samples >= 3;
+  if (row.mp_discount_scope === "product") return row.mp_discount_samples >= minSamples(row.marketplace);
   return row.mp_discount_scope === "account" && row.marketplace === "wb" && row.mp_discount_samples >= 10;
 }
 // what a buyer-price rule does while the card's discount cannot be measured (no_discount_fallback);
@@ -29,7 +32,7 @@ function discountUsable(row) {
 const FALLBACKS = [
   { id: "", label: "ждать продаж", note: "" },
   { id: "account_median", label: "по медиане кабинета", note: "пока нет продаж — по скидке-медиане кабинета", only: "wb" },
-  { id: "seller_price", label: "как цену продавца", note: "до 3 продаж — держит как цену продавца" },
+  { id: "seller_price", label: "как цену продавца", note: "пока скидка не измерена — держит как цену продавца" },
 ];
 function fallbacksFor(marketplace) {
   return FALLBACKS.filter((f) => !f.only || f.only === marketplace);
@@ -187,7 +190,7 @@ function TargetCell({ row, onSave, onFallback, fromFile }) {
               {numberFmt(gap, 1)}%
             </span>
           )}
-          <span className="block" title={noDiscount ? "Скидку маркетплейса нужно измерить хотя бы на 3 продажах этого товара" : undefined}>
+          <span className="block" title={noDiscount ? (row.marketplace === "ozon" ? "Скидку Ozon нужно измерить хотя бы на одной продаже этого товара" : "Скидку маркетплейса нужно измерить хотя бы на 3 продажах этого товара") : undefined}>
             {ruleStatus(row)}
           </span>
           {noDiscount && ruleCanAct(row) && fallback.note && <span className="block">{fallback.note}</span>}

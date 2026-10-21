@@ -12,8 +12,9 @@ says what to keep (``mode``):
   only) or to keep ``target`` as the seller price (``seller_price``) meanwhile. On Ozon the
   discount is mostly Ozon's "баллы за скидки", given per card (new cards get next to none),
   so an ``account_median`` rule there keeps ``target`` as the seller price instead, and a new
-  Ozon rule gets ``seller_price``: the desired price is the seller's until 3 sales measure the
-  card's discount, then the rule prices on that discount;
+  Ozon rule gets ``seller_price``: the desired price is the seller's until the card's first
+  sale measures its discount, then the rule prices on that discount (a card Ozon discounts by
+  half would otherwise be sold at half the desired price);
 * ``seller_price`` — the seller's price after the seller's discount;
 * ``margin``       — break-even price plus ``target_margin_percent``.
 
@@ -67,9 +68,11 @@ MIN_PRICE_DELTA = 1.0
 # changes under half a percent are noise: the measured discount moves a little every day
 MIN_PRICE_DELTA_PCT = 0.5
 DEFAULT_MAX_STEP_PCT = 10.0
-# a buyer-price rule acts on a discount measured on 3+ of the card's own sales, or on WB on the
-# account's median over 10+ orders (Ozon's discounts vary too much between cards for that)
-MIN_DISCOUNT_SAMPLES = 3
+# a buyer-price rule acts on a discount measured on the card's own sales — 3+ on WB, any on Ozon,
+# whose per-card points discount is the card's own even on one sale — or on WB on the account's
+# median over 10+ orders (Ozon's discounts vary too much between cards for that)
+MIN_DISCOUNT_SAMPLES = {"wb": 3, "ozon": 1}
+DEFAULT_MIN_DISCOUNT_SAMPLES = 3
 MIN_ACCOUNT_DISCOUNT_SAMPLES = 10
 ACCOUNT_DISCOUNT_MARKETPLACES = frozenset({"wb"})
 MAX_DISCOUNT_PCT = 90.0
@@ -217,7 +220,9 @@ def discount_usable(marketplace: str, snap: PriceSnapshot) -> bool:
     if discount is None or not 0 <= discount < MAX_DISCOUNT_PCT:
         return False
     if snap.mp_discount_scope == "product":
-        return snap.mp_discount_samples >= MIN_DISCOUNT_SAMPLES
+        return snap.mp_discount_samples >= MIN_DISCOUNT_SAMPLES.get(
+            marketplace, DEFAULT_MIN_DISCOUNT_SAMPLES
+        )
     if snap.mp_discount_scope == "account":
         return (
             marketplace in ACCOUNT_DISCOUNT_MARKETPLACES

@@ -243,7 +243,7 @@ def test_price_breakdown_compare_and_target(integration_runtime: Any, api_client
         # 450 / 0.8 = 562.5 -> 562, but one step is 5 % of 500
         assert action == [("btn1", 500.0, 525.0, 1, "simulated")]
 
-        # a new Ozon rule keeps the desired price as the seller price until 3 sales
+        # a new Ozon rule keeps the desired price as the seller price until its first sale
         imported = api_client.post(
             "/api/v1/pricing/targets/import", json={"marketplace": "ozon", "text": "btn1;690"}
         )

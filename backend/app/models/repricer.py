@@ -30,7 +30,7 @@ def check_fallback(marketplace: str, fallback: str | None) -> None:
 
 def default_fallback(marketplace: str) -> str:
     """The fallback a new desired-price rule gets: an Ozon card keeps the desired price as the
-    seller's price until 3 sales measure its discount, a WB card waits for them."""
+    seller's price until its first sale measures its discount, a WB card waits for 3 sales."""
     return "seller_price" if marketplace == "ozon" else ""
 
 

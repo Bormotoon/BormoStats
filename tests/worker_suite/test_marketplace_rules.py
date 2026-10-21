@@ -99,16 +99,24 @@ def test_buyer_price_compensates_the_marketplace_discount() -> None:
 
 
 @pytest.mark.parametrize(
-    "snap",
+    ("marketplace", "snap"),
     [
-        _snap(mp_discount_scope="account"),
-        _snap(mp_discount_samples=2),
-        _snap(mp_discount_pct=None, mp_discount_scope=""),
+        ("ozon", _snap(mp_discount_scope="account")),
+        ("ozon", _snap(mp_discount_pct=None, mp_discount_scope="")),
+        ("wb", _snap(mp_discount_samples=2)),
     ],
 )
-def test_buyer_price_needs_the_cards_own_discount(snap: PriceSnapshot) -> None:
-    decision = desired_price(_price_rule(), snap)
+def test_buyer_price_needs_the_cards_own_discount(marketplace: str, snap: PriceSnapshot) -> None:
+    decision = desired_price(_price_rule(marketplace=marketplace), snap)
     assert decision.price is None and decision.reason == "no_discount_data"
+
+
+def test_ozon_prices_on_the_cards_discount_from_its_first_sale() -> None:
+    # Ozon's points discount is the card's own: one sale at 50 % off doubles the seller price,
+    # or buyers would pay half the desired price
+    rule = _price_rule(no_discount_fallback="seller_price")
+    one = desired_price(rule, _snap(mp_discount_pct=50.0, mp_discount_samples=1))
+    assert (one.price, one.fallback) == (800, "")
 
 
 def test_wb_may_use_the_accounts_spp() -> None:
@@ -137,8 +145,8 @@ def test_no_discount_fallbacks() -> None:
     assert (own.price, own.fallback) == (500, "")
 
 
-def test_seller_price_until_three_sales_then_the_measured_discount() -> None:
-    rule = _price_rule(no_discount_fallback="seller_price")
+def test_wb_seller_price_until_three_sales_then_the_measured_discount() -> None:
+    rule = _price_rule(marketplace="wb", no_discount_fallback="seller_price")
     two = desired_price(rule, _snap(mp_discount_samples=2))
     assert (two.price, two.fallback) == (400, "seller_price")
     three = desired_price(rule, _snap(mp_discount_samples=3))
@@ -151,7 +159,6 @@ def test_ozon_never_prices_on_the_accounts_median() -> None:
     for snap in (
         _snap(mp_discount_scope="account", mp_discount_samples=0, mp_discount_pct=50.0),
         _snap(mp_discount_pct=None, mp_discount_scope=""),
-        _snap(mp_discount_samples=2),
     ):
         decision = desired_price(ozon_median, snap)
         assert (decision.price, decision.fallback) == (400, "seller_price")

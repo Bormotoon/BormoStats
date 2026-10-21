@@ -351,11 +351,12 @@ def _opt_float(value: Any) -> float | None:
 
 
 def _discount_usable(r: dict[str, Any]) -> bool:
-    """Whether the repricer sets a buyer price on the card's measured discount: 3+ of the card's
-    sales, or on WB the account's median over 10+ orders (workers/app/tasks/repricer.py)."""
+    """Whether the repricer sets a buyer price on the card's measured discount: the card's own
+    sales (3+ on WB, any on Ozon), or on WB the account's median over 10+ orders
+    (workers/app/tasks/repricer.py)."""
     samples = int(r.get("mp_discount_samples") or 0)
     if r.get("mp_discount_scope") == "product":
-        return samples >= 3
+        return samples >= (1 if r["marketplace"] == "ozon" else 3)
     return r.get("mp_discount_scope") == "account" and r["marketplace"] == "wb" and samples >= 10
 
 

@@ -21,6 +21,10 @@ All notable changes to this project are documented here. The project follows
   prices page and `POST /repricer/rules` without `no_discount_fallback`) and migration 0037
   moves the waiting Ozon rules to it. "ждать продаж" can still be chosen per card; WB rules
   wait for sales by default, as before.
+- Repricer on Ozon: a desired-price rule prices on the card's own discount from its first
+  sale, not its third. Ozon kept discounting cards with 1–2 sales by ~50 % after their prices
+  were lowered to the desired one, so buyers paid half of it; only cards without sales keep the
+  desired price as the seller's.
 
 ### Fixed
 

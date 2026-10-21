@@ -77,7 +77,7 @@ class TargetPriceSet(BaseModel):
     no_discount_fallback: NoDiscountFallback | None = Field(
         default=None,
         description="Kept as is when omitted; a new rule keeps the target as the seller price"
-        " on Ozon until 3 sales measure the discount and waits for them on WB",
+        " on Ozon until its first sale measures the discount and waits for 3 sales on WB",
     )
 
 

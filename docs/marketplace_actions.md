@@ -86,6 +86,13 @@ Checked on the live account, in the seller cabinet and as a buyer on ozon.ru:
   rules that waited for sales). On rollout 173 old cards whose manual prices were ~2× the
   desired price started stepping down to it; while Ozon still gives them points, buyers pay
   less than the desired price until 3 sales measure the discount.
+- **From the first sale (2026-10-21):** after the rollout above, Ozon kept its ~50–70 %
+  points on cards with 1–2 sales whose prices stepped down to the desired one, so buyers paid
+  about half of it. An Ozon card's discount is its own even on one sale, so an Ozon rule now
+  prices on it from the first sale (WB still needs 3 orders); only cards without sales keep the
+  desired price as the seller's. Ozon's current discount is not visible to us, so the repricer
+  learns of a new one only from the card's next sales — finance accruals arrive days after the
+  order — and a figure from one old sale can be higher than what Ozon gives today.
 - **Pace:** the catalogue snapshot is taken hourly (`:27`), and after a live change a rule
   waits for the next snapshot, so a card moves by `max_step_pct` (10 %) about once an hour; at
   most `MARKETPLACE_ACTIONS_MAX_PER_RUN` (100) prices are written per 10-minute run, the rest
