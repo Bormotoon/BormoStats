@@ -15,6 +15,13 @@ All notable changes to this project are documented here. The project follows
 
 ### Changed
 
+- Repricer on Ozon: the card's limit price ("предельная цена", `min_price`) is kept at the price
+  the rule sets. Since October 2026 that one limit decides Ozon's promotions: a card takes part
+  while its limit is not above the promotion's price for taking part, and 162 of 270 live rules
+  had it ~43 % under the price, so promotions could sell the cards at about half the rule's
+  price. A price change now sends `min_price` with the price, and a card whose price is right
+  but whose limit is lower gets a `price_limit` action that raises only the limit. The card
+  leaves the promotions that ask for a lower price and stays, at its own price, in the others.
 - Repricer on Ozon: a desired-price rule on a card with fewer than 3 sales keeps the desired
   price as the seller's price (`seller_price`) instead of waiting for sales; from the 3rd sale
   it prices on the card's measured discount. New Ozon rules get it (from the file upload, the

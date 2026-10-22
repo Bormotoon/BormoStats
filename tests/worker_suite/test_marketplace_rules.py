@@ -230,10 +230,59 @@ def test_ozon_price_scales_the_crossed_out_price() -> None:
     assert action is not None
     executor = price_executor(WbActionsClient(), ozon, rule, snap, action)
     assert executor is not None and executor().ok
+    # the limit price follows the price, so promotions cannot sell the card below it
     assert seen[0]["prices"] == [
-        {"offer_id": "SKU-1", "price": "550.00", "old_price": "1100.00", "currency_code": "RUB"}
+        {
+            "offer_id": "SKU-1",
+            "price": "550.00",
+            "old_price": "1100.00",
+            "currency_code": "RUB",
+            "min_price": "550.00",
+        }
     ]
     assert price_executor(WbActionsClient(), OzonActionsClient(), rule, snap, action) is None
+
+
+def test_ozon_raises_a_limit_price_under_the_kept_price() -> None:
+    seen: list[dict[str, object]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json={"result": [{"offer_id": "SKU-1", "updated": True}]})
+
+    ozon = OzonActionsClient(client_id="c", api_key="k")
+    _mock(ozon, "_http", handler)
+    rule = _price_rule()
+    # the price is right (400 at 20 % off), but a promotion could take the card down to 300
+    snap = _snap(price_limit=300.0)
+    action, reason = plan_price_change(rule, snap, now=NOW)
+    assert action is not None and reason == "price_limit"
+    assert (action.target_type, action.before_value, action.after_value) == (
+        "price_limit",
+        300.0,
+        500.0,
+    )
+    executor = price_executor(WbActionsClient(), ozon, rule, snap, action)
+    assert executor is not None and executor().ok
+    assert seen[0]["prices"] == [
+        {
+            "offer_id": "SKU-1",
+            "price": "500.00",
+            "old_price": "1000.00",
+            "currency_code": "RUB",
+            "min_price": "500.00",
+        }
+    ]
+
+    # a limit at the price, or within the tolerance, is left alone; WB has no limit price
+    assert plan_price_change(rule, _snap(price_limit=500.0), now=NOW) == (None, "in_tolerance")
+    assert plan_price_change(rule, _snap(price_limit=498.0), now=NOW) == (None, "in_tolerance")
+    assert plan_price_change(rule, _snap(price_limit=None), now=NOW) == (None, "in_tolerance")
+    wb = _price_rule(marketplace="wb")
+    assert plan_price_change(wb, _snap(price_limit=300.0), now=NOW) == (None, "in_tolerance")
+    # a rule that waits for the card's discount does not touch the limit either
+    waiting = _snap(mp_discount_pct=None, mp_discount_scope="", price_limit=300.0)
+    assert plan_price_change(rule, waiting, now=NOW) == (None, "no_discount_data")
 
 
 def _action(dry_run: bool = False) -> PlannedAction:

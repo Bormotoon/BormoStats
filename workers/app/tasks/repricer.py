@@ -23,6 +23,13 @@ cost price is known), and one change moves it by at most ``max_step_pct`` — WB
 quarantine sharp changes. WB gets a new list price with the card's discount kept, Ozon a new
 price with the crossed-out price scaled alongside.
 
+On Ozon the rule also keeps the card's "предельная цена" (``min_price`` in the API) at the price
+it sets. Since October 2026 that one limit decides Ozon's promotions: a card takes part in a
+promotion only while its limit is not above the promotion's price for taking part, so a limit
+below the price let promotions sell the card under the rule's price. With the limit at the price
+the card stays in the promotions that ask for no lower price and leaves the others. A card whose
+price is already right but whose limit is lower gets a ``price_limit`` change of its own.
+
 After a live change the rule waits for the next catalogue snapshot before acting again.
 Changes are simulated for dry-run rules (or with the kill switch off) and applied through the
 marketplace price APIs otherwise; all outcomes are audited in ``sys_marketplace_actions``.
@@ -63,6 +70,10 @@ MODES = (MODE_BUYER_PRICE, MODE_SELLER_PRICE, MODE_MARGIN)
 # what a buyer-price rule does without a usable discount; "" waits for the card's sales
 FALLBACK_ACCOUNT_MEDIAN = "account_median"
 FALLBACK_SELLER_PRICE = "seller_price"
+
+TARGET_PRICE = "price"
+# Ozon's "предельная цена" alone, the price staying as it is
+TARGET_PRICE_LIMIT = "price_limit"
 
 MIN_PRICE_DELTA = 1.0
 # changes under half a percent are noise: the measured discount moves a little every day
@@ -128,6 +139,8 @@ class PriceSnapshot:
     mp_discount_samples: int
     breakeven_price: float | None
     price_seen_at: datetime
+    # Ozon's "предельная цена" (min_price), None on WB
+    price_limit: float | None = None
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> PriceSnapshot:
@@ -141,6 +154,7 @@ class PriceSnapshot:
             mp_discount_samples=int(row.get("mp_discount_samples") or 0),
             breakeven_price=_opt_float(row.get("breakeven_price")),
             price_seen_at=_as_utc(row["price_seen_at"]),
+            price_limit=_opt_float(row.get("min_price")),
         )
 
 
@@ -183,7 +197,7 @@ def fetch_active_rules(client: Client) -> list[PriceRule]:
 def fetch_snapshot(client: Client, rule: PriceRule) -> PriceSnapshot | None:
     rows = client.query(
         "SELECT product_id, list_price, seller_discount_pct, seller_price, mp_discount_pct,"
-        " mp_discount_scope, mp_discount_samples, breakeven_price, price_seen_at"
+        " mp_discount_scope, mp_discount_samples, breakeven_price, price_seen_at, min_price"
         " FROM mrt_price_current FINAL"
         " WHERE marketplace = {mp:String} AND account_id = {aid:String}"
         " AND offer_id = {offer:String}"
@@ -312,6 +326,25 @@ def _plan(
     price = step_limited(snap.seller_price, decision.price, rule.max_step_pct)
     tolerance = max(MIN_PRICE_DELTA, snap.seller_price * MIN_PRICE_DELTA_PCT / 100)
     if abs(price - snap.seller_price) <= tolerance:
+        if (
+            rule.marketplace == "ozon"
+            and snap.price_limit is not None
+            and snap.seller_price - snap.price_limit > tolerance
+        ):
+            # the price is right, but promotions may still sell the card down to the limit
+            limit = PlannedAction(
+                organization_id=rule.organization_id,
+                source="repricer",
+                rule_id=rule.rule_id,
+                marketplace=rule.marketplace,
+                account_id=rule.account_id,
+                target_type=TARGET_PRICE_LIMIT,
+                target_id=rule.product_id,
+                before_value=snap.price_limit,
+                after_value=snap.seller_price,
+                dry_run=rule.dry_run,
+            )
+            return limit, TARGET_PRICE_LIMIT, decision.fallback
         return None, "in_tolerance", decision.fallback
     action = PlannedAction(
         organization_id=rule.organization_id,
@@ -319,7 +352,7 @@ def _plan(
         rule_id=rule.rule_id,
         marketplace=rule.marketplace,
         account_id=rule.account_id,
-        target_type="price",
+        target_type=TARGET_PRICE,
         target_id=rule.product_id,
         before_value=snap.seller_price,
         after_value=price,
@@ -348,7 +381,12 @@ def price_executor(
     snap: PriceSnapshot,
     action: PlannedAction,
 ) -> Callable[[], ActionResult] | None:
-    if rule.marketplace == "wb" and wb.can_set_prices and snap.product_id.isdigit():
+    if (
+        rule.marketplace == "wb"
+        and action.target_type == TARGET_PRICE
+        and wb.can_set_prices
+        and snap.product_id.isdigit()
+    ):
         discount = round(snap.seller_discount_pct)
         return lambda: wb.set_price(
             nm_id=int(snap.product_id),
@@ -356,10 +394,15 @@ def price_executor(
             discount=discount,
         )
     if rule.marketplace == "ozon" and ozon.configured:
+        # the limit follows the price, so promotions cannot sell the card below it
+        price = action.after_value
+        if action.target_type == TARGET_PRICE_LIMIT:
+            price = snap.seller_price
         return lambda: ozon.set_price(
             offer_id=rule.product_id,
-            price=action.after_value,
-            old_price=ozon_old_price(snap, action.after_value),
+            price=price,
+            old_price=ozon_old_price(snap, price),
+            min_price=action.after_value,
         )
     return None
 
@@ -391,6 +434,8 @@ def repricer_evaluate_rules() -> dict[str, object]:
                         continue
                     if reason == "clamped_to_min":
                         stats["clamped_to_min_price"] += 1
+                    elif reason == TARGET_PRICE_LIMIT:
+                        stats["price_limit_raised"] += 1
                     applied_at = last_applied_at(client, rule)
                     if not action.dry_run and applied_at and applied_at >= snap.price_seen_at:
                         # the snapshot predates our last change: wait for the marketplace
@@ -411,6 +456,7 @@ def repricer_evaluate_rules() -> dict[str, object]:
                                 "source": "repricer",
                                 "status": status,
                                 "rule_id": rule.rule_id,
+                                "target_type": action.target_type,
                                 "target_id": action.target_id,
                                 "before": action.before_value,
                                 "after": action.after_value,

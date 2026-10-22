@@ -23,7 +23,7 @@
 |---|---|---|---|
 | Bid change | WB | `PATCH advert-api.wildberries.ru/api/advert/v1/bids` (per campaign + nm_id + placement, kopecks) | `WB_TOKEN_PROMOTION` |
 | Price change | WB | `POST discounts-prices-api.wildberries.ru/api/v2/upload/task` (`nmID`, list `price`, `discount` kept) | `WB_TOKEN_PRICES` |
-| Price change | Ozon | `POST api-seller.ozon.ru/v1/product/import/prices` (`price`, `old_price` scaled with it) | `OZON_CLIENT_ID` / `OZON_API_KEY` |
+| Price change | Ozon | `POST api-seller.ozon.ru/v1/product/import/prices` (`price`, `old_price` scaled with it, `min_price` = `price`) | `OZON_CLIENT_ID` / `OZON_API_KEY` |
 | Stock update | WB | `PUT marketplace-api.wildberries.ru/api/v3/stocks/{warehouseId}` (`chrtId`, `amount`) | `WB_TOKEN_MARKETPLACE` |
 | Stock update | Ozon | `POST api-seller.ozon.ru/v2/products/stocks` (≤100 items per call) | `OZON_CLIENT_ID` / `OZON_API_KEY` |
 
@@ -56,7 +56,33 @@ Then, in order:
 
 WB receives the list price for the new seller price with the card's current discount; Ozon
 receives the new price with the crossed-out price scaled by the same factor (Ozon reads
-`old_price: 0` as "no discount").
+`old_price: 0` as "no discount") and its limit price at the new price (see below).
+
+## Ozon: the limit price and promotions (since 2026-10-22)
+
+Since October 2026 Ozon has one **"предельная цена"** (limit price) per card for prices and
+Ozon promotions; a card can no longer simply be taken out of a promotion. In the API it is
+`min_price` of `/v1/product/import/prices` and `/v5/product/info/prices` (the cabinet's
+"Предельная цена / Ограничение для акций"). A promotion gives each card a price for taking part
+— `max_action_price` in `/v1/actions/products` and `/v1/actions/candidates`; for "Эластичный
+бустинг" it is `price_min_elastic`, the cabinet's "Цена для минимального бустинга". The card
+takes part while its limit is not above that price and leaves the promotion once the limit is
+raised above it.
+
+The repricer therefore keeps the limit of every Ozon card it prices **at the price it sets**:
+
+- a price change sends `min_price` equal to the new price;
+- a card whose price is within tolerance but whose limit is lower (by more than 0.5 %, at
+  least 1 ₽) gets a `price_limit` action: the same price and crossed-out price, `min_price`
+  raised to the price (`before_value`/`after_value` in the audit are the old and new limit);
+- a rule that waits for the card's discount (no decision) leaves the limit alone; WB has no
+  limit price.
+
+So a promotion that asks for a lower price than the rule's never gets the card, and the card
+leaves those it is in; a promotion whose price for taking part is at or above the rule's price
+keeps it at the rule's own price — boosting without a discount. At rollout 162 of 270 live
+Ozon rules had the limit below the price, by 43 % on average (`btn14pgf10grg`: price 1519 ₽,
+limit 900 ₽), so promotions could sell those cards at about half the rule's price.
 
 ## Ozon: what the buyer pays (findings of 2026-10-20)
 
@@ -97,9 +123,9 @@ Checked on the live account, in the seller cabinet and as a buyer on ozon.ru:
   waits for the next snapshot, so a card moves by `max_step_pct` (10 %) about once an hour; at
   most `MARKETPLACE_ACTIONS_MAX_PER_RUN` (100) prices are written per 10-minute run, the rest
   are `deferred` to the next runs.
-- **The card's own `min_price` on Ozon** is not sent by the repricer. Whether Ozon accepts a
-  price below it was not checked: the seller removed `min_price` (600 ₽) from the
-  `btn25pgf051050*` cards whose desired price is ~400 ₽.
+- **The card's own `min_price` on Ozon** is the limit price above: since 2026-10-22 the
+  repricer sets it to the price it keeps (108 cards already had it equal to the price, so
+  Ozon accepts that).
 - **When a buyer cannot find or order a card,** look at stocks before prices: a card with no
   stock (`has_stock: false`) is not shown in search; a 404 at checkout of a card with FBO
   stock is a delivery/warehouse matter, not the price.

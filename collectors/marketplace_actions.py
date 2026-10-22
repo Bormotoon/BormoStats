@@ -168,22 +168,26 @@ class OzonActionsClient:
     def _headers(self) -> dict[str, str]:
         return {"Client-Id": self._client_id, "Api-Key": self._api_key}
 
-    def set_price(self, offer_id: str, price: float, old_price: float = 0.0) -> ActionResult:
+    def set_price(
+        self, offer_id: str, price: float, old_price: float = 0.0, min_price: float = 0.0
+    ) -> ActionResult:
         """``price`` is the seller's price; ``old_price`` the crossed-out one.
 
         Ozon reads ``old_price`` "0" as "no discount" and drops the crossed-out price, so the
         caller passes the current one (scaled to the new price) to keep the discount shown.
+        ``min_price`` is the card's "предельная цена" (limit price), one for prices and Ozon
+        promotions since October 2026: the card takes part in a promotion only while it is not
+        above the promotion's price for taking part. Left out when 0.
         """
-        body = {
-            "prices": [
-                {
-                    "offer_id": offer_id,
-                    "price": f"{price:.2f}",
-                    "old_price": f"{old_price:.2f}" if old_price > price else "0",
-                    "currency_code": "RUB",
-                }
-            ]
+        item = {
+            "offer_id": offer_id,
+            "price": f"{price:.2f}",
+            "old_price": f"{old_price:.2f}" if old_price > price else "0",
+            "currency_code": "RUB",
         }
+        if min_price > 0:
+            item["min_price"] = f"{min_price:.2f}"
+        body = {"prices": [item]}
         try:
             payload = self._http.post(
                 ozon_endpoints.PRICES_IMPORT_PATH, headers=self._headers(), json=body
