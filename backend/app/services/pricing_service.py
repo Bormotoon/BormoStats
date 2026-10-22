@@ -31,7 +31,8 @@ _PRICE_COLS = (
     " p.logistics_rub AS logistics_rub, p.fees_rub AS fees_rub, p.cost_price AS cost_price,"
     " p.margin_rub AS margin_rub, p.margin_pct AS margin_pct,"
     " p.breakeven_price AS breakeven_price, p.min_price AS min_price,"
-    " p.auto_actions_enabled AS auto_actions_enabled, p.price_seen_at AS price_seen_at"
+    " p.auto_actions_enabled AS auto_actions_enabled, p.price_index_color AS price_index_color,"
+    " p.price_seen_at AS price_seen_at"
 )
 # the latest rule per card; a card may carry an older rule created through /repricer/rules
 _RULES = (
@@ -401,6 +402,7 @@ def _breakdown_row(r: dict[str, Any]) -> PriceBreakdownRow:
         breakeven_price=_opt_float(r.get("breakeven_price")),
         min_price=_opt_float(r.get("min_price")),
         auto_actions_enabled=None if auto is None else bool(auto),
+        price_index_color=r.get("price_index_color") or "",
         price_seen_at=str(r["price_seen_at"]) if r.get("price_seen_at") else None,
         rule_id=r.get("rule_id") or None,
         mode=mode or None,

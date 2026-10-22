@@ -15,6 +15,13 @@ All notable changes to this project are documented here. The project follows
 
 ### Changed
 
+- Repricer on Ozon: a desired-price rule follows Ozon's price index. Raising cards to make up
+  for the ~56 % discount measured on past sales turned 55 of 103 raised cards RED (~1.4× the
+  seller's WB price), and Ozon cut its points — one card was sold at 27 % off, 688 ₽ for a
+  desired 411 ₽. While the index is RED the price goes one `max_step_pct` step down per
+  catalogue snapshot, never below the desired price; while it is YELLOW it is not raised.
+  `mrt_price_current.price_index_color` keeps the colour, `GET /pricing/breakdown` returns it and
+  the prices page shows it in the rule's status.
 - Repricer on Ozon: the card's limit price ("предельная цена", `min_price`) is kept at the price
   the rule sets. Since October 2026 that one limit decides Ozon's promotions: a card takes part
   while its limit is not above the promotion's price for taking part, and 162 of 270 live rules
@@ -52,6 +59,7 @@ All notable changes to this project are documented here. The project follows
 - `0036_ozon_no_account_median`: Ozon rules with `account_median` move to `seller_price`.
 - `0037_ozon_rules_seller_price_until_sales`: Ozon rules that waited for sales move to
   `seller_price`.
+- `0038_ozon_price_index`: `mrt_price_current.price_index_color`.
 
 ### Changed
 

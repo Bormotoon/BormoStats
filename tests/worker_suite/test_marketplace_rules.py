@@ -119,6 +119,36 @@ def test_ozon_prices_on_the_cards_discount_from_its_first_sale() -> None:
     assert (one.price, one.fallback) == (800, "")
 
 
+def test_ozon_red_price_index_lowers_the_price_down_to_the_target() -> None:
+    # the measured 50 % asks for 800, but Ozon rates 800 above the market and cuts its points
+    rule = _price_rule(target_price=400.0)
+    red = desired_price(
+        rule, _snap(seller_price=800.0, mp_discount_pct=50.0, price_index_color="RED")
+    )
+    assert (red.price, red.index_guard) == (720, "RED")  # one 10 % step down
+    # never below the desired price: there the buyer pays it even without Ozon's points
+    near = _snap(seller_price=420.0, mp_discount_pct=50.0, price_index_color="RED")
+    assert desired_price(rule, near).price == 400
+    # a rule asking for less than the step goes there directly
+    low = _snap(seller_price=800.0, mp_discount_pct=20.0, price_index_color="RED")
+    assert desired_price(rule, low).price == 500
+
+    yellow = _snap(seller_price=700.0, mp_discount_pct=50.0, price_index_color="YELLOW")
+    held = desired_price(rule, yellow)
+    assert (held.price, held.index_guard) == (700, "YELLOW")
+    assert plan_price_change(rule, yellow, now=NOW) == (None, "in_tolerance")
+    # YELLOW still lets the price go down, GREEN lets it go up; WB has no Ozon index
+    down = _snap(seller_price=900.0, mp_discount_pct=50.0, price_index_color="YELLOW")
+    assert desired_price(rule, down).price == 800
+    green = _snap(seller_price=700.0, mp_discount_pct=50.0, price_index_color="GREEN")
+    assert desired_price(rule, green).price == 800
+    wb_red = _snap(seller_price=700.0, mp_discount_pct=50.0, price_index_color="RED")
+    assert desired_price(_price_rule(marketplace="wb", target_price=400.0), wb_red).price == 800
+    # a seller-price rule keeps its price whatever the index
+    seller = _price_rule(mode="seller_price", target_price=800.0)
+    assert desired_price(seller, _snap(seller_price=800.0, price_index_color="RED")).price == 800
+
+
 def test_wb_may_use_the_accounts_spp() -> None:
     wb = _price_rule(marketplace="wb")
     account = _snap(mp_discount_scope="account", mp_discount_samples=12)

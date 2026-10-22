@@ -18,6 +18,13 @@ says what to keep (``mode``):
 * ``seller_price`` — the seller's price after the seller's discount;
 * ``margin``       — break-even price plus ``target_margin_percent``.
 
+Ozon also rates the card's price against the same item elsewhere (the price index). A RED index
+means buyers pay noticeably more on Ozon, and Ozon then cuts its points, so the discount measured
+on past sales no longer holds: a card raised from 762 to 908 ₽ for 56 % went RED and was sold
+at ~27 % off, the buyer paying 1.7x the desired price. While the index is RED a buyer-price
+rule lowers the Ozon price by one step per catalogue snapshot, down to ``target_price`` at
+most, and while it is YELLOW it does not raise it.
+
 The price is then clamped to ``[min_price, max_price]`` and never below break-even (when the
 cost price is known), and one change moves it by at most ``max_step_pct`` — WB and Ozon
 quarantine sharp changes. WB gets a new list price with the card's discount kept, Ozon a new
@@ -70,6 +77,10 @@ MODES = (MODE_BUYER_PRICE, MODE_SELLER_PRICE, MODE_MARGIN)
 # what a buyer-price rule does without a usable discount; "" waits for the card's sales
 FALLBACK_ACCOUNT_MEDIAN = "account_median"
 FALLBACK_SELLER_PRICE = "seller_price"
+
+# Ozon price index colours that hold a buyer-price rule back
+INDEX_RED = "RED"
+INDEX_YELLOW = "YELLOW"
 
 TARGET_PRICE = "price"
 # Ozon's "предельная цена" alone, the price staying as it is
@@ -141,6 +152,8 @@ class PriceSnapshot:
     price_seen_at: datetime
     # Ozon's "предельная цена" (min_price), None on WB
     price_limit: float | None = None
+    # Ozon's price index colour: SUPER, GREEN, YELLOW, RED, WITHOUT_INDEX; "" on WB
+    price_index_color: str = ""
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> PriceSnapshot:
@@ -155,6 +168,7 @@ class PriceSnapshot:
             breakeven_price=_opt_float(row.get("breakeven_price")),
             price_seen_at=_as_utc(row["price_seen_at"]),
             price_limit=_opt_float(row.get("min_price")),
+            price_index_color=str(row.get("price_index_color") or ""),
         )
 
 
@@ -167,6 +181,8 @@ class PriceDecision:
     clamped_to_min: bool = False
     # the no_discount_fallback the price was computed with, "" when none was needed
     fallback: str = ""
+    # the Ozon price index that held the price back ("RED" lowers it, "YELLOW" keeps it)
+    index_guard: str = ""
 
 
 def _opt_float(value: Any) -> float | None:
@@ -197,7 +213,8 @@ def fetch_active_rules(client: Client) -> list[PriceRule]:
 def fetch_snapshot(client: Client, rule: PriceRule) -> PriceSnapshot | None:
     rows = client.query(
         "SELECT product_id, list_price, seller_discount_pct, seller_price, mp_discount_pct,"
-        " mp_discount_scope, mp_discount_samples, breakeven_price, price_seen_at, min_price"
+        " mp_discount_scope, mp_discount_samples, breakeven_price, price_seen_at, min_price,"
+        " price_index_color"
         " FROM mrt_price_current FINAL"
         " WHERE marketplace = {mp:String} AND account_id = {aid:String}"
         " AND offer_id = {offer:String}"
@@ -248,6 +265,7 @@ def discount_usable(marketplace: str, snap: PriceSnapshot) -> bool:
 def desired_price(rule: PriceRule, snap: PriceSnapshot) -> PriceDecision:
     """The seller price the rule asks for, before the step limit."""
     fallback = ""
+    index_guard = ""
     if rule.mode == MODE_BUYER_PRICE:
         discount = snap.mp_discount_pct
         if rule.target_price <= 0:
@@ -271,6 +289,7 @@ def desired_price(rule: PriceRule, snap: PriceSnapshot) -> PriceDecision:
             price = rule.target_price
         else:
             return PriceDecision(None, "no_discount_data")
+        price, index_guard = ozon_index_guard(rule, snap, price)
     elif rule.mode == MODE_SELLER_PRICE:
         if rule.target_price <= 0:
             return PriceDecision(None, "no_target")
@@ -289,7 +308,23 @@ def desired_price(rule: PriceRule, snap: PriceSnapshot) -> PriceDecision:
         clamped_to_min = True
     if rule.max_price > 0 and price > rule.max_price:
         price = rule.max_price
-    return PriceDecision(round(price), "ok", clamped_to_min, fallback)
+    return PriceDecision(round(price), "ok", clamped_to_min, fallback, index_guard)
+
+
+def ozon_index_guard(rule: PriceRule, snap: PriceSnapshot, price: float) -> tuple[float, str]:
+    """Hold a buyer-price rule's Ozon price back while Ozon rates it above the market.
+
+    RED: one step down from the current price, but not below ``target_price`` (the seller price
+    at which the buyer pays the desired price even without Ozon's discount). YELLOW: no raise.
+    """
+    if rule.marketplace != "ozon":
+        return price, ""
+    if snap.price_index_color == INDEX_RED:
+        step_down = snap.seller_price * (1 - max(0.1, rule.max_step_pct) / 100)
+        return min(price, max(rule.target_price, step_down)), INDEX_RED
+    if snap.price_index_color == INDEX_YELLOW and price > snap.seller_price:
+        return snap.seller_price, INDEX_YELLOW
+    return price, ""
 
 
 def step_limited(current: float, desired: float, max_step_pct: float) -> float:
@@ -312,17 +347,17 @@ def plan_price_change(
 
 def _plan(
     rule: PriceRule, snap: PriceSnapshot | None, now: datetime | None
-) -> tuple[PlannedAction | None, str, str]:
-    """``plan_price_change`` plus the no-discount fallback the price was computed with."""
+) -> tuple[PlannedAction | None, str, PriceDecision | None]:
+    """``plan_price_change`` plus the decision the price was computed from."""
     if snap is None:
-        return None, "no_snapshot", ""
+        return None, "no_snapshot", None
     if snap.seller_price <= 0:
-        return None, "no_price", ""
+        return None, "no_price", None
     if (now or datetime.now(UTC)) - snap.price_seen_at > MAX_SNAPSHOT_AGE:
-        return None, "stale_snapshot", ""
+        return None, "stale_snapshot", None
     decision = desired_price(rule, snap)
     if decision.price is None:
-        return None, decision.reason, ""
+        return None, decision.reason, decision
     price = step_limited(snap.seller_price, decision.price, rule.max_step_pct)
     tolerance = max(MIN_PRICE_DELTA, snap.seller_price * MIN_PRICE_DELTA_PCT / 100)
     if abs(price - snap.seller_price) <= tolerance:
@@ -344,8 +379,8 @@ def _plan(
                 after_value=snap.seller_price,
                 dry_run=rule.dry_run,
             )
-            return limit, TARGET_PRICE_LIMIT, decision.fallback
-        return None, "in_tolerance", decision.fallback
+            return limit, TARGET_PRICE_LIMIT, decision
+        return None, "in_tolerance", decision
     action = PlannedAction(
         organization_id=rule.organization_id,
         source="repricer",
@@ -359,7 +394,7 @@ def _plan(
         dry_run=rule.dry_run,
     )
     reason = "clamped_to_min" if decision.clamped_to_min else "planned"
-    return action, reason, decision.fallback
+    return action, reason, decision
 
 
 def wb_list_price(seller_price: float, discount_pct: float) -> int:
@@ -426,9 +461,11 @@ def repricer_evaluate_rules() -> dict[str, object]:
                 stats["checked"] += 1
                 try:
                     snap = fetch_snapshot(client, rule)
-                    action, reason, fallback = _plan(rule, snap, None)
-                    if fallback:
-                        stats[f"fallback_{fallback}"] += 1
+                    action, reason, decision = _plan(rule, snap, None)
+                    if decision and decision.fallback:
+                        stats[f"fallback_{decision.fallback}"] += 1
+                    if decision and decision.index_guard:
+                        stats[f"index_{decision.index_guard.lower()}"] += 1
                     if action is None or snap is None:
                         stats[reason] += 1
                         continue

@@ -39,6 +39,10 @@ class PriceBreakdownRow(BaseModel):
     breakeven_price: float | None = None
     min_price: float | None = None
     auto_actions_enabled: bool | None = None
+    price_index_color: str = Field(
+        default="",
+        description="Ozon's price index: SUPER, GREEN, YELLOW, RED or WITHOUT_INDEX; '' on WB",
+    )
     price_seen_at: str | None = None
     rule_id: str | None = None
     mode: str | None = None

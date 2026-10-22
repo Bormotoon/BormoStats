@@ -41,6 +41,7 @@ def _ozon_card() -> dict[str, Any]:
                 "min_price": 500,
                 "auto_action_enabled": False,
             },
+            "price_indexes": {"color_index": "RED"},
         },
     }
 
@@ -202,6 +203,7 @@ def test_price_breakdown_compare_and_target(integration_runtime: Any, api_client
         assert (ozon["margin_rub"], ozon["margin_pct"]) == (282, 35.25)
         assert ozon["breakeven_price"] == 330  # (100 + 8 + 90) / 0.6
         assert ozon["min_price"] == 500 and ozon["auto_actions_enabled"] is False
+        assert ozon["price_index_color"] == "RED" and wb["price_index_color"] == ""
 
         compare = api_client.get("/api/v1/pricing/compare").json()
         assert compare == [

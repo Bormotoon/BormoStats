@@ -168,6 +168,12 @@ function DiscountCell({ row }) {
 function ruleStatus(row) {
   if (!row.rule_is_active) return "правило выключено";
   if (!ruleCanAct(row)) return "не действует: ждёт продаж для замера скидки";
+  const prefix = row.rule_dry_run ? "симуляция: " : "";
+  if (row.marketplace === "ozon" && row.mode === "buyer_price") {
+    // Ozon cuts its points while the price index is red: the measured discount no longer holds
+    if (row.price_index_color === "RED") return `${prefix}индекс цены Ozon красный — снижаем`;
+    if (row.price_index_color === "YELLOW") return `${prefix}индекс цены Ozon жёлтый — не поднимаем`;
+  }
   return row.rule_dry_run ? "симуляция" : "держится на площадке";
 }
 

@@ -58,6 +58,36 @@ WB receives the list price for the new seller price with the card's current disc
 receives the new price with the crossed-out price scaled by the same factor (Ozon reads
 `old_price: 0` as "no discount") and its limit price at the new price (see below).
 
+## Ozon: the price index holds a buyer-price rule back (since 2026-10-22)
+
+`/v5/product/info/prices` rates every card's price against the same item elsewhere
+(`price_indexes`: `color_index` SUPER / GREEN / YELLOW / RED / WITHOUT_INDEX, and per source the
+index value and the minimal price there; `self_marketplaces_index_data` is the seller's own price
+on other marketplaces, i.e. WB). The catalogue snapshot keeps it, and `mrt_price_current` carries
+the colour in `price_index_color` (migration 0038).
+
+Found on 2026-10-22: the repricer raised Ozon cards to make up for the ~56 % discount measured
+on their past sales, and Ozon answered by cutting its points. `btn204pgf10tplros`: desired
+411 ₽, discount 56.6 % measured on sales at 520 ₽, raised to 947 ₽; the shelf showed 688 ₽
+(619 ₽ with Ozon's bank) — 27 % off — and the card had no sales since. Of the 103 cards the
+repricer had raised, 55 were RED (index ~1.4 against the seller's WB price); none of the
+lowered ones were. The index follows a price change within the hour (`btn12pgf20d14flowerred`:
+762 → 838 → 908 ₽ moved it 1.17 → 1.25 → 1.33); 1.03–1.05 is YELLOW, from ~1.06 RED. It is no
+measure of the shelf price: 1.42 × 360 ₽ = 511 ₽ while the shelf showed 688 ₽.
+
+So for a `buyer_price` rule on Ozon:
+
+- **RED** — the price goes one `max_step_pct` step down from the current one per catalogue
+  snapshot (lower if the rule itself asks for less), never below `target_price`: at that seller
+  price the buyer pays the desired price even without Ozon's points; `[min_price, max_price]`
+  and break-even still apply;
+- **YELLOW** — the price is not raised (it may go down), so the card does not swing between
+  GREEN and RED;
+- other colours and WB — as before. `seller_price` and `margin` rules ignore the index.
+
+The run's stats count `index_red` / `index_yellow`; the prices page shows "индекс цены Ozon
+красный — снижаем" / "жёлтый — не поднимаем" instead of "держится на площадке".
+
 ## Ozon: the limit price and promotions (since 2026-10-22)
 
 Since October 2026 Ozon has one **"предельная цена"** (limit price) per card for prices and
@@ -105,7 +135,8 @@ Checked on the live account, in the seller cabinet and as a buyer on ozon.ru:
 - **A median over past sales lags the current discount.** `pukly10klbr10black` measured 67 %
   on its 3 sales, so the repricer set 1171 ₽ for a desired 387 ₽; the buyer paid 758 ₽ at
   checkout (~35 %). The page's "Цена для покупателя" on Ozon is an estimate from history,
-  not the shelf price.
+  not the shelf price. Raising the price makes it worse: Ozon cuts its points when the price
+  index goes RED (see above).
 - **Rule chosen by the seller:** an Ozon desired-price rule keeps the desired price as the
   seller's price until the card has 3 sales, then prices on the card's measured discount
   (`no_discount_fallback = seller_price`, default for new Ozon rules; migration 0037 moved the

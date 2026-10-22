@@ -23,6 +23,7 @@
 --   acquiring_rub   Ozon: the card's acquiring in roubles; WB: in commission_pct
 --   logistics_rub   delivery and reverse logistics per sold unit over 60 days (account-wide
 --                   fallback; Ozon falls back to the card's tariff)
+-- price_index_color is Ozon's price index of the card (SUPER/GREEN/YELLOW/RED/WITHOUT_INDEX).
 -- margin_rub = seller_price - fees - cost; break-even is the seller price with zero margin.
 -- Cost price: dim_offer_cost by supplier article, else the legacy dim_product_cost.
 INSERT INTO mrt_price_current
@@ -32,7 +33,7 @@ INSERT INTO mrt_price_current
   mp_discount_pct, mp_discount_scope, mp_discount_samples, buyer_price,
   commission_pct, commission_rub, acquiring_rub, logistics_rub, fees_rub,
   cost_price, margin_rub, margin_pct, breakeven_price,
-  min_price, auto_actions_enabled, price_seen_at, built_at
+  min_price, auto_actions_enabled, price_index_color, price_seen_at, built_at
 )
 WITH
   {built_at:DateTime} AS build_ts,
@@ -134,6 +135,8 @@ WITH
       JSONExtractFloat(body, 'price', 'price', 'price') AS seller_price,
       JSONExtractFloat(body, 'price', 'price', 'min_price') AS min_price,
       JSONExtractBool(body, 'price', 'price', 'auto_action_enabled') AS auto_actions_enabled,
+      replaceOne(JSONExtractString(body, 'price', 'price_indexes', 'color_index'),
+        'COLOR_INDEX_', '') AS price_index_color,
       JSONExtractFloat(body, 'price', 'commissions', 'sales_percent_fbo') AS pct_fbo,
       JSONExtractFloat(body, 'price', 'commissions', 'sales_percent_fbs') AS pct_fbs,
       JSONExtractFloat(body, 'price', 'acquiring') AS acquiring_rub,
@@ -235,6 +238,7 @@ WITH
         if(ra.units > 0, ra.logistics_sum / ra.units, 0)) AS logistics_rub,
       CAST(NULL, 'Nullable(Float64)') AS min_price,
       CAST(NULL, 'Nullable(UInt8)') AS auto_actions_enabled,
+      '' AS price_index_color,
       (SELECT wb_seen FROM seen) AS price_seen_at
     FROM wb_cards AS c
     LEFT JOIN wb_discount AS d ON d.account_id = c.account_id AND d.product_id = c.product_id
@@ -265,6 +269,7 @@ WITH
         AS logistics_rub,
       CAST(c.min_price, 'Nullable(Float64)') AS min_price,
       CAST(c.auto_actions_enabled, 'Nullable(UInt8)') AS auto_actions_enabled,
+      c.price_index_color AS price_index_color,
       (SELECT ozon_seen FROM seen) AS price_seen_at
     FROM ozon_cards AS c
     LEFT JOIN ozon_discount AS d ON d.account_id = c.account_id AND d.product_id = c.product_id
@@ -299,6 +304,7 @@ SELECT
     AS breakeven_price,
   p.min_price AS min_price,
   p.auto_actions_enabled AS auto_actions_enabled,
+  p.price_index_color AS price_index_color,
   p.price_seen_at AS price_seen_at,
   build_ts AS built_at
 FROM priced AS p
