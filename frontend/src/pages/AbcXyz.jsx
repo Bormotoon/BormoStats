@@ -3,6 +3,8 @@ import { useI18n } from "../utils/i18n.jsx";
 import { request, safeCall } from "../utils/api.js";
 import { moneyFmt, numberFmt, percentFmt } from "../utils/formats.js";
 import { Spinner } from "../components/StatusChip.jsx";
+import DataTable from "../components/DataTable.jsx";
+import BuyerCardLink from "../components/BuyerCardLink.jsx";
 import { useSearchParams } from "react-router-dom";
 
 const ABC_LABELS = {
@@ -94,47 +96,45 @@ export default function AbcXyz() {
         ))}
       </div>
 
-      <div className="md3-card-elevated p-4 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-[var(--color-outline-variant)] text-xs text-[var(--color-on-surface-variant)]">
-              <th className="text-left py-2 pr-4">Товар</th>
-              <th className="text-left py-2 pr-4">МП</th>
-              <th className="text-right py-2 pr-4">Выручка 60д</th>
-              <th className="text-right py-2 pr-4">Доля</th>
-              <th className="text-center py-2 pr-4">ABC</th>
-              <th className="text-center py-2 pr-4">XYZ</th>
-              <th className="text-left py-2 pr-4">Тип</th>
-              <th className="text-right py-2 pr-4">CV</th>
-              <th className="text-right py-2 pr-4">Ср. дн. продажи</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((row, i) => {
-              const comboKey = `${row.abc_class}${row.xyz_class}`;
-              return (
-                <tr key={i} className="border-b border-[var(--color-outline-variant)] last:border-0 hover:bg-[var(--color-surface-container)]">
-                  <td className="py-2 pr-4 font-medium truncate max-w-[200px]">{row.product_id}</td>
-                  <td className="py-2 pr-4">{row.marketplace === "wb" ? "WB" : "Ozon"}</td>
-                  <td className="py-2 pr-4 text-right font-mono">{moneyFmt(row.revenue_60d)}</td>
-                  <td className="py-2 pr-4 text-right font-mono">{percentFmt(row.share_pct)}</td>
-                  <td className="py-2 pr-4 text-center">
-                    <Badge label={row.abc_class} color={ABC_LABELS[row.abc_class].color} />
-                  </td>
-                  <td className="py-2 pr-4 text-center">
-                    <Badge label={row.xyz_class} color={XYZ_LABELS[row.xyz_class].color} />
-                  </td>
-                  <td className="py-2 pr-4">
-                    <span className="font-semibold text-xs">{COMBINED_LABELS[comboKey] || comboKey}</span>
-                  </td>
-                  <td className="py-2 pr-4 text-right font-mono">{percentFmt(row.cv_pct / 100)}</td>
-                  <td className="py-2 pr-4 text-right font-mono">{numberFmt(row.daily_mean_qty, 1)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        rows={data}
+        exportName="ABC-XYZ"
+        stateKey="abc-xyz"
+        rowKey={(row) => `${row.marketplace}:${row.account_id}:${row.product_id}`}
+        minWidth={1100}
+        columns={[
+          { key: "image_url", type: "image" },
+          {
+            key: "offer_id",
+            label: "Артикул продавца",
+            type: "text",
+            width: 24,
+            render: (row) => (
+              <div className="min-w-0">
+                <BuyerCardLink marketplace={row.marketplace} productId={row.product_id}>
+                  {row.offer_id || row.product_id}
+                </BuyerCardLink>
+                {row.title && <div className="text-xs text-[var(--color-on-surface-variant)] truncate max-w-[240px]">{row.title}</div>}
+              </div>
+            ),
+          },
+          { key: "product_id", label: "Артикул площадки", type: "text", render: (row) => <span className="font-mono text-xs">{row.product_id}</span> },
+          { key: "marketplace", label: "МП", type: "text" },
+          { key: "revenue_60d", label: "Выручка 60д", type: "money", render: (row) => <span className="font-mono">{moneyFmt(row.revenue_60d)}</span> },
+          { key: "share_pct", label: "Доля", type: "percent", render: (row) => <span className="font-mono">{percentFmt(row.share_pct)}</span> },
+          { key: "abc_class", label: "ABC", type: "text", align: "center", render: (row) => <Badge label={row.abc_class} color={ABC_LABELS[row.abc_class].color} /> },
+          { key: "xyz_class", label: "XYZ", type: "text", align: "center", render: (row) => <Badge label={row.xyz_class} color={XYZ_LABELS[row.xyz_class].color} /> },
+          {
+            key: "combined",
+            label: "Тип",
+            type: "text",
+            value: (row) => COMBINED_LABELS[`${row.abc_class}${row.xyz_class}`] || `${row.abc_class}${row.xyz_class}`,
+            render: (row) => <span className="font-semibold text-xs">{COMBINED_LABELS[`${row.abc_class}${row.xyz_class}`] || `${row.abc_class}${row.xyz_class}`}</span>,
+          },
+          { key: "cv_pct", label: "CV", type: "percent", value: (row) => row.cv_pct / 100, render: (row) => <span className="font-mono">{percentFmt(row.cv_pct / 100)}</span> },
+          { key: "daily_mean_qty", label: "Ср. дн. продажи", type: "number", render: (row) => <span className="font-mono">{numberFmt(row.daily_mean_qty, 1)}</span> },
+        ]}
+      />
     </div>
   );
 }

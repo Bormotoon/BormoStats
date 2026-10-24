@@ -7,8 +7,15 @@ from app.services.tenancy import account_scope_sql
 from clickhouse_connect.driver import Client
 
 _ABC_XYZ_COLS = (
-    "day, marketplace, account_id, product_id, revenue_60d, share_pct, cumulative_share_pct,"
-    " abc_class, daily_mean_qty, daily_stddev_qty, cv_pct, xyz_class"
+    "a.day, a.marketplace, a.account_id, a.product_id, a.revenue_60d, a.share_pct,"
+    " a.cumulative_share_pct, a.abc_class, a.daily_mean_qty, a.daily_stddev_qty, a.cv_pct,"
+    " a.xyz_class, card.offer_id, card.title, card.image_url"
+)
+# the supplier article, name and photo of a product from its current card (WB nmID, Ozon SKU)
+_CARDS = (
+    "SELECT marketplace, account_id, product_id, any(offer_id) AS offer_id,"
+    " anyIf(title, title != '') AS title, anyIf(image_url, image_url != '') AS image_url"
+    " FROM mrt_price_current FINAL GROUP BY marketplace, account_id, product_id"
 )
 
 
@@ -20,23 +27,26 @@ class AbcXyzService:
     def get_analysis(
         self, marketplace: str | None = None, account_id: str | None = None
     ) -> list[dict[str, Any]]:
-        where = [account_scope_sql("oid")]
         params: dict[str, object] = {"oid": self._org}
+        filters = []
         if marketplace:
-            where.append("marketplace = {mp:String}")
+            filters.append("marketplace = {mp:String}")
             params["mp"] = marketplace
         if account_id:
-            where.append("account_id = {aid:String}")
+            filters.append("account_id = {aid:String}")
             params["aid"] = account_id
-        scope = " AND ".join(where)
+        scope = " AND ".join([account_scope_sql("oid"), *filters])
+        scope_a = " AND ".join([account_scope_sql("oid", alias="a"), *(f"a.{f}" for f in filters)])
         # the mart keeps one snapshot per day as class history; the page shows the latest
         rows = self._ch.query(
-            f"SELECT {_ABC_XYZ_COLS} FROM mrt_abc_xyz_analysis FINAL"
-            f" WHERE {scope}"
-            f" AND day = (SELECT max(day) FROM mrt_abc_xyz_analysis WHERE {scope})"
-            " ORDER BY revenue_60d DESC LIMIT 5000",
+            f"SELECT {_ABC_XYZ_COLS} FROM mrt_abc_xyz_analysis AS a FINAL"
+            f" LEFT JOIN ({_CARDS}) AS card ON card.marketplace = a.marketplace"
+            " AND card.account_id = a.account_id AND card.product_id = a.product_id"
+            f" WHERE {scope_a}"
+            f" AND a.day = (SELECT max(day) FROM mrt_abc_xyz_analysis WHERE {scope})"
+            " ORDER BY a.revenue_60d DESC LIMIT 5000",
             parameters=params,
-            settings=PARTITION_LOCAL_FINAL,
+            settings={**PARTITION_LOCAL_FINAL, "join_use_nulls": 1},
         )
         return [
             {
@@ -52,6 +62,9 @@ class AbcXyzService:
                 "daily_stddev_qty": float(r[9]),
                 "cv_pct": float(r[10]),
                 "xyz_class": r[11],
+                "offer_id": r[12] or None,
+                "title": r[13] or None,
+                "image_url": r[14] or None,
             }
             for r in rows.result_rows
         ]
