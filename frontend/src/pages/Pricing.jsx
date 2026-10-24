@@ -4,6 +4,7 @@ import { moneyFmt, numberFmt, formatAsOf } from "../utils/formats.js";
 import { downloadXlsx, readTableFile } from "../utils/xlsx.js";
 import { Spinner } from "../components/StatusChip.jsx";
 import DataTable from "../components/DataTable.jsx";
+import BuyerCardLink from "../components/BuyerCardLink.jsx";
 import { Trash, UploadSimple, Info, FileXls, Warning } from "@phosphor-icons/react";
 
 const TABS = [
@@ -557,7 +558,7 @@ function Breakdown({ rows, setRows, onError, onReload, actionsEnabled }) {
               width: 24,
               render: (row) => (
                 <div className="min-w-0">
-                  <div className="font-mono text-xs">{row.offer_id}</div>
+                  <BuyerCardLink marketplace={row.marketplace} productId={row.product_id}>{row.offer_id}</BuyerCardLink>
                   {row.title && <div className="text-xs text-[var(--color-on-surface-variant)] truncate max-w-[220px]">{row.title}</div>}
                 </div>
               ),

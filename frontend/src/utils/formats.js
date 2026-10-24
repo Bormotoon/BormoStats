@@ -80,6 +80,15 @@ export function marketplaceName(value) {
   return { wb: "WB", ozon: "Ozon", ym: "Яндекс Маркет" }[key] || String(value ?? "");
 }
 
+/** The card's page as a buyer sees it: WB by its nmID, Ozon by its SKU; null when unknown. */
+export function buyerCardUrl(marketplace, productId) {
+  const id = String(productId ?? "").trim();
+  if (!/^\d+$/.test(id)) return null;
+  if (marketplace === "wb") return `https://www.wildberries.ru/catalog/${id}/detail.aspx`;
+  if (marketplace === "ozon") return `https://www.ozon.ru/product/${id}/`;
+  return null;
+}
+
 export function formatCell(key, value) {
   if (value === null || value === undefined || value === "") return "-";
   const keyLower = key.toLowerCase();
