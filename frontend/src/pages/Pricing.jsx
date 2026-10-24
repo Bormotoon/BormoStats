@@ -6,16 +6,17 @@ import { downloadXlsx, readTableFile } from "../utils/xlsx.js";
 import { Spinner } from "../components/StatusChip.jsx";
 import DataTable from "../components/DataTable.jsx";
 import BuyerCardLink from "../components/BuyerCardLink.jsx";
-import { Trash, UploadSimple, Info, FileXls, Warning } from "@phosphor-icons/react";
+import { Trash, UploadSimple, Info, FileXls, Warning, ArrowsLeftRight, ArrowRight } from "@phosphor-icons/react";
 
 const TABS = [
   { id: "breakdown", label: "Разбор цены" },
   { id: "compare", label: "Сравнение цен" },
   { id: "costs", label: "Себестоимость" },
 ];
+// prices are changed on one marketplace at a time, picked first and shown in its brand colour
 const MARKETPLACES = [
-  { id: "wb", label: "WB" },
-  { id: "ozon", label: "Ozon" },
+  { id: "wb", label: "WB", name: "Wildberries", color: "#CB11AB" },
+  { id: "ozon", label: "Ozon", name: "Ozon", color: "#005BFF" },
 ];
 // the desired price is the price the buyer sees on the marketplace, after its discounts;
 // older rules made on the repricer page may keep another price
@@ -390,7 +391,7 @@ function TargetsPanel({ marketplace, rows, onImported, actionsEnabled, onlyLoade
       <p className="text-xs text-[var(--color-on-surface-variant)]">
         В шаблоне для {label} только заголовки «Артикул продавца» и «{priceColumn}». Вставьте под них два столбца из своей
         таблицы — в любом порядке и сколько угодно артикулов — и загрузите файл: цена встанет к своему артикулу. Артикулы,
-        которых нет в файле, и пустые цены не меняются. Цены других площадок загружаются отдельным файлом на своей вкладке.
+        которых нет в файле, и пустые цены не меняются. Цены другой площадки загружаются отдельным файлом — смените площадку.
       </p>
       <ImportResult result={result} what="Загружено цен" onlyLoaded={onlyLoaded} setOnlyLoaded={setOnlyLoaded} />
 
@@ -419,6 +420,39 @@ function TargetsPanel({ marketplace, rows, onImported, actionsEnabled, onlyLoade
   );
 }
 
+/** The first step of the breakdown: which marketplace's prices are being changed. */
+function MarketplaceChoice({ rows, onChoose }) {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-[var(--color-on-surface-variant)]">Выберите площадку, на которой будете смотреть и менять цены.</p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {MARKETPLACES.map((m) => {
+          const cards = rows.filter((r) => r.marketplace === m.id);
+          const targets = cards.filter((r) => r.rule_id && r.mode === "buyer_price" && r.target_price).length;
+          return (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => onChoose(m.id)}
+              className="group flex items-center justify-between gap-4 rounded-2xl p-6 text-left text-white shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--color-primary)]/40"
+              style={{ backgroundColor: m.color }}
+            >
+              <span>
+                <span className="block text-xs font-medium uppercase tracking-wide opacity-90">Цены на</span>
+                <span className="block text-3xl font-bold leading-tight">{m.name}</span>
+                <span className="mt-2 block text-sm opacity-90">
+                  Товаров: {cards.length} · желаемых цен: {targets}
+                </span>
+              </span>
+              <ArrowRight size={28} aria-hidden="true" className="shrink-0 transition-transform group-hover:translate-x-1" />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /** A row of the breakdown as DataTable keys it, and as the address bar keeps the selected one. */
 function rowKeyOf(row) {
   return `${row.account_id}:${row.offer_id}`;
@@ -426,10 +460,10 @@ function rowKeyOf(row) {
 
 function Breakdown({ rows, setRows, onError, onReload, actionsEnabled, params, setParam }) {
   // the marketplace, search and selected row live in the address bar: a reload keeps them
-  const marketplace = MARKETPLACES.some((m) => m.id === params.get("mp")) ? params.get("mp") : "wb";
+  const marketplace = params.get("mp");
+  const mp = MARKETPLACES.find((m) => m.id === marketplace);
   const query = params.get("q") || "";
   const selected = params.get("offer") || undefined;
-  const setMarketplace = (mp) => setParam({ mp, offer: null });
   const setQuery = (q) => setParam({ q });
   // articles of the last desired-price upload on this marketplace, highlighted in the table
   const [loaded, setLoaded] = useState(new Set());
@@ -512,13 +546,23 @@ function Breakdown({ rows, setRows, onError, onReload, actionsEnabled, params, s
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        {MARKETPLACES.map((m) => (
-          <TabButton key={m.id} active={marketplace === m.id} onClick={() => setMarketplace(m.id)}>
-            {m.label}
-          </TabButton>
-        ))}
+    // the stripe of the marketplace's colour stays in sight while the long list scrolls
+    <div className="space-y-3 border-l-4 pl-3" style={{ borderColor: mp.color }}>
+      <div className="flex flex-wrap items-stretch gap-2">
+        <div
+          className="flex items-center gap-3 rounded-xl pl-4 pr-2 py-2 text-white shadow-sm"
+          style={{ backgroundColor: mp.color }}
+        >
+          <span className="text-xs font-medium uppercase tracking-wide opacity-90">Цены на</span>
+          <span className="text-xl font-bold leading-none">{mp.name}</span>
+          <button
+            type="button"
+            onClick={() => setParam({ mp: null, offer: null, q: null })}
+            className="ml-2 flex items-center gap-1 rounded-full bg-white/20 px-3 py-1 text-xs font-medium hover:bg-white/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          >
+            <ArrowsLeftRight size={14} aria-hidden="true" /> Сменить площадку
+          </button>
+        </div>
         <input
           type="search"
           placeholder="Артикул или название"
@@ -561,7 +605,7 @@ function Breakdown({ rows, setRows, onError, onReload, actionsEnabled, params, s
           selectedKey={selected}
           onRowClick={(row) => rowKeyOf(row) !== selected && setParam({ offer: rowKeyOf(row) })}
           rowClassName={(row) => (loaded.has(row.offer_id) ? "bg-[var(--color-primary-container)]/50" : "")}
-          exportName={`Разбор цены ${MARKETPLACES.find((m) => m.id === marketplace)?.label || marketplace}`}
+          exportName={`Разбор цены ${mp.label}`}
           minWidth={1100}
           columns={[
             { key: "image_url", type: "image" },
@@ -594,7 +638,7 @@ function Breakdown({ rows, setRows, onError, onReload, actionsEnabled, params, s
             { key: "buyer_price", label: "Цена для покупателя", type: "money", render: (r) => <Money value={r.buyer_price} className="font-semibold" /> },
             {
               key: "target_price",
-              label: "Желаемая цена",
+              label: `Желаемая цена на ${mp.label}`,
               type: "money",
               align: "left",
               render: (r) => <TargetCell row={r} onSave={saveTarget} onFallback={saveFallback} fromFile={loaded.has(r.offer_id)} />,
@@ -875,7 +919,10 @@ export default function Pricing() {
           </TabButton>
         ))}
       </div>
-      {tab === "breakdown" && (
+      {tab === "breakdown" && !MARKETPLACES.some((m) => m.id === params.get("mp")) && (
+        <MarketplaceChoice rows={breakdown} onChoose={(mp) => setParam({ mp, offer: null })} />
+      )}
+      {tab === "breakdown" && MARKETPLACES.some((m) => m.id === params.get("mp")) && (
         <Breakdown
           rows={breakdown}
           setRows={setBreakdown}

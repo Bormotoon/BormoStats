@@ -154,6 +154,9 @@ test("price templates hold only the headers and an upload marks the loaded artic
   });
   await signInWithKey(page);
   await page.goto("#/pricing");
+  // the breakdown opens on the choice of a marketplace
+  await page.getByRole("button", { name: /Цены на Wildberries/ }).click();
+  await expect(page.getByRole("button", { name: "Сменить площадку" })).toBeVisible();
 
   const prices = await templateSheet(page, page.getByRole("button", { name: "Шаблон Excel" }));
   expect(prices.match(/<c /g)).toHaveLength(2);
@@ -170,7 +173,8 @@ test("price templates hold only the headers and an upload marks the loaded artic
   await page.getByLabel(/Показать только загруженные \(1\)/).check();
   await expect(page.getByLabel("Желаемая цена btn1")).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Себестоимость" }).click();
+  // the tab, not the sort button of the cost column
+  await page.getByRole("button", { name: "Себестоимость" }).first().click();
   const costs = await templateSheet(page, page.getByRole("button", { name: "Шаблон Excel" }));
   expect(costs.match(/<c /g)).toHaveLength(2);
   expect(costs).toContain("Себестоимость");
