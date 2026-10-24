@@ -562,6 +562,16 @@ function Breakdown({ rows, setRows, onError, onReload, actionsEnabled }) {
                 </div>
               ),
             },
+            {
+              key: "product_id",
+              label: "Артикул площадки",
+              type: "text",
+              render: (r) => (
+                <span className="font-mono text-xs" title={r.marketplace === "ozon" ? "SKU на Ozon" : "Артикул WB (nmID)"}>
+                  {r.product_id}
+                </span>
+              ),
+            },
             { key: "list_price", label: "Цена зачёркнутая", type: "money" },
             { key: "seller_discount_pct", label: "Скидка продавца", type: "percent", value: (r) => fraction(r.seller_discount_pct), render: (r) => <span className="font-mono">{pct(r.seller_discount_pct, 0)}</span> },
             { key: "seller_price", label: "Цена со скидкой", type: "money" },
