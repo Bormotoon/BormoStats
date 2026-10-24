@@ -18,6 +18,7 @@ from app.models.pricing import (
     TargetPriceImport,
     TargetPriceImportResult,
     TargetPriceSet,
+    WbDocumentsCheck,
 )
 from app.models.repricer import PriceRule
 from app.services.pricing_service import PricingService
@@ -52,6 +53,12 @@ def price_compare(
 ) -> list[PriceCompareRow]:
     """Seller and buyer prices of each supplier article on every marketplace."""
     return _svc(ch, auth).compare(account_id)
+
+
+@router.get("/wb-documents")
+def wb_documents(ch: ChClientDependency, auth: ManagerAuth) -> WbDocumentsCheck:
+    """WB cards without the "documents are not required" tick, from the catalogue snapshot."""
+    return _svc(ch, auth).wb_documents()
 
 
 @router.put("/target/{marketplace}/{offer_id}")

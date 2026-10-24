@@ -133,3 +133,30 @@ def test_cost_list_shows_the_card_photo() -> None:
         ("btn2", None, None),
     ]
     assert "mrt_price_current" in ch.query.call_args.args[0]
+
+
+def test_wb_documents_lists_cards_without_the_tick() -> None:
+    ch = MagicMock()
+    cards = MagicMock(
+        column_names=(
+            "account_id",
+            "offer_id",
+            "product_id",
+            "title",
+            "verdict_status",
+            "verdict_reason",
+        ),
+        result_rows=[("default", "btn1", "1001", "Пуговицы", 2, "documents_missing")],
+    )
+    images = MagicMock(
+        column_names=("account_id", "product_id", "image_url"),
+        result_rows=[("default", "1001", "https://img/1.jpg")],
+    )
+    seen = MagicMock(result_rows=[(None,)])
+    ch.query.side_effect = [cards, images, seen]
+    check = PricingService(ch, "org").wb_documents()
+    assert check.checked_at is None
+    assert [(c.offer_id, c.image_url, c.verdict_status, c.verdict_reason) for c in check.cards] == [
+        ("btn1", "https://img/1.jpg", 2, "documents_missing")
+    ]
+    assert "excludeDocuments" in ch.query.call_args_list[0].args[0]

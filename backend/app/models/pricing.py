@@ -139,3 +139,24 @@ class KeepPrices(BaseModel):
 class KeepPricesResult(BaseModel):
     rules: int
     marketplace_actions_enabled: bool
+
+
+class WbDocumentsCard(BaseModel):
+    """A WB card without the "Документы, подтверждающие безопасность, не требуются" tick."""
+
+    account_id: str
+    offer_id: str
+    product_id: str = Field(description="nmID")
+    title: str | None = None
+    image_url: str | None = None
+    verdict_status: int = Field(
+        default=0, description="WB's documents check: 1 passed, 2 failed, 0 not checked"
+    )
+    verdict_reason: str = Field(default="", description="e.g. documents_missing")
+
+
+class WbDocumentsCheck(BaseModel):
+    """WB cards without the documents-not-required tick, from the hourly catalogue snapshot."""
+
+    checked_at: str | None = Field(default=None, description="When the snapshot was taken")
+    cards: list[WbDocumentsCard]

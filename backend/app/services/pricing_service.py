@@ -14,6 +14,8 @@ from app.models.pricing import (
     PriceCompareRow,
     TargetPriceImportResult,
     TargetPriceSet,
+    WbDocumentsCard,
+    WbDocumentsCheck,
 )
 from app.models.repricer import PriceRule, PriceRuleCreate, PriceRuleUpdate, default_fallback
 from app.services.repricer_service import RepricerService
@@ -113,6 +115,68 @@ class PricingService:
             params,
         )
         return [_compare_row(r) for r in rows]
+
+    def wb_documents(self) -> WbDocumentsCheck:
+        """WB cards whose "documents are not required" tick is off in the latest snapshot.
+
+        Without it WB marks the card "Документы не загружены" and may block it. The tick is
+        ``card.documents.excludeDocuments`` of content/v2/get/cards/list; the repricer only
+        writes prices and never touches it.
+        """
+        clause, params = self._scope("r", "wb", None)
+        rows = query_dicts(
+            self._ch,
+            "SELECT r.account_id AS account_id,"
+            " JSONExtractString(o.body, 'card', 'vendorCode') AS offer_id,"
+            " toString(JSONExtractUInt(o.body, 'card', 'nmID')) AS product_id,"
+            " JSONExtractString(o.body, 'card', 'title') AS title,"
+            " JSONExtractInt(o.body, 'card', 'documents', 'overallVerdict', 'status')"
+            " AS verdict_status,"
+            " JSONExtractString(o.body, 'card', 'documents', 'overallVerdict', 'reason')"
+            " AS verdict_reason"
+            " FROM hist_refs AS r FINAL"
+            " INNER JOIN hist_objects AS o FINAL ON o.object_hash = r.head_object"
+            f"{clause} AND r.repo = 'product' AND r.is_deleted = 0"
+            " AND NOT JSONExtractBool(o.body, 'card', 'documents', 'excludeDocuments')"
+            " ORDER BY offer_id",
+            params,
+        )
+        images = self._card_images("wb", [r["product_id"] for r in rows])
+        seen = self._ch.query(
+            "SELECT max(finished_at) FROM sys_task_runs"
+            " WHERE task_name = 'tasks.history.wb_catalog_snapshot' AND status = 'success'"
+        ).result_rows
+        checked_at = seen[0][0] if seen and seen[0][0] and seen[0][0].year > 1970 else None
+        return WbDocumentsCheck(
+            checked_at=str(checked_at) if checked_at else None,
+            cards=[
+                WbDocumentsCard(
+                    account_id=r["account_id"],
+                    offer_id=r["offer_id"],
+                    product_id=r["product_id"],
+                    title=r["title"] or None,
+                    image_url=images.get((r["account_id"], r["product_id"])),
+                    verdict_status=int(r["verdict_status"]),
+                    verdict_reason=r["verdict_reason"],
+                )
+                for r in rows
+            ],
+        )
+
+    def _card_images(self, marketplace: str, products: list[str]) -> dict[tuple[str, str], str]:
+        if not products:
+            return {}
+        clause, params = self._scope("p", marketplace, None)
+        rows = query_dicts(
+            self._ch,
+            "SELECT p.account_id AS account_id, p.product_id AS product_id,"
+            " any(p.image_url) AS image_url"
+            f" FROM mrt_price_current AS p FINAL{clause}"
+            " AND p.product_id IN {products:Array(String)} AND p.image_url != ''"
+            " GROUP BY p.account_id, p.product_id",
+            {**params, "products": products},
+        )
+        return {(r["account_id"], r["product_id"]): r["image_url"] for r in rows}
 
     def set_target(self, marketplace: str, offer_id: str, data: TargetPriceSet) -> PriceRule:
         """Create the card's price rule (dry-run) or update the latest one."""

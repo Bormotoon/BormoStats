@@ -6,7 +6,7 @@ import { downloadXlsx, readTableFile } from "../utils/xlsx.js";
 import { Spinner } from "../components/StatusChip.jsx";
 import DataTable from "../components/DataTable.jsx";
 import BuyerCardLink from "../components/BuyerCardLink.jsx";
-import { Trash, UploadSimple, Info, FileXls, Warning, ArrowsLeftRight, ArrowRight } from "@phosphor-icons/react";
+import { Trash, UploadSimple, Info, FileXls, Warning, ArrowsLeftRight, ArrowRight, CheckCircle } from "@phosphor-icons/react";
 
 const TABS = [
   { id: "breakdown", label: "Разбор цены" },
@@ -420,6 +420,55 @@ function TargetsPanel({ marketplace, rows, onImported, actionsEnabled, onlyLoade
   );
 }
 
+/**
+ * WB cards without the "documents are not required" tick: WB then marks them "Документы не
+ * загружены" and may block them. Read from the hourly catalogue snapshot.
+ */
+function WbDocumentsCheck() {
+  const [check, setCheck] = useState(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    safeCall(() => request("/api/v1/pricing/wb-documents", { admin: true })).then((res) => res.ok && setCheck(res.data));
+  }, []);
+  if (!Array.isArray(check?.cards)) return null;
+  const when = check.checked_at ? formatAsOf(check.checked_at) : "—";
+  if (!check.cards.length) {
+    return (
+      <p className="flex items-center gap-2 text-xs text-[var(--color-on-surface-variant)]">
+        <CheckCircle size={14} className="shrink-0 text-[var(--color-success)]" aria-hidden="true" />
+        У всех карточек WB стоит галочка «Документы, подтверждающие безопасность, не требуются» (снимок каталога {when}).
+      </p>
+    );
+  }
+  const shown = open ? check.cards : check.cards.slice(0, 8);
+  return (
+    <div role="alert" className="rounded-xl border border-amber-400 bg-amber-50 dark:bg-amber-950/40 p-3 space-y-2 text-sm">
+      <p className="flex items-start gap-2 font-medium text-amber-900 dark:text-amber-200">
+        <Warning size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
+        Карточки WB без галочки «Документы, подтверждающие безопасность, не требуются»: {check.cards.length}
+      </p>
+      <p className="text-xs text-amber-900/80 dark:text-amber-200/80">
+        WB помечает такие карточки «Документы не загружены» и может их заблокировать. Галочка ставится в кабинете WB:
+        карточка → «Документы». Репрайсер меняет только цены и галочку не трогает. Снимок каталога {when}, обновляется
+        раз в час.
+      </p>
+      <ul className="flex flex-wrap gap-x-4 gap-y-1">
+        {shown.map((c) => (
+          <li key={`${c.account_id}:${c.product_id}`} className="flex items-center gap-1.5" title={c.title || undefined}>
+            <BuyerCardLink marketplace="wb" productId={c.product_id}>{c.offer_id}</BuyerCardLink>
+            <span className="font-mono text-[11px] text-[var(--color-on-surface-variant)]">{c.product_id}</span>
+          </li>
+        ))}
+      </ul>
+      {check.cards.length > shown.length && (
+        <button type="button" onClick={() => setOpen(true)} className="text-xs font-medium text-[var(--color-primary)] hover:underline">
+          Показать все ({check.cards.length})
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** The first step of the breakdown: which marketplace's prices are being changed. */
 function MarketplaceChoice({ rows, onChoose }) {
   return (
@@ -571,6 +620,8 @@ function Breakdown({ rows, setRows, onError, onReload, actionsEnabled, params, s
           className="flex-1 min-w-[180px] px-3 py-1.5 rounded-lg border border-[var(--color-outline)] bg-[var(--color-surface)] text-sm"
         />
       </div>
+
+      {marketplace === "wb" && <WbDocumentsCheck />}
 
       <TargetsPanel
         marketplace={marketplace}
