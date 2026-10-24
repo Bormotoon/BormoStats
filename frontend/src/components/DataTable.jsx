@@ -98,6 +98,7 @@ const EXPORT_TYPE = { date: "date", money: "money", percent: "percent", number: 
 /**
  * A table with a filter under every column header, sorting by a header click and a download
  * of the shown (filtered and sorted) rows as an Excel file when `exportName` is given.
+ * `rowKey(row)` keeps a row's cells (an input being edited) with the row when it moves.
  */
 export default function DataTable({
   rows,
@@ -106,6 +107,7 @@ export default function DataTable({
   exportName,
   filterable = true,
   rowClassName,
+  rowKey,
   maxHeight = "70vh",
   minWidth = 640,
   footer,
@@ -236,11 +238,11 @@ export default function DataTable({
           </thead>
           <tbody className="divide-y divide-[var(--color-outline-variant)]">
             {visible.slice(0, shown).map((row, i) => (
-              <tr key={i} className={`hover:bg-[var(--color-surface-container)]/60 transition-colors ${rowClassName?.(row) || ""}`}>
+              <tr key={rowKey ? rowKey(row) : i} className={`hover:bg-[var(--color-surface-container)]/60 transition-colors ${rowClassName?.(row) || ""}`}>
                 {cols.map((col) => (
                   <td
                     key={col.key}
-                    className={`px-3 py-2 text-[var(--color-on-surface)] ${col.type === "text" ? "text-left" : col.type === "date" || col.type === "image" ? "text-center" : "text-right"} ${col.align ? `text-${col.align}` : ""}`}
+                    className={`px-3 py-2 text-[var(--color-on-surface)] ${col.align ? `text-${col.align}` : col.type === "text" ? "text-left" : col.type === "date" || col.type === "image" ? "text-center" : "text-right"}`}
                   >
                     {col.render ? col.render(row) : <CellValue type={col.type} value={col.value(row)} />}
                   </td>

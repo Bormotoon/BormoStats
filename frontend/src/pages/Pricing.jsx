@@ -61,6 +61,11 @@ function pct(value, digits = 1) {
   return value === null || value === undefined ? null : `${numberFmt(value, digits)}%`;
 }
 
+/** A 0..100 percentage as the 0..1 share DataTable filters, sorts and exports. */
+function fraction(value) {
+  return value === null || value === undefined ? null : value / 100;
+}
+
 function Dash() {
   return <span className="text-[var(--color-on-surface-variant)]">&mdash;</span>;
 }
@@ -527,7 +532,8 @@ function Breakdown({ rows, setRows, onError, onReload, actionsEnabled }) {
           Желаемая цена — цена для покупателя на площадке после всех её скидок (СПП у WB, скидки и баллы за счёт Ozon).
           Скидка площадки измеряется по последним продажам товара; «≈» — оценка по кабинету. Репрайсер каждые 10 минут
           подбирает цену продавца так, чтобы покупатель видел желаемую. Цены со скидкой продавца сняты{" "}
-          {seenAt ? formatAsOf(seenAt) : "—"}.
+          {seenAt ? formatAsOf(seenAt) : "—"}. В фильтрах под заголовками столбцов можно писать «&gt; 500», «&lt; 300» или
+          «200-400».
         </p>
       </div>
 
@@ -536,74 +542,74 @@ function Breakdown({ rows, setRows, onError, onReload, actionsEnabled }) {
           Нет товаров. Витрина цен собирается каждые 30 минут после снимка каталога.
         </div>
       ) : (
-        <div className="overflow-auto rounded-xl border border-[var(--color-outline-variant)] max-h-[70vh]">
-          <table className="w-full min-w-[1100px] text-sm">
-            <thead>
-              <tr>
-                <th className={thClass}>Артикул продавца</th>
-                <th className={thClass}>Цена зачёркнутая</th>
-                <th className={thClass}>Скидка продавца</th>
-                <th className={thClass}>Цена со скидкой</th>
-                <th className={thClass}>Скидка МП</th>
-                <th className={thClass}>Цена для покупателя</th>
-                <th className={thClass}>Желаемая цена</th>
-                <th className={thClass}>Себестоимость</th>
-                <th className={thClass}>Комиссии</th>
-                <th className={thClass}>Маржа, %</th>
-                <th className={thClass}>Маржа, ₽</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--color-outline-variant)]">
-              {visible.map((row) => {
-                const loss = row.margin_rub !== null && row.margin_rub < 0;
-                const fromFile = loaded.has(row.offer_id);
-                return (
-                  <tr
-                    key={`${row.account_id}:${row.offer_id}`}
-                    className={fromFile ? "bg-[var(--color-primary-container)]/50" : "hover:bg-[var(--color-surface-container)]/60"}
-                  >
-                    <td className={tdClass}>
-                      <div className="flex items-center gap-2">
-                        {row.image_url && (
-                          <img src={row.image_url} alt="" loading="lazy" referrerPolicy="no-referrer" className="h-10 w-8 rounded object-cover" />
-                        )}
-                        <div className="min-w-0">
-                          <div className="font-mono text-xs">{row.offer_id}</div>
-                          {row.title && <div className="text-xs text-[var(--color-on-surface-variant)] truncate max-w-[220px]">{row.title}</div>}
-                        </div>
-                      </div>
-                    </td>
-                    <td className={tdClass}><Money value={row.list_price} /></td>
-                    <td className={tdClass}><span className="font-mono">{pct(row.seller_discount_pct, 0)}</span></td>
-                    <td className={tdClass}><Money value={row.seller_price} /></td>
-                    <td className={tdClass}><DiscountCell row={row} /></td>
-                    <td className={tdClass}><Money value={row.buyer_price} className="font-semibold" /></td>
-                    <td className={tdClass}><TargetCell row={row} onSave={saveTarget} onFallback={saveFallback} fromFile={fromFile} /></td>
-                    <td className={tdClass}>
-                      <EditableNumber value={row.cost_price} onSave={(v) => saveCost(row, v)} label={`Себестоимость ${row.offer_id}`} />
-                    </td>
-                    <td className={tdClass}><FeesCell row={row} /></td>
-                    <td className={tdClass}>
-                      {row.margin_pct === null ? <Dash /> : <span className={`font-mono ${loss ? "text-red-600 font-semibold" : ""}`}>{pct(row.margin_pct)}</span>}
-                    </td>
-                    <td className={tdClass}>
-                      {row.margin_rub === null ? (
-                        <span title="Укажите себестоимость"><Dash /></span>
-                      ) : (
-                        <Money value={row.margin_rub} className={loss ? "text-red-600 font-semibold" : ""} />
-                      )}
-                      {row.breakeven_price !== null && (
-                        <div className="text-[11px] text-[var(--color-on-surface-variant)] whitespace-nowrap">
-                          безубыточность {moneyFmt(row.breakeven_price)}
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          rows={visible}
+          rowKey={(row) => `${row.account_id}:${row.offer_id}`}
+          rowClassName={(row) => (loaded.has(row.offer_id) ? "bg-[var(--color-primary-container)]/50" : "")}
+          exportName={`Разбор цены ${MARKETPLACES.find((m) => m.id === marketplace)?.label || marketplace}`}
+          minWidth={1100}
+          columns={[
+            { key: "image_url", type: "image" },
+            {
+              key: "offer_id",
+              label: "Артикул продавца",
+              type: "text",
+              width: 24,
+              render: (row) => (
+                <div className="min-w-0">
+                  <div className="font-mono text-xs">{row.offer_id}</div>
+                  {row.title && <div className="text-xs text-[var(--color-on-surface-variant)] truncate max-w-[220px]">{row.title}</div>}
+                </div>
+              ),
+            },
+            { key: "list_price", label: "Цена зачёркнутая", type: "money" },
+            { key: "seller_discount_pct", label: "Скидка продавца", type: "percent", value: (r) => fraction(r.seller_discount_pct), render: (r) => <span className="font-mono">{pct(r.seller_discount_pct, 0)}</span> },
+            { key: "seller_price", label: "Цена со скидкой", type: "money" },
+            { key: "mp_discount_pct", label: "Скидка МП", type: "percent", value: (r) => fraction(r.mp_discount_pct), render: (r) => <DiscountCell row={r} /> },
+            { key: "buyer_price", label: "Цена для покупателя", type: "money", render: (r) => <Money value={r.buyer_price} className="font-semibold" /> },
+            {
+              key: "target_price",
+              label: "Желаемая цена",
+              type: "money",
+              align: "left",
+              render: (r) => <TargetCell row={r} onSave={saveTarget} onFallback={saveFallback} fromFile={loaded.has(r.offer_id)} />,
+            },
+            {
+              key: "cost_price",
+              label: "Себестоимость",
+              type: "money",
+              render: (r) => <EditableNumber value={r.cost_price} onSave={(v) => saveCost(r, v)} label={`Себестоимость ${r.offer_id}`} />,
+            },
+            { key: "fees_rub", label: "Комиссии", type: "money", render: (r) => <FeesCell row={r} /> },
+            {
+              key: "margin_pct",
+              label: "Маржа, %",
+              type: "percent",
+              value: (r) => fraction(r.margin_pct),
+              render: (r) =>
+                r.margin_pct === null ? <Dash /> : <span className={`font-mono ${r.margin_rub < 0 ? "text-red-600 font-semibold" : ""}`}>{pct(r.margin_pct)}</span>,
+            },
+            {
+              key: "margin_rub",
+              label: "Маржа, ₽",
+              type: "money",
+              render: (r) => (
+                <>
+                  {r.margin_rub === null ? (
+                    <span title="Укажите себестоимость"><Dash /></span>
+                  ) : (
+                    <Money value={r.margin_rub} className={r.margin_rub < 0 ? "text-red-600 font-semibold" : ""} />
+                  )}
+                  {r.breakeven_price !== null && (
+                    <div className="text-[11px] text-[var(--color-on-surface-variant)] whitespace-nowrap">
+                      безубыточность {moneyFmt(r.breakeven_price)}
+                    </div>
+                  )}
+                </>
+              ),
+            },
+          ]}
+        />
       )}
     </div>
   );
