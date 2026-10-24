@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "../utils/i18n.jsx";
 import { isMoneyColumn, isPercentColumn, marketplaceName, ruDate } from "../utils/formats.js";
 import { downloadXlsx } from "../utils/xlsx.js";
@@ -93,12 +93,33 @@ function compare(a, b) {
   return String(a).localeCompare(String(b), "ru", { numeric: true });
 }
 
+/** Filters and sorting of a table saved for the browser tab, so a page reload keeps them. */
+function loadTableState(stateKey) {
+  if (!stateKey) return null;
+  try {
+    return JSON.parse(sessionStorage.getItem(`table:${stateKey}`) || "null");
+  } catch {
+    return null;
+  }
+}
+
+function saveTableState(stateKey, state) {
+  if (!stateKey) return;
+  try {
+    sessionStorage.setItem(`table:${stateKey}`, JSON.stringify(state));
+  } catch {
+    // storage blocked: the table works, only a reload forgets its filters
+  }
+}
+
 const EXPORT_TYPE = { date: "date", money: "money", percent: "percent", number: "number", text: "text" };
 
 /**
  * A table with a filter under every column header, sorting by a header click and a download
  * of the shown (filtered and sorted) rows as an Excel file when `exportName` is given.
  * `rowKey(row)` keeps a row's cells (an input being edited) with the row when it moves.
+ * `selectedKey` (a rowKey) highlights a row, and the table scrolls to the one selected when it
+ * opens; `onRowClick(row)` picks a row. With `stateKey` the filters and sorting survive a reload.
  */
 export default function DataTable({
   rows,
@@ -108,14 +129,22 @@ export default function DataTable({
   filterable = true,
   rowClassName,
   rowKey,
+  selectedKey,
+  onRowClick,
+  stateKey,
   maxHeight = "70vh",
   minWidth = 640,
   footer,
 }) {
   const { t } = useI18n();
-  const [filters, setFilters] = useState({});
-  const [sort, setSort] = useState({ key: null, dir: 1 });
+  const [filters, setFilters] = useState(() => loadTableState(stateKey)?.filters || {});
+  const [sort, setSort] = useState(() => loadTableState(stateKey)?.sort || { key: null, dir: 1 });
   const [shown, setShown] = useState(PAGE);
+  const tableRef = useRef(null);
+  // only the row selected when the table opens is scrolled to: a click must not move the page
+  const openedOn = useRef(selectedKey);
+
+  useEffect(() => saveTableState(stateKey, { filters, sort }), [stateKey, filters, sort]);
 
   const cols = useMemo(() => {
     const spec = columns || preferredColumns || (rows.length ? Object.keys(rows[0]) : []);
@@ -133,6 +162,17 @@ export default function DataTable({
   }, [rows, cols, filters, sort]);
 
   const hasFilters = Object.values(filters).some((v) => v && v.trim());
+  // the selected row is drawn even when it lies past the rows shown so far
+  const selectedIndex = selectedKey && rowKey ? visible.findIndex((row) => rowKey(row) === selectedKey) : -1;
+  const limit = Math.max(shown, selectedIndex + 1);
+
+  useEffect(() => {
+    if (!openedOn.current || !tableRef.current) return;
+    const row = [...tableRef.current.querySelectorAll("tr[data-row-key]")].find((tr) => tr.dataset.rowKey === openedOn.current);
+    if (!row) return;
+    row.scrollIntoView({ block: "center" });
+    openedOn.current = null;
+  }, [visible]);
 
   if (!rows.length) {
     return (
@@ -186,7 +226,7 @@ export default function DataTable({
         </div>
       )}
       <div className="overflow-auto rounded-xl border border-[var(--color-outline-variant)]" style={{ maxHeight }}>
-        <table className="w-full text-sm" style={{ minWidth }}>
+        <table ref={tableRef} className="w-full text-sm" style={{ minWidth }}>
           <thead className="sticky top-0 z-10 bg-[var(--color-surface-container)]">
             <tr>
               {cols.map((col) => {
@@ -237,31 +277,40 @@ export default function DataTable({
             )}
           </thead>
           <tbody className="divide-y divide-[var(--color-outline-variant)]">
-            {visible.slice(0, shown).map((row, i) => (
-              <tr key={rowKey ? rowKey(row) : i} className={`hover:bg-[var(--color-surface-container)]/60 transition-colors ${rowClassName?.(row) || ""}`}>
-                {cols.map((col) => (
-                  <td
-                    key={col.key}
-                    className={`px-3 py-2 text-[var(--color-on-surface)] ${col.align ? `text-${col.align}` : col.type === "text" ? "text-left" : col.type === "date" || col.type === "image" ? "text-center" : "text-right"}`}
-                  >
-                    {col.render ? col.render(row) : <CellValue type={col.type} value={col.value(row)} />}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {visible.slice(0, limit).map((row, i) => {
+              const key = rowKey ? rowKey(row) : i;
+              const selected = selectedKey !== undefined && key === selectedKey;
+              return (
+                <tr
+                  key={key}
+                  data-row-key={rowKey ? key : undefined}
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  className={`transition-colors ${selected ? "bg-[var(--color-secondary-container)] outline-2 -outline-offset-2 outline-[var(--color-primary)]" : `hover:bg-[var(--color-surface-container)]/60 ${rowClassName?.(row) || ""}`}`}
+                >
+                  {cols.map((col) => (
+                    <td
+                      key={col.key}
+                      className={`px-3 py-2 text-[var(--color-on-surface)] ${col.align ? `text-${col.align}` : col.type === "text" ? "text-left" : col.type === "date" || col.type === "image" ? "text-center" : "text-right"}`}
+                    >
+                      {col.render ? col.render(row) : <CellValue type={col.type} value={col.value(row)} />}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
           </tbody>
           {footer}
         </table>
         {!visible.length && <p className="text-center text-sm py-6 text-[var(--color-on-surface-variant)]">{t("table.nothingFound")}</p>}
       </div>
-      {visible.length > shown && (
+      {visible.length > limit && (
         <div className="flex justify-center">
           <button
             type="button"
-            onClick={() => setShown((n) => n + PAGE * 5)}
+            onClick={() => setShown(limit + PAGE * 5)}
             className="px-4 py-1.5 rounded-full border border-[var(--color-outline-variant)] text-sm hover:bg-[var(--color-surface-container)]"
           >
-            {t("table.showMore")} ({(visible.length - shown).toLocaleString("ru-RU")})
+            {t("table.showMore")} ({(visible.length - limit).toLocaleString("ru-RU")})
           </button>
         </div>
       )}

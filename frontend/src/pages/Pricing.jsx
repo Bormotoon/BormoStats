@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { request, safeCall } from "../utils/api.js";
 import { moneyFmt, numberFmt, formatAsOf } from "../utils/formats.js";
 import { downloadXlsx, readTableFile } from "../utils/xlsx.js";
@@ -418,9 +419,18 @@ function TargetsPanel({ marketplace, rows, onImported, actionsEnabled, onlyLoade
   );
 }
 
-function Breakdown({ rows, setRows, onError, onReload, actionsEnabled }) {
-  const [marketplace, setMarketplace] = useState("wb");
-  const [query, setQuery] = useState("");
+/** A row of the breakdown as DataTable keys it, and as the address bar keeps the selected one. */
+function rowKeyOf(row) {
+  return `${row.account_id}:${row.offer_id}`;
+}
+
+function Breakdown({ rows, setRows, onError, onReload, actionsEnabled, params, setParam }) {
+  // the marketplace, search and selected row live in the address bar: a reload keeps them
+  const marketplace = MARKETPLACES.some((m) => m.id === params.get("mp")) ? params.get("mp") : "wb";
+  const query = params.get("q") || "";
+  const selected = params.get("offer") || undefined;
+  const setMarketplace = (mp) => setParam({ mp, offer: null });
+  const setQuery = (q) => setParam({ q });
   // articles of the last desired-price upload on this marketplace, highlighted in the table
   const [loaded, setLoaded] = useState(new Set());
   const [onlyLoaded, setOnlyLoaded] = useState(false);
@@ -545,7 +555,11 @@ function Breakdown({ rows, setRows, onError, onReload, actionsEnabled }) {
       ) : (
         <DataTable
           rows={visible}
-          rowKey={(row) => `${row.account_id}:${row.offer_id}`}
+          key={marketplace}
+          stateKey={`pricing-breakdown-${marketplace}`}
+          rowKey={rowKeyOf}
+          selectedKey={selected}
+          onRowClick={(row) => rowKeyOf(row) !== selected && setParam({ offer: rowKeyOf(row) })}
           rowClassName={(row) => (loaded.has(row.offer_id) ? "bg-[var(--color-primary-container)]/50" : "")}
           exportName={`Разбор цены ${MARKETPLACES.find((m) => m.id === marketplace)?.label || marketplace}`}
           minWidth={1100}
@@ -806,7 +820,22 @@ function Costs({ onImported }) {
 }
 
 export default function Pricing() {
-  const [tab, setTab] = useState("breakdown");
+  const [params, setParams] = useSearchParams();
+  // changes replace the history entry, so "Back" leaves the page instead of undoing a click
+  const setParam = (changes) =>
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        for (const [key, value] of Object.entries(changes)) {
+          if (value) next.set(key, value);
+          else next.delete(key);
+        }
+        return next;
+      },
+      { replace: true }
+    );
+  const tab = TABS.some((t) => t.id === params.get("tab")) ? params.get("tab") : "breakdown";
+  const setTab = (id) => setParam({ tab: id === "breakdown" ? null : id });
   const [breakdown, setBreakdown] = useState([]);
   const [compare, setCompare] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -846,7 +875,17 @@ export default function Pricing() {
           </TabButton>
         ))}
       </div>
-      {tab === "breakdown" && <Breakdown rows={breakdown} setRows={setBreakdown} onError={setError} onReload={load} actionsEnabled={actionsEnabled} />}
+      {tab === "breakdown" && (
+        <Breakdown
+          rows={breakdown}
+          setRows={setBreakdown}
+          onError={setError}
+          onReload={load}
+          actionsEnabled={actionsEnabled}
+          params={params}
+          setParam={setParam}
+        />
+      )}
       {tab === "compare" && <Compare rows={compare} />}
       {tab === "costs" && <Costs onImported={load} />}
     </div>
