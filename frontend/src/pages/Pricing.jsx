@@ -747,6 +747,7 @@ function Costs({ onImported }) {
             <table className="w-full text-sm">
               <thead>
                 <tr>
+                  <th className={thClass}><span className="sr-only">Фото</span></th>
                   <th className={thClass}>Артикул</th>
                   <th className={thClass}>Себестоимость</th>
                   <th className={thClass}>Обновлено</th>
@@ -756,7 +757,15 @@ function Costs({ onImported }) {
               <tbody className="divide-y divide-[var(--color-outline-variant)]">
                 {shown.map((c) => (
                   <tr key={c.offer_id} className={loaded.has(c.offer_id) ? "bg-[var(--color-primary-container)]/50" : ""}>
-                    <td className={`${tdClass} font-mono text-xs`}>{c.offer_id}</td>
+                    <td className={`${tdClass} w-12`}>
+                      {c.image_url && (
+                        <img src={c.image_url} alt="" loading="lazy" referrerPolicy="no-referrer" className="h-10 w-8 rounded object-cover" />
+                      )}
+                    </td>
+                    <td className={tdClass}>
+                      <div className="font-mono text-xs">{c.offer_id}</div>
+                      {c.title && <div className="text-xs text-[var(--color-on-surface-variant)] truncate max-w-[260px]">{c.title}</div>}
+                    </td>
                     <td className={tdClass}><Money value={c.cost_price_rub} /></td>
                     <td className={`${tdClass} text-xs text-[var(--color-on-surface-variant)]`}>{formatAsOf(c.updated_at)}</td>
                     <td className={tdClass}>

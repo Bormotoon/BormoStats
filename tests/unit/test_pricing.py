@@ -112,3 +112,24 @@ def test_compare_spread_needs_both_marketplaces() -> None:
         {"offer_id": "btn2", "wb_seller_price": 500.0, "wb_buyer_price": 400.0, "on_wb": 1}
     )
     assert wb_only.ozon_buyer_price is None and wb_only.buyer_spread_pct is None
+
+
+def test_cost_list_shows_the_card_photo() -> None:
+    ch = MagicMock()
+    ch.query.return_value.column_names = (
+        "offer_id",
+        "cost_price_rub",
+        "updated_at",
+        "title",
+        "image_url",
+    )
+    ch.query.return_value.result_rows = [
+        ("btn1", 120.5, "2026-10-24 10:00:00", "Пуговицы", "https://img/1.jpg"),
+        ("btn2", 95, "2026-10-24 10:00:00", None, None),
+    ]
+    costs = PricingService(ch, "org").list_costs()
+    assert [(c.offer_id, c.image_url, c.title) for c in costs] == [
+        ("btn1", "https://img/1.jpg", "Пуговицы"),
+        ("btn2", None, None),
+    ]
+    assert "mrt_price_current" in ch.query.call_args.args[0]

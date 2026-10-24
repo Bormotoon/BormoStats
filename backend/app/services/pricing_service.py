@@ -242,17 +242,29 @@ class PricingService:
         return len(rules)
 
     def list_costs(self) -> list[OfferCost]:
+        # the photo and name of the article from its card on any marketplace
+        clause, params = self._scope("p", None, None)
         rows = query_dicts(
             self._ch,
-            "SELECT offer_id, cost_price_rub, updated_at FROM dim_offer_cost FINAL"
-            " WHERE organization_id = {oid:String} ORDER BY offer_id",
-            {"oid": self._org},
+            "SELECT c.offer_id AS offer_id, c.cost_price_rub AS cost_price_rub,"
+            " c.updated_at AS updated_at, card.title AS title, card.image_url AS image_url"
+            " FROM dim_offer_cost AS c FINAL"
+            " LEFT JOIN (SELECT p.offer_id AS offer_id,"
+            " anyIf(p.title, p.title != '') AS title,"
+            " anyIf(p.image_url, p.image_url != '') AS image_url"
+            f" FROM mrt_price_current AS p FINAL{clause} GROUP BY p.offer_id) AS card"
+            " ON card.offer_id = c.offer_id"
+            " WHERE c.organization_id = {oid:String} ORDER BY c.offer_id",
+            params,
+            settings={"join_use_nulls": 1},
         )
         return [
             OfferCost(
                 offer_id=r["offer_id"],
                 cost_price_rub=float(r["cost_price_rub"]),
                 updated_at=str(r["updated_at"]),
+                title=r.get("title") or None,
+                image_url=r.get("image_url") or None,
             )
             for r in rows
         ]

@@ -89,6 +89,8 @@ class OfferCost(BaseModel):
     offer_id: str
     cost_price_rub: float
     updated_at: str | None = None
+    title: str | None = None
+    image_url: str | None = Field(default=None, description="Photo of the article's card")
 
 
 class OfferCostSet(BaseModel):
