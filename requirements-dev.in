@@ -4,11 +4,11 @@
 -r requirements.in
 # starlette.testclient (FastAPI TestClient) uses httpx2; without it it falls back to httpx
 # with a deprecation warning, which pytest turns into an error
-httpx2==2.13.1
+httpx2==2.16.0
 mypy==2.4.0
 pip-audit==2.10.1
 pytest==9.1.1
 pytest-asyncio==1.4.0
-ruff==0.17.0
+ruff==0.17.2
 types-python-dateutil==2.9.0.20260807
 types-PyYAML==6.0.12.20260906
