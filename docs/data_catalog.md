@@ -9,17 +9,17 @@ reports; see [Time](#time) for how timestamps are stored.
 
 | Table | Grain | Source | Rebuilt | Acceptable delay |
 |---|---|---|---|---|
-| `mrt_sales_daily` | day × account × product | `stg_sales`: WB sales report (`S…` sales, `R…` returns), Ozon realization accruals | every 30 min (`build_marts_recent`), 14-day backfill nightly | ≤ 2 h (`MartsStale`) |
-| `mrt_stock_daily` | day × account × product × warehouse | `stg_stocks` snapshots | every 30 min | ≤ 2 h |
-| `mrt_funnel_daily` | day × account × product | WB funnel report | every 30 min | ≤ 2 h (report itself lags ~1 day) |
-| `mrt_ads_daily` | day × account × campaign | Ozon ads statistics | every 30 min, 60-day window | ≤ 6 h |
-| `mrt_profit_daily` | day × account × product | `stg_sales` + cost price (`v_offer_cost` by supplier article, else `dim_product_cost`) | every 30 min | ≤ 2 h |
-| `mrt_supply_planning_daily` | account × product (today) | `stg_sales` + latest `stg_stocks` snapshot | every 30 min | ≤ 2 h |
-| `mrt_abc_xyz_analysis` | day × account × product | `mrt_sales_daily`; one snapshot per day, the API shows the latest | every 30 min (today's snapshot) | ≤ 2 h |
-| `mrt_finance_daily` | day × account | Ozon `/v1/finance/balance` per day; WB realization report lines (`/api/finance/v1/sales-reports/detailed`, daily reports) + balance widget snapshots | every 30 min; collectors hourly | Ozon ≤ 1 h; WB report of a day arrives the next day |
-| `mrt_price_current` | account × card (supplier article) | latest catalogue snapshot (prices, Ozon tariffs) + marketplace discount measured on recent sales (WB orders `finishedPrice / priceWithDisc`, Ozon accruals `sale_price / seller_price`) + fees from the WB realization report / Ozon accruals + `dim_offer_cost` | every 30 min, rebuilt whole | catalogue snapshot hourly |
+| `mrt_sales_daily` | day × account × product | `stg_sales`: WB sales report (`S…` sales, `R…` returns), Ozon realization accruals | daily after the 06:00 collection, 90-day window | ≤ 30 h (`MartsStale`) |
+| `mrt_stock_daily` | day × account × product × warehouse | `stg_stocks` snapshots | daily after collection | ≤ 30 h |
+| `mrt_funnel_daily` | day × account × product | WB funnel report | daily after collection | ≤ 30 h (report itself lags ~1 day) |
+| `mrt_ads_daily` | day × account × campaign | Ozon ads statistics | daily after collection, 90-day window | ≤ 30 h |
+| `mrt_profit_daily` | day × account × product | `stg_sales` + cost price (`v_offer_cost` by supplier article, else `dim_product_cost`) | daily after collection | ≤ 30 h |
+| `mrt_supply_planning_daily` | account × product (today) | `stg_sales` + latest `stg_stocks` snapshot | daily after collection | ≤ 30 h |
+| `mrt_abc_xyz_analysis` | day × account × product | `mrt_sales_daily`; one snapshot per day, the API shows the latest | daily after collection (today's snapshot) | ≤ 30 h |
+| `mrt_finance_daily` | day × account | Ozon `/v1/finance/balance` per day; WB realization report lines (`/api/finance/v1/sales-reports/detailed`, daily reports) + balance widget snapshots | daily after collection | daily; WB report of a day arrives the next day |
+| `mrt_price_current` | account × card (supplier article) | latest catalogue snapshot (prices, Ozon tariffs) + marketplace discount measured on recent sales (WB orders `finishedPrice / priceWithDisc`, Ozon accruals `sale_price / seller_price`) + fees from the WB realization report / Ozon accruals + `dim_offer_cost` | daily after collection, rebuilt whole | catalogue snapshot daily |
 | `mrt_breakeven_daily` | — | superseded by `mrt_price_current`; nothing reads or writes it, to be dropped | — | — |
-| `mrt_pnl_monthly` | month × organization × account | `mrt_finance_daily` + cost of goods + Ozon ads; `dim_additional_expense` as rows with an empty marketplace | every 30 min (months the window touches) | ≤ 2 h |
+| `mrt_pnl_monthly` | month × organization × account | `mrt_finance_daily` (including advertising charges) + cost of goods; `dim_additional_expense` as rows with an empty marketplace; Performance spend is not deducted again | daily after collection (months the window touches) | ≤ 30 h |
 
 ### Product dictionary
 

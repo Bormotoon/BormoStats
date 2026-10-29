@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { useI18n } from "../utils/i18n.jsx";
-import { request, safeCall } from "../utils/api.js";
+import { getCurrentPrincipal, request, safeCall } from "../utils/api.js";
 import { moneyFmt, percentFmt } from "../utils/formats.js";
 import { Spinner } from "../components/StatusChip.jsx";
-import { motion } from "motion/react";
+import { usePageFilters } from "../utils/usePageFilters.js";
+import ExpenseForm from "../components/ExpenseForm.jsx";
 
 function PnlCard({ label, value, accent, sub }) {
   return (
@@ -16,33 +16,45 @@ function PnlCard({ label, value, accent, sub }) {
 }
 
 export default function PnL() {
-  const { t } = useI18n();
+  const { query, dateFrom, dateTo, marketplace, accountId } = usePageFilters();
+  const [daily, setDaily] = useState([]);
   const [pnl, setPnl] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [canCreate, setCanCreate] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      safeCall(() => request("/api/v1/pnl", { admin: true })),
+      safeCall(() => request("/api/v1/pnl", { query, admin: true })),
       safeCall(() => request("/api/v1/pnl/expenses", { admin: true })),
-    ]).then(([pRes, eRes]) => {
-      setPnl(pRes.ok ? pRes.data : []);
+      safeCall(getCurrentPrincipal),
+      safeCall(() => request("/api/v1/pnl/daily", { query, admin: true })),
+    ]).then(([pRes, eRes, meRes, dRes]) => {
+      setDaily(dRes.ok ? dRes.data.items : []);
+      setPnl(pRes.ok ? pRes.data.filter(r => r.month.slice(0,7)>=dateFrom.slice(0,7) && r.month.slice(0,7)<=dateTo.slice(0,7) && (!r.marketplace || ((!marketplace || r.marketplace===marketplace) && (!accountId || r.account_id===accountId)))) : []);
       setExpenses(eRes.ok ? eRes.data : []);
+      setCanCreate(meRes.ok && (meRes.data.auth_method === "admin_key" || ["owner", "admin"].includes(meRes.data.role)));
+      setLoadError([!dRes.ok && `Дневной P&L: ${dRes.error}`, !pRes.ok && `P&L: ${pRes.error}`, !eRes.ok && `Расходы: ${eRes.error}`, !meRes.ok && `Не удалось проверить права: ${meRes.error}`].filter(Boolean).join(". "));
       setLoading(false);
     });
-  }, []);
+  }, [dateFrom, dateTo, marketplace, accountId]);
 
   if (loading) return <Spinner />;
 
-  const totalRevenue = pnl.reduce((s, r) => s + r.revenue_rub, 0);
-  const totalGross = pnl.reduce((s, r) => s + r.gross_profit_rub, 0);
-  const totalOperating = pnl.reduce((s, r) => s + r.operating_profit_rub, 0);
-  const totalNet = pnl.reduce((s, r) => s + r.net_profit_rub, 0);
-  const totalAdCost = pnl.reduce((s, r) => s + r.ad_cost_rub, 0);
-  const totalAdditional = pnl.reduce((s, r) => s + r.additional_expenses_rub, 0);
+  const totalRevenue = daily.reduce((s, r) => s + (r.revenue), 0);
+  const totalGross = daily.reduce((s, r) => s + (r.net_accrued-r.cogs+r.ads), 0);
+  const totalOperating = daily.reduce((s, r) => s + (r.net_accrued-r.cogs), 0);
+  const totalNet = daily.reduce((s, r) => s + r.profit, 0);
+  const totalAdCost = daily.reduce((s, r) => s + (r.ads), 0);
+  const totalAdditional = daily.reduce((s, r) => s + (r.external), 0);
+  const taxEnabled = pnl.some((r) => r.tax_enabled);
+  const incompleteTax = pnl.some((r) => r.tax_enabled && r.tax_status !== "confirmed");
+  const taxRate = pnl.find((r) => r.tax_enabled)?.tax_rate_pct;
+  const totalTax = daily.reduce((s, r) => s + (r.tax), 0);
   const total = (key) => pnl.reduce((s, r) => s + (r[key] || 0), 0);
-  const netRevenue = totalRevenue - total("returns_cost_rub");
+  const netRevenue = totalRevenue;
   // gross margin of the whole period: an average of monthly percentages would weigh a
   // month with little revenue as much as the best month
   const avgMargin = netRevenue ? (totalGross / netRevenue) * 100 : 0;
@@ -50,11 +62,14 @@ export default function PnL() {
 
   return (
     <div className="space-y-4">
+      {loadError && <p role="alert" className="rounded-xl p-3 text-sm text-[var(--color-error)]">{loadError}</p>}
+      {canCreate ? <ExpenseForm onSaved={(expense) => setExpenses((rows) => [expense, ...rows].sort((a, b) => (b.expense_date || b.month).localeCompare(a.expense_date || a.month) || a.category.localeCompare(b.category, "ru")))} /> : <p className="text-sm text-[var(--color-on-surface-variant)]">Внешние расходы может добавлять администратор организации.</p>}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <PnlCard label="Выручка" value={moneyFmt(totalRevenue)} accent="success" />
+        <PnlCard label="Выручка за вычетом возвратов" value={moneyFmt(totalRevenue)} accent="success" />
         <PnlCard label="Маржинальная прибыль" value={moneyFmt(totalGross)} accent="success" sub={`${percentFmt(avgMargin / 100)} от выручки за вычетом возвратов`} />
         <PnlCard label="Операционная прибыль" value={moneyFmt(totalOperating)} accent={totalOperating >= 0 ? "success" : "error"} />
-        <PnlCard label="Чистая прибыль" value={moneyFmt(totalNet)} accent={totalNet >= 0 ? "success" : "error"} />
+        <PnlCard label="Чистая прибыль" value={`${incompleteTax ? "≈ " : ""}${moneyFmt(totalNet)}`} accent={totalNet >= 0 ? "success" : "error"}
+          sub={loadError ? "Ошибка загрузки" : `За ${dateFrom} — ${dateTo}. ` + (incompleteTax ? "Предварительно: часть налога рассчитана по ценам покупателя за вычетом возвратов" : taxEnabled ? "После налога по отчётам о реализации" : "До налога")} />
       </div>
 
       {noCosts && (
@@ -65,27 +80,44 @@ export default function PnL() {
         </div>
       )}
 
+      {taxEnabled && (
+        <div className="md3-card-elevated p-4 text-sm">
+          Налог {taxRate}% = (реализовано на сумму − возвраты) по месячному отчёту Ozon.
+          {" "}Суммы начислений и выплат не заменяют эту базу. Налог — расчёт по заданной ставке.
+          {incompleteTax && <p className="mt-1">Пока нет полного отчёта, налог предварительно считается по ценам покупателя за вычетом возвратов.
+            После загрузки отчёта расчёт автоматически уточняется.</p>}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="md3-card-elevated p-4">
-          <h3 className="text-sm font-semibold mb-3">P&L по месяцам</h3>
+          <h3 className="text-sm font-semibold mb-3">P&L по месяцам · полные месяцы</h3>
           <div className="space-y-1 max-h-[400px] overflow-y-auto">
             {pnl.map((row, i) => (
-              <div key={i} className="flex justify-between items-center py-1.5 border-b border-[var(--color-outline-variant)] last:border-0 text-sm">
+              <div key={i} className="flex flex-col gap-1 py-2 border-b border-[var(--color-outline-variant)] last:border-0 text-sm">
                 <div>
                   <p className="font-medium">{row.month}</p>
                   <p className="text-xs text-[var(--color-on-surface-variant)]">{row.marketplace ? `${row.marketplace} · ${row.account_id}` : "косвенные расходы"}</p>
                 </div>
-                <p className="font-mono font-semibold">{moneyFmt(row.net_profit_rub)}</p>
+                <div className="text-right">
+                  {row.tax_enabled && <>
+                    <p className="text-xs">До налога: {moneyFmt(row.profit_before_tax_rub)}</p>
+                    <p className="text-xs">{row.tax_status === "estimated" ? "Предварительная база" : "База по реализации"}: {row.tax_base_rub == null ? "нет отчёта" : moneyFmt(row.tax_base_rub)}</p>
+                    <p className="text-xs">Налог {row.tax_rate_pct}%: {row.tax_rub == null ? "нет отчёта" : moneyFmt(row.tax_rub)}</p>
+                    {row.tax_status === "estimated" && <p className="text-xs">Предварительно, до полного отчёта</p>}
+                  </>}
+                  <p className="font-mono font-semibold">{row.net_profit_rub == null ? "После налога: —" : moneyFmt(row.net_profit_rub)}</p>
+                </div>
               </div>
             ))}
           </div>
         </div>
 
         <div className="md3-card-elevated p-4">
-          <h3 className="text-sm font-semibold mb-3">Структура расходов</h3>
+          <h3 className="text-sm font-semibold mb-3">Структура расходов · полные месяцы</h3>
           <div className="space-y-3">
             <div className="flex justify-between text-sm">
-              <span className="text-[var(--color-on-surface-variant)]">Реклама</span>
+              <span className="text-[var(--color-on-surface-variant)]">Реклама · удержано Ozon</span>
               <span className="font-mono font-semibold">{moneyFmt(totalAdCost)}</span>
             </div>
             <div className="flex justify-between text-sm">
@@ -112,6 +144,10 @@ export default function PnL() {
               <span>Начислено маркетплейсами</span>
               <span className="font-mono">{moneyFmt(total("net_accrued_rub"))}</span>
             </div>
+            {total("financing_adjustment_rub") !== 0 && <div className="flex justify-between text-sm">
+              <span>Возврат долга · исключен из расходов</span>
+              <span className="font-mono">{total("financing_adjustment_rub") > 0 ? "+" : ""}{moneyFmt(total("financing_adjustment_rub"))}</span>
+            </div>}
             <div className="flex justify-between text-sm">
               <span className="text-[var(--color-on-surface-variant)]">Себестоимость</span>
               <span className="font-mono font-semibold">{moneyFmt(total("cogs_rub"))}</span>
@@ -120,11 +156,15 @@ export default function PnL() {
               <span>Косвенные расходы</span>
               <span className="font-mono">{moneyFmt(totalAdditional)}</span>
             </div>
+            {taxEnabled && <div className="border-t border-[var(--color-outline-variant)] pt-2 flex justify-between text-sm font-semibold">
+              <span>Налог {taxRate}%{incompleteTax ? " · частично предварительно" : " · закрытые отчёты"}</span>
+              <span className="font-mono">{moneyFmt(totalTax)}</span>
+            </div>}
           </div>
         </div>
 
         <div className="md3-card-elevated p-4">
-          <h3 className="text-sm font-semibold mb-3">Косвенные расходы</h3>
+          <h3 className="text-sm font-semibold mb-3">Внешние (косвенные) расходы</h3>
           {expenses.length === 0 && (
             <p className="text-sm text-[var(--color-on-surface-variant)]">Нет данных</p>
           )}
@@ -133,7 +173,8 @@ export default function PnL() {
               <div key={exp.expense_id} className="flex justify-between items-center py-1.5 border-b border-[var(--color-outline-variant)] last:border-0 text-sm">
                 <div>
                   <p className="font-medium">{exp.category}</p>
-                  <p className="text-xs text-[var(--color-on-surface-variant)]">{exp.month}</p>
+                  <p className="text-xs text-[var(--color-on-surface-variant)]">{exp.expense_date ? new Date(`${exp.expense_date}T00:00:00`).toLocaleDateString("ru-RU") : `${exp.month} (за месяц)`}</p>
+                  {exp.description && <p className="text-xs text-[var(--color-on-surface-variant)] break-words">{exp.description}</p>}
                 </div>
                 <p className="font-mono">{moneyFmt(exp.amount_rub)}</p>
               </div>

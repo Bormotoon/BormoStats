@@ -22,6 +22,7 @@ __pycache__/
 
 # Secrets
 .env
+LOGIN.local.txt
 .env.*.local
 
 # Node / Frontend build artifacts

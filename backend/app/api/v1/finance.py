@@ -1,6 +1,7 @@
 """Finance endpoints: marketplace charges, accruals, payouts and balances."""
-
 from __future__ import annotations
+
+from datetime import date
 
 from app.api.errors import API_ERROR_RESPONSES
 from app.core.auth import AnalyticsReadAuth
@@ -54,9 +55,11 @@ def finance_balance(
     filters: ListQueryParams = Depends(get_list_query_params),
     client: ChClientDependency,
     cache: QueryCacheDependency,
+    as_of: date | None = None,
 ) -> dict[str, object]:
     service = MetricsService(client, cache)
     items = service.finance_balance(
+        as_of=as_of,
         organization_id=auth.organization_id,
         marketplace=filters.marketplace,
         account_id=filters.account_id,

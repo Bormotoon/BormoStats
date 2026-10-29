@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ClockCounterClockwise, Warning } from "@phosphor-icons/react";
 import { request, subscribeSettings, getSettings } from "../utils/api.js";
 
-const STALE_AFTER_MS = 2 * 60 * 60 * 1000;
+const STALE_AFTER_MS = 30 * 60 * 60 * 1000;
 
 function latest(marts) {
   const stamps = marts.map((m) => (m.updated_at ? new Date(m.updated_at).getTime() : 0)).filter(Boolean);

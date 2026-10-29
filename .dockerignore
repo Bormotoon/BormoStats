@@ -7,6 +7,7 @@
 __pycache__
 *.pyc
 .env
+LOGIN.local.txt
 *.log
 .idea/
 .vscode/
@@ -23,6 +24,7 @@ tests/
 docs/
 dashboards/
 backups/
+outputs/
 infra/nginx/certs/
 frontend/test-results/
 frontend/playwright-report/

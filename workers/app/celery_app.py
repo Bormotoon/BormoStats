@@ -44,6 +44,7 @@ celery_app = Celery(
     include=[
         "app.tasks.wb_collect",
         "app.tasks.ozon_collect",
+        "app.tasks.reports",
         "app.tasks.competitor_collect",
         "app.tasks.transforms",
         "app.tasks.marts",
@@ -70,7 +71,7 @@ celery_app.conf.update(
     task_acks_late=True,
     task_reject_on_worker_lost=True,
     beat_schedule=beat_schedule,
-    timezone=os.getenv("TZ", "Europe/Warsaw"),
+    timezone=os.getenv("TZ", "Europe/Moscow"),
     enable_utc=True,
     worker_prefetch_multiplier=1,
     broker_connection_retry_on_startup=True,

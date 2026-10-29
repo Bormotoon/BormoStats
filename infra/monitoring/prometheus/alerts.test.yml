@@ -9,7 +9,7 @@ tests:
       - series: 'task_runs_total{task_name="tasks.wb_collect.wb_sales_incremental",status="failed"}'
         values: "0+0x10 1+0x10"
       - series: 'watermark_lag_seconds{source="wb_sales",account_id="acc-1"}'
-        values: "25000x20"
+        values: "140000x20"
       - series: 'empty_payload_total{source="ozon_finance"}'
         values: "0+2x40"
       - series: "redis_memory_limit_bytes"
@@ -41,7 +41,7 @@ tests:
               account_id: acc-1
             exp_annotations:
               summary: Watermark lag is stale
-              description: wb_sales/acc-1 watermark lag is above 6 hours.
+              description: wb_sales/acc-1 watermark lag is above 36 hours.
       - eval_time: 30m
         alertname: MarketplaceEmptyPayloadAnomaly
         exp_alerts:
@@ -90,7 +90,7 @@ tests:
   - interval: 1m
     input_series:
       - series: 'mart_freshness_seconds{table="mrt_sales_daily"}'
-        values: "9000x30"
+        values: "120000x30"
       - series: 'schema_drift_missing_columns{table="dim_account"}'
         values: "1x30"
       - series: 'task_runs_total{task_name="tasks.wb_collect.wb_sales_incremental",status="failed"}'
@@ -112,7 +112,7 @@ tests:
               table: mrt_sales_daily
             exp_annotations:
               summary: Mart is stale
-              description: "mrt_sales_daily has not been rebuilt for more than 2 hours."
+              description: "mrt_sales_daily has not been rebuilt for more than 30 hours."
       - eval_time: 10m
         alertname: SchemaDrift
         exp_alerts:
@@ -155,3 +155,17 @@ tests:
             exp_annotations:
               summary: Backend 5xx rate above 5%
               description: "More than 5% of API requests failed with 5xx over 10 minutes."
+
+  - interval: 1m
+    input_series:
+      - series: 'mart_freshness_seconds{table="mrt_sales_daily"}'
+        values: "90000x30"
+      - series: 'watermark_lag_seconds{source="ozon_finance",account_id="acc-1"}'
+        values: "110000x30"
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: MartsStale
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: MarketplaceWatermarkStale
+        exp_alerts: []

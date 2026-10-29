@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import hashlib
+import json
 import os
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
@@ -27,6 +29,10 @@ from collectors.ozon.parsers import (
     parse_stocks,
 )
 from common.finance import FINANCE_CATEGORIES
+from common.pnl_tax import realization_totals
+from collectors.ozon.sku_ad_reports import fetch_report, cache_key, parse_report, report_is_fresh
+from common.ozon_buyouts import parse_buyouts
+from common.funnel_economics import campaign_metadata_rows
 
 LOGGER = logging.getLogger(__name__)
 
@@ -36,6 +42,158 @@ OZON_TZ = ZoneInfo("Europe/Moscow")
 # accruals of recent days are still being posted, so every run re-reads them
 FINANCE_LOOKBACK_DAYS = 3
 ADS_LOOKBACK_DAYS = 3
+POSTINGS_LOOKBACK_DAYS = 90
+
+
+@shared_task(name='tasks.ozon_collect.ozon_buyouts_week')
+def ozon_buyouts_week(days: int = 7, account_id: str = OZON_ACCOUNT_ID) -> dict[str, Any]:
+    """Daily buyout snapshots. Explicitly bounded to the latest week."""
+    days=max(1,min(days,7))
+    ozon=_ozon_client()
+    if ozon is None:return {'status':'skipped','reason':'missing Ozon credentials'}
+    ch=get_ch_client();run_id,started=new_run_context()
+    task='tasks.ozon_collect.ozon_buyouts_week';day=_ozon_today()-timedelta(days=days-1)
+    count=0
+    with lock_scope(redis_client=get_redis_client(),source='ozon_buyouts',account_id=account_id,
+                    ttl_seconds=900,auto_renew=True):
+        try:
+            while day<=_ozon_today():
+                payload=ozon.finance_buyouts(day,day)
+                parsed=parse_buyouts(payload)
+                raw=json.dumps(payload,ensure_ascii=False,sort_keys=True)
+                ch.insert('raw_ozon_buyouts_daily',[[account_id,day,len(parsed),raw,
+                    hashlib.sha256(raw.encode()).hexdigest(),datetime.now(UTC)]],
+                    column_names=['account_id','day','row_count','payload','sha256','fetched_at'])
+                count+=len(parsed);day+=timedelta(days=1)
+            log_task_run(ch,task,run_id,started,'success',count,'CIS buyouts refreshed',meta={'days':days})
+            return {'status':'success','rows':count,'days':days}
+        except Exception as exc:
+            log_task_run(ch,task,run_id,started,'failed',count,str(exc));raise
+        finally:ozon.close()
+
+
+@shared_task(name="tasks.ozon_collect.ozon_ads_sku_backfill_days")
+def ozon_ads_sku_backfill_days(days: int = 3, account_id: str = OZON_ACCOUNT_ID) -> dict[str, Any]:
+    """Read-only asynchronous reports; no campaign/bid/budget writes."""
+    perf = _ozon_performance_client()
+    if perf is None:
+        return {"status":"skipped","reason":"missing Performance credentials"}
+    ch = get_ch_client()
+    run_id, started = new_run_context()
+    task_name = 'tasks.ozon_collect.ozon_ads_sku_backfill_days'
+    stop = _ozon_today()-timedelta(days=1)
+    cursor = _ozon_today()-timedelta(days=max(1,min(days,730)))
+    inserted = 0
+    reports = 0
+    with lock_scope(redis_client=get_redis_client(),source='ozon_sku_ads',account_id=account_id,
+                    ttl_seconds=1800,auto_renew=True):
+        try:
+            while cursor <= stop:
+                # Stable daily buckets avoid generating overlapping rolling reports.
+                end = cursor
+                campaigns = [str(r[0]) for r in ch.query(
+                    "SELECT DISTINCT campaign_id FROM ("
+                    " SELECT JSONExtractString(payload,'unit_number') AS campaign_id FROM raw_ozon_finance_ops FINAL"
+                    " WHERE account_id={aid:String} AND operation_ts>=toDateTime({start:Date},'Europe/Moscow')"
+                    " AND operation_ts<toDateTime(addDays({stop:Date},1),'Europe/Moscow')"
+                    " AND JSONExtractInt(payload,'non_item_fee','type_id') IN (41,75)"
+                    " UNION ALL SELECT campaign_id FROM raw_ozon_ads_daily FINAL"
+                    " WHERE account_id={aid:String} AND day BETWEEN {start:Date} AND {stop:Date}"
+                    " UNION ALL SELECT campaign_id FROM raw_ozon_ads_sku_daily FINAL"
+                    " WHERE account_id={aid:String} AND day BETWEEN {start:Date} AND {stop:Date}"
+                    ") WHERE campaign_id != '' ORDER BY campaign_id",
+                    parameters={'aid':account_id,'start':cursor,'stop':end}).result_rows]
+                for offset in range(0,len(campaigns),10):
+                    batch=campaigns[offset:offset+10]
+                    key=cache_key(account_id,batch,cursor,end)
+                    saved=ch.query('SELECT report_uuid,payload,updated_at FROM raw_ozon_sku_report_jobs FINAL WHERE cache_key={key:String}',parameters={'key':key}).result_rows
+                    if saved and saved[0][1] and not report_is_fresh(saved[0][2], _ozon_today()):
+                        # Recent days can be corrected; reuse completed jobs only today.
+                        saved = []
+                    def save_job(uuid,payload=''):
+                        ch.insert('raw_ozon_sku_report_jobs',[[key,account_id,cursor,end,json.dumps(batch),uuid,payload,datetime.now(UTC)]],
+                                  column_names=['cache_key','account_id','date_from','date_to','campaigns','report_uuid','payload','updated_at'])
+                    if saved and saved[0][1]:
+                        uuid=saved[0][0]
+                        records=parse_report(json.loads(saved[0][1]),batch,cursor,end)
+                    else:
+                        records,uuid,raw=fetch_report(perf,batch,cursor,end,
+                            job_uuid=saved[0][0] if saved else None,on_created=save_job)
+                        save_job(uuid,json.dumps(raw,ensure_ascii=False))
+                    # A correction can remove a SKU entirely from the report. Store
+                    # a zero revision too, so old cost does not remain in economics.
+                    previous = ch.query(
+                        'SELECT day,campaign_id,sku FROM raw_ozon_ads_sku_daily FINAL'
+                        ' WHERE account_id={aid:String} AND day BETWEEN {start:Date} AND {stop:Date}'
+                        ' AND campaign_id IN {campaigns:Array(String)}',
+                        parameters={'aid':account_id,'start':cursor,'stop':end,'campaigns':batch},
+                    ).result_rows
+                    for day,campaign,sku in previous:
+                        records.setdefault((day,str(campaign),str(sku)),0)
+                    rows = [[account_id,day,campaign,sku,amount,uuid,datetime.now(UTC)]
+                            for (day,campaign,sku),amount in records.items()]
+                    if rows:
+                        ch.insert('raw_ozon_ads_sku_daily',rows,column_names=[
+                            'account_id','day','campaign_id','sku','cost','report_uuid','fetched_at'])
+                    inserted += len(rows)
+                    reports += 1
+                    LOGGER.info('sku_ads_report_saved period=%s..%s rows=%s reports=%s',cursor,end,len(rows),reports)
+                cursor=end+timedelta(days=1)
+            log_task_run(ch,task_name,run_id,started,'success',inserted,'Performance SKU reports collected',
+                         meta={'days':days,'reports':reports})
+            return {'status':'success','rows':inserted,'reports':reports}
+        except Exception as exc:
+            log_task_run(ch,task_name,run_id,started,'failed',inserted,str(exc),meta={'reports':reports})
+            raise
+        finally:
+            perf.close()
+
+
+@shared_task(name="tasks.ozon_collect.ozon_realization_backfill_days")
+def ozon_realization_backfill_days(days: int = 62, account_id: str = OZON_ACCOUNT_ID) -> dict[str, Any]:
+    """Keep original reports and validated totals for completed calendar months."""
+    if os.getenv("PNL_REALIZATION_TAX_ENABLED", "false").lower() != "true":
+        return {"status": "skipped", "reason": "realization tax disabled"}
+    ozon = _ozon_client()
+    if ozon is None:
+        return {"status": "skipped", "reason": "missing Ozon credentials"}
+    ch = get_ch_client()
+    run_id, started = new_run_context()
+    task_name = "tasks.ozon_collect.ozon_realization_backfill_days"
+    fetched, unavailable = [], []
+    today = _ozon_today()
+    month = (today - timedelta(days=max(1, min(days, 730)))).replace(day=1)
+    with lock_scope(redis_client=get_redis_client(), source="ozon_realization", account_id=account_id,
+                    ttl_seconds=600, auto_renew=True):
+        try:
+            while month < today.replace(day=1):
+                try:
+                    payload = ozon.finance_realization(month.year, month.month)
+                    sales, returns = realization_totals(payload, month)
+                except (ValueError, httpx.HTTPStatusError) as exc:
+                    # Missing/rejected reports remain visibly unavailable in P&L; no zero estimate.
+                    if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code not in {400, 404}:
+                        raise
+                    unavailable.append(month.isoformat())
+                    LOGGER.warning("realization_unavailable month=%s error=%s", month, type(exc).__name__)
+                else:
+                    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+                    ch.insert("raw_ozon_realization_monthly", [[
+                        account_id, month, sales, returns, len(payload['result']['rows']),
+                        "/v2/finance/realization", hashlib.sha256(raw.encode()).hexdigest(), raw,
+                        datetime.now(UTC),
+                    ]], column_names=["account_id", "month", "sales_amount", "returns_amount", "row_count",
+                                      "source", "sha256", "payload", "fetched_at"])
+                    fetched.append(month.isoformat())
+                month = date(month.year + (month.month == 12), month.month % 12 + 1, 1)
+            log_task_run(ch, task_name, run_id, started, "success", len(fetched),
+                         "monthly realization reports collected", meta={"months": fetched, "unavailable": unavailable})
+            return {"status": "success", "months": fetched, "unavailable": unavailable}
+        except Exception as exc:
+            log_task_run(ch, task_name, run_id, started, "failed", len(fetched), str(exc))
+            raise
+        finally:
+            ozon.close()
 
 RAW_OZON_FINANCE_BALANCE_COLUMNS = [
     "run_id",
@@ -209,8 +367,11 @@ def _collect_postings(account_id: str, from_ts: datetime | None = None) -> dict[
     ):
         ch_client = get_ch_client()
         try:
-            watermark = from_ts or get_watermark(ch_client, "ozon_postings", account_id)
             now_ts = datetime.now(UTC)
+            watermark = from_ts if from_ts is not None else min(
+                get_watermark(ch_client, "ozon_postings", account_id),
+                now_ts - timedelta(days=POSTINGS_LOOKBACK_DAYS),
+            )
             records = ozon.postings_since(
                 from_ts=watermark,
                 to_ts=now_ts,
@@ -451,9 +612,14 @@ def _collect_finance_balance(account_id: str, from_day: date) -> dict[str, Any]:
 @shared_task(name="tasks.ozon_collect.ozon_finance_balance")
 def ozon_finance_balance(account_id: str = OZON_ACCOUNT_ID) -> dict[str, Any]:
     try:
+        # Catch up after downtime instead of permanently missing balance days.
+        today = _ozon_today()
+        watermark_day = get_watermark(
+            get_ch_client(), "ozon_finance_balance", account_id
+        ).astimezone(OZON_TZ).date()
         return _collect_finance_balance(
             account_id=account_id,
-            from_day=_ozon_today() - timedelta(days=FINANCE_BALANCE_LOOKBACK_DAYS),
+            from_day=min(today, watermark_day) - timedelta(days=FINANCE_BALANCE_LOOKBACK_DAYS),
         )
     except LockNotAcquiredError:
         return {"status": "skipped", "reason": "lock_not_acquired"}
@@ -576,6 +742,13 @@ def ozon_ads_daily(
         ):
             ch_client = get_ch_client()
             try:
+                try:
+                    metadata = campaign_metadata_rows(account_id, performance.campaigns())
+                    if metadata:
+                        ch_client.insert('raw_ozon_campaign_metadata', metadata, column_names=[
+                            'account_id','campaign_id','effective_from','payload','fetched_at'])
+                except Exception:
+                    LOGGER.warning('Campaign metadata refresh failed; collecting daily spend independently', exc_info=True)
                 records = performance.daily_stats(from_day, to_day)
                 if not records:
                     observe_empty_payload("ozon_ads")

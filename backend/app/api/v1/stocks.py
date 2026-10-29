@@ -8,6 +8,7 @@ from app.core.deps import ChClientDependency, QueryCacheDependency
 from app.models.api import ListQueryParams, build_paginated_response, get_list_query_params
 from app.services.metrics_service import MetricsService
 from fastapi import APIRouter, Depends
+from datetime import date
 
 router = APIRouter(prefix="/stocks", tags=["stocks"], responses=API_ERROR_RESPONSES)
 
@@ -19,6 +20,7 @@ def stocks_current(
     filters: ListQueryParams = Depends(get_list_query_params),
     client: ChClientDependency,
     cache: QueryCacheDependency,
+    as_of: date | None = None,
 ) -> dict[str, object]:
     service = MetricsService(client, cache)
     items = service.stocks_current(
@@ -27,5 +29,6 @@ def stocks_current(
         account_id=filters.account_id,
         limit=filters.query_limit,
         offset=filters.offset,
+        as_of=as_of,
     )
     return build_paginated_response(items=items, limit=filters.limit, offset=filters.offset)

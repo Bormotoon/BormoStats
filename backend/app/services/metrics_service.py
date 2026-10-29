@@ -40,7 +40,9 @@ class MetricsService:
 
         if self.cache is None:
             return compute()
-        return self.cache.get_or_compute(query_name, parameters, compute)
+        # Old workers may still warm stock rows without valuation fields.
+        cache_name = "stocks.sql:valuation-v1" if query_name == "stocks.sql" else query_name
+        return self.cache.get_or_compute(cache_name, parameters, compute)
 
     def sales_daily(
         self,
@@ -72,9 +74,11 @@ class MetricsService:
         account_id: str,
         limit: int,
         offset: int,
+        as_of: date | None = None,
     ) -> list[dict[str, Any]]:
         return self._run(
             "stocks.sql",
+            as_of=as_of or date.today(),
             organization_id=organization_id,
             marketplace=marketplace,
             account_id=account_id,
@@ -174,9 +178,11 @@ class MetricsService:
         account_id: str,
         limit: int,
         offset: int,
+        as_of: date | None = None,
     ) -> list[dict[str, Any]]:
         return self._run(
             "finance_balance.sql",
+            as_of=as_of or date.today(),
             organization_id=organization_id,
             marketplace=marketplace,
             account_id=account_id,
