@@ -4,6 +4,7 @@ WITH scoped AS (
   SELECT day, marketplace, account_id, product_id, warehouse_id, stock_end
   FROM mrt_stock_daily FINAL
   WHERE (%(marketplace)s = '' OR marketplace = %(marketplace)s)
+    AND day <= %(as_of)s
     AND (%(account_id)s = '' OR account_id = %(account_id)s)
     AND (marketplace, account_id) IN (
     SELECT marketplace, account_id FROM dim_account FINAL WHERE organization_id = %(organization_id)s
@@ -52,7 +53,10 @@ SELECT
   any(n.name) AS title,
   any(n.article) AS offer_id,
   any(n.image) AS image_url,
-  sum(s.stock_end) AS stock_end
+  sum(s.stock_end) AS stock_end,
+  if(any(oc.cost_price_rub) > 0, any(oc.cost_price_rub),
+    if(any(c.cost_price_rub) > 0, any(c.cost_price_rub), NULL)) AS cost_price_rub,
+  stock_end * cost_price_rub AS stock_cost_rub
 FROM scoped AS s
 INNER JOIN latest AS l
   ON s.marketplace = l.marketplace
@@ -66,6 +70,13 @@ LEFT JOIN warehouses AS w
   ON s.marketplace = w.marketplace
   AND s.account_id = w.account_id
   AND ifNull(s.warehouse_id, -1) = w.warehouse_id
+LEFT JOIN v_offer_cost AS oc
+  ON s.marketplace = oc.marketplace
+  AND s.account_id = oc.account_id
+  AND s.product_id = oc.product_id
+LEFT JOIN dim_product_cost AS c FINAL
+  ON s.marketplace = c.marketplace
+  AND s.product_id = toString(c.product_id)
 GROUP BY s.day, s.marketplace, s.account_id, s.product_id, s.warehouse_id
 ORDER BY stock_end ASC, s.marketplace, s.product_id
 LIMIT %(limit)s

@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import OzonFunnel from "./OzonFunnel.jsx";
+import { useSearchParams } from "react-router-dom";
 import { useI18n } from "../utils/i18n.jsx";
 import { requestAll } from "../utils/api.js";
 import { usePageFilters } from "../utils/usePageFilters.js";
@@ -9,6 +11,28 @@ import { AreaChartCard } from "../components/Chart.jsx";
 import { Spinner, EmptyState } from "../components/StatusChip.jsx";
 
 export default function Funnel() {
+  const { marketplace, accountId, query, period } = usePageFilters();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selected = marketplace === "ozon" ? "ozon" : "wb";
+  function selectMarketplace(nextMarketplace) {
+    const next = new URLSearchParams(searchParams);
+    if (nextMarketplace !== marketplace) next.delete("accountId");
+    next.set("marketplace", nextMarketplace);
+    setSearchParams(next);
+  }
+  return <div className="space-y-4">
+    <div role="group" aria-label="Площадка воронки" className="flex flex-wrap gap-2">
+      {[["wb", "Wildberries"], ["ozon", "Ozon"]].map(([id, label]) => <button
+        key={id} type="button" aria-pressed={selected === id}
+        onClick={() => selectMarketplace(id)}
+        className={`px-4 py-2 rounded-full border text-sm font-semibold transition-colors ${selected === id ? "bg-[var(--color-primary)] border-[var(--color-primary)] text-white" : "border-[var(--color-outline-variant)] hover:bg-[var(--color-surface-container)]"}`}
+      >{label}</button>)}
+    </div>
+    {selected === "ozon" ? <OzonFunnel query={query} accountId={accountId} period={period} /> : <WbFunnel />}
+  </div>;
+}
+
+function WbFunnel() {
   const { t } = useI18n();
   const { searchParams, query, period, dateFrom, dateTo } = usePageFilters();
   const [data, setData] = useState(null);

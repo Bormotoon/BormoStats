@@ -19,6 +19,7 @@ from app.api.v1 import (
     ai,
     bidder,
     costs,
+    economics,
     exports,
     extension,
     finance,
@@ -68,6 +69,7 @@ configure_logging(settings.log_level)
 LOGGER = structlog.get_logger(__name__)
 
 API_ROUTERS = (
+    economics,
     sales,
     stocks,
     funnel,

@@ -4,13 +4,12 @@
 --   commission_rub    commission and acquiring
 --   logistics_rub     delivery, reverse logistics, acceptance
 --   storage_rub       warehouse placement
---   other_costs_rub   penalties and other charges (net of compensations; WB ads are
---                     deducted here)
+--   other_costs_rub   penalties and other charges, excluding Ozon pay-per-click ads
 --   net_accrued_rub   what the marketplace accrued to the balance: revenue minus all above
 --   cogs_rub          cost price x units kept by buyers (v_offer_cost by supplier article,
 --                     else dim_product_cost; 0 without costs)
---   gross_profit_rub  net_accrued_rub - cogs_rub
---   ad_cost_rub       Ozon Performance spend (mrt_ads_daily; paid outside the balance)
+--   gross_profit_rub  net_accrued_rub + ad_cost_rub - cogs_rub (before ads)
+--   ad_cost_rub       Ozon ad charges already included in the finance balance
 --   operating/ebitda/net profit: gross profit - ads (indirect expenses are separate rows,
 --                     see mrt_pnl_monthly_expenses.sql; no depreciation or tax data)
 --   margin_pct        gross_profit_rub / (revenue_rub - returns_cost_rub)
@@ -35,6 +34,7 @@ WITH
       sum(logistics + reverse_logistics + acceptance) AS logistics,
       sum(storage) AS storage,
       sum(penalties + other) AS other,
+      -sum(if(marketplace = 'ozon', details['pay_per_click'], 0)) AS ads,
       sum(net_accrued) AS net_accrued
     FROM mrt_finance_daily FINAL
     WHERE day >= from_month
@@ -58,13 +58,6 @@ WITH
       AND s.product_id = oc.product_id
     WHERE s.day >= from_month
     GROUP BY month, s.marketplace, s.account_id
-  ),
-  ads AS
-  (
-    SELECT toStartOfMonth(day) AS month, marketplace, account_id, sum(cost) AS cost
-    FROM mrt_ads_daily FINAL
-    WHERE day >= from_month
-    GROUP BY month, marketplace, account_id
   )
 SELECT
   f.month,
@@ -76,11 +69,11 @@ SELECT
   -f.logistics AS logistics_rub,
   -f.returns AS returns_cost_rub,
   -f.storage AS storage_rub,
-  -f.other AS other_costs_rub,
+  -f.other - f.ads AS other_costs_rub,
   f.net_accrued AS net_accrued_rub,
   ifNull(cg.cogs, 0) AS cogs_rub,
-  net_accrued_rub - cogs_rub AS gross_profit_rub,
-  ifNull(ad.cost, 0) AS ad_cost_rub,
+  net_accrued_rub + f.ads - cogs_rub AS gross_profit_rub,
+  f.ads AS ad_cost_rub,
   0 AS additional_expenses_rub,
   gross_profit_rub - ad_cost_rub AS operating_profit_rub,
   operating_profit_rub AS ebitda_rub,
@@ -93,6 +86,4 @@ INNER JOIN (SELECT marketplace, account_id, organization_id FROM dim_account FIN
   ON f.marketplace = a.marketplace AND f.account_id = a.account_id
 LEFT JOIN cogs AS cg
   ON f.month = cg.month AND f.marketplace = cg.marketplace AND f.account_id = cg.account_id
-LEFT JOIN ads AS ad
-  ON f.month = ad.month AND f.marketplace = ad.marketplace AND f.account_id = ad.account_id
 SETTINGS join_use_nulls = 1

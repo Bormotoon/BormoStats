@@ -11,13 +11,14 @@ groups:
           description: "{{ $labels.task_name }} has recorded failed runs during the last 15 minutes."
 
       - alert: MarketplaceWatermarkStale
-        expr: max by (source, account_id) (watermark_lag_seconds) > 21600
+        # Daily finance watermarks point at midnight, six hours before collection.
+        expr: max by (source, account_id) (watermark_lag_seconds) > 129600
         for: 15m
         labels:
           severity: warning
         annotations:
           summary: Watermark lag is stale
-          description: "{{ $labels.source }}/{{ $labels.account_id }} watermark lag is above 6 hours."
+          description: "{{ $labels.source }}/{{ $labels.account_id }} watermark lag is above 36 hours."
 
       - alert: MarketplaceEmptyPayloadAnomaly
         expr: increase(empty_payload_total[1h]) > 20
@@ -67,13 +68,13 @@ groups:
   - name: bormostats-data-quality
     rules:
       - alert: MartsStale
-        expr: max by (table) (mart_freshness_seconds) > 7200
+        expr: max by (table) (mart_freshness_seconds) > 108000
         for: 15m
         labels:
           severity: warning
         annotations:
           summary: Mart is stale
-          description: "{{ $labels.table }} has not been rebuilt for more than 2 hours."
+          description: "{{ $labels.table }} has not been rebuilt for more than 30 hours."
 
       - alert: MartEmptyForYesterday
         expr: max by (table) (mart_rows_yesterday{table=~"mrt_sales_daily|mrt_stock_daily"}) == 0

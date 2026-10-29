@@ -32,27 +32,21 @@
 
 ## Scheduling baseline
 
-- WB:
-  - `wb_sales_incremental`: every 15 min
-  - `wb_orders_incremental`: every 15 min
-  - `wb_stocks_snapshot`: every 30 min
-  - `wb_funnel_roll`: hourly (7-day rolling window)
-  - backfills: daily window tasks
-- Ozon:
-  - `ozon_postings_incremental`: every 20 min
-  - `ozon_stocks_snapshot`: every 30 min
-  - `ozon_finance_incremental`: every 6 hours (`/v1/finance/accrual/by-day`, one request chain per Moscow day, last 3 days re-read)
-  - `ozon_ads_daily`: every 6 hours (Performance API, requires `OZON_PERF_CLIENT_ID` / `OZON_PERF_CLIENT_SECRET`)
-- ELT and marts:
-  - `transform_all_recent`: every 30 min
-  - `build_marts_recent`: hourly
-  - `build_marts_backfill_14d`: daily
-- History (`tasks.history.*`):
-  - `wb_catalog_snapshot`: hourly, `ozon_catalog_snapshot`: hourly (product cards, prices, attributes)
-  - `backfill_raw_archive`: daily, one-off import per raw table; `prune_old_raw` waits for it
-- Automation and maintenance:
-  - `run_automation_rules`: 3 times per day
-  - `prune_old_raw`: daily
+`tasks.reports.collect_daily` starts once a day at 06:00 (`TZ=Europe/Moscow`).
+It runs catalogue and marketplace collection, then staging transforms, marts,
+data quality checks and recommendations in dependency order. Successful steps
+are checkpointed in Redis, so retries resume without collecting completed sources
+again. Independent collector, backfill and rebuild timers are disabled.
+
+WB sales/orders use last-change watermarks; its funnel refreshes 14 days.
+Ozon postings refresh 90 days of statuses; finance and advertising refresh recent
+corrections. SKU ad reports use stable daily periods and a Moscow-day cache.
+Staging and marts rebuild 90 days; monthly P&L rebuilds touched calendar months.
+
+Raw history import/pruning, exports cleanup, reviews, competitor monitoring,
+marketplace rules, automation rules and the existing digest keep their own schedules.
+See [customization review](customization-review.md) for source dependencies,
+verification requirements and operational limitations.
 
 ## Reliability
 

@@ -8,7 +8,8 @@ from typing import Any, cast
 
 import clickhouse_connect
 
-MAX_MART_STALENESS = timedelta(hours=2)
+# Daily collection at 06:00 plus time for API throttling and retries.
+MAX_MART_STALENESS = timedelta(hours=30)
 MAX_FUTURE_SKEW = timedelta(minutes=5)
 MAX_SAMPLE_ROWS = 3
 

@@ -15,6 +15,8 @@ BACKFILL_MAX_DAYS: dict[tuple[str, str], int] = {
     ("ozon", "postings"): 730,
     ("ozon", "finance"): 730,
     ("ozon", "balance"): 730,
+    ("ozon", "realization"): 730,
+    ("ozon", "ads_sku"): 730,
     # WB keeps realization reports from 2025-01-01; the task clamps earlier days
     ("wb", "finance"): 730,
     ("marts", "build"): 730,
@@ -28,6 +30,8 @@ class BackfillMarketplace(StrEnum):
 
 
 class BackfillDataset(StrEnum):
+    ADS_SKU = "ads_sku"
+    REALIZATION = "realization"
     SALES = "sales"
     ORDERS = "orders"
     FUNNEL = "funnel"

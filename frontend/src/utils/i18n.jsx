@@ -5,6 +5,7 @@ const LANG_KEY = "bormostats_ui_lang";
 const ru = {
   brand: { name: "BormoStats", tagline: "Аналитика маркетплейсов" },
   nav: {
+    economics: "Экономика по артикулам",
     dashboard: "Дашборд", sales: "Продажи", finance: "Финансы", stocks: "Остатки",
     funnel: "Воронка", ads: "Реклама", reviews: "Работа с отзывами", bidder: "Биддер",
     pricing: "Цены", repricer: "Репрайсер", pnl: "P&L", abcXyz: "ABC/XYZ",
@@ -14,6 +15,7 @@ const ru = {
     taskRuns: "Запуски задач", adminActions: "Админ", system: "Система",
   },
   pageTitles: {
+    economics: "Экономика по артикулам",
     dashboard: "Дашборд", sales: "Продажи", finance: "Финансы", stocks: "Остатки",
     funnel: "Воронка", ads: "Реклама", reviews: "Работа с отзывами", bidder: "Биддер",
     pricing: "Цены", repricer: "Репрайсер", pnl: "P&L", abcXyz: "ABC/XYZ",
@@ -23,6 +25,7 @@ const ru = {
     taskRuns: "Запуски задач", adminActions: "Действия админа", system: "Система",
   },
   pageSubtitles: {
+    economics: "Продажи, расходы и прибыль каждого артикула · вид как в Excel",
     bidder: "Управление ставками рекламных кампаний",
     reviews: "Ответы покупателям: ИИ, шаблоны и автоответы на отзывы без текста",
     pricing: "Разбор цены, сравнение по маркетплейсам, желаемые цены и себестоимость",
@@ -76,6 +79,7 @@ const ru = {
   },
   dashboard: {
     stockUnits: "Ед. остатков", stockItems: "Товаров",
+    stockCost: "Себестоимость остатков", stockWithoutCost: "Единиц без себестоимости",
     revenue: "Выручка", salesQty: "Кол-во продаж", adCost: "Расходы на рекламу",
     period: "за период", periodFor: "за", sumQty: "выкуплено", sumCost: "за период",
     items: "позиций", uniqueProducts: "уникальных товаров",
@@ -304,6 +308,7 @@ const en = {
   },
   dashboard: {
     stockUnits: "Stock Units", stockItems: "Stock Items",
+    stockCost: "Stock cost", stockWithoutCost: "Units without cost",
     revenue: "Revenue", salesQty: "Sales Qty", adCost: "Ad Cost",
     period: "for period", periodFor: "for", sumQty: "sold", sumCost: "for the period",
     items: "items", uniqueProducts: "unique products",

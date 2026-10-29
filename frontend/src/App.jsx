@@ -11,6 +11,7 @@ import AbcXyz from "./pages/AbcXyz.jsx";
 import Ads from "./pages/Ads.jsx";
 import Bidder from "./pages/Bidder.jsx";
 import PnL from "./pages/PnL.jsx";
+import Economics from "./pages/Economics.jsx";
 import Finance from "./pages/Finance.jsx";
 import History from "./pages/History.jsx";
 import Login from "./pages/Login.jsx";
@@ -28,6 +29,7 @@ import { loadSettings, getTheme, getSettings, subscribeSettings } from "./utils/
 loadSettings();
 
 const PAGES = {
+  economics: Economics,
   dashboard: Dashboard,
   sales: Sales,
   finance: Finance,

@@ -155,23 +155,20 @@ print(
     )
 
 
-def test_rebuild_schedule_staggers_transform_and_marts() -> None:
+def test_reports_have_one_daily_schedule() -> None:
     script = """
 import json
-
 from app.beat_schedule import beat_schedule
-
-print(
-    json.dumps(
-        {
-            "transform": beat_schedule["transform_raw_to_stg"]["schedule"]._orig_minute,
-            "marts_recent": beat_schedule["build_marts_recent"]["schedule"]._orig_minute,
-            "marts_backfill": beat_schedule["build_marts_backfill_14d"]["schedule"]._orig_minute,
-        }
-    )
-)
+entry = beat_schedule["daily_reports"]
+print(json.dumps({
+    "task": entry["task"],
+    "minute": entry["schedule"]._orig_minute,
+    "hour": entry["schedule"]._orig_hour,
+    "independent_reports": [v["task"] for v in beat_schedule.values()
+        if v["task"].startswith(("tasks.ozon_collect.", "tasks.wb_collect.",
+                                "tasks.transforms.", "tasks.marts."))],
+}))
 """
-
     env = {
         **os.environ,
         "PYTHONPATH": os.pathsep.join([str(WORKERS_DIR), str(ROOT_DIR)]),
@@ -184,11 +181,10 @@ print(
         text=True,
         check=False,
     )
-
     assert result.returncode == 0, result.stderr
-    payload = json.loads(result.stdout)
-    assert payload == {
-        "transform": "5,35",
-        "marts_recent": "20,50",
-        "marts_backfill": "20",
+    assert json.loads(result.stdout) == {
+        "task": "tasks.reports.collect_daily",
+        "minute": "0",
+        "hour": "6",
+        "independent_reports": [],
     }

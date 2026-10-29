@@ -96,6 +96,7 @@ function excelDay(value) {
 }
 
 function cellXml(ref, value, type) {
+  if (value && typeof value === "object" && Object.hasOwn(value, "value")) { type = value.type || type; value = value.value; }
   if (value === null || value === undefined || value === "") return "";
   if (type === "date") {
     const serial = excelDay(value);

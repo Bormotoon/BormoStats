@@ -569,7 +569,7 @@ def test_data_quality_task_logs_failures_for_bad_data(
 
     client = integration_runtime.ch_client()
     try:
-        stale_updated_at = (datetime.now(UTC) - timedelta(hours=6)).replace(tzinfo=None)
+        stale_updated_at = (datetime.now(UTC) - timedelta(hours=31)).replace(tzinfo=None)
         current_day = datetime.now(UTC).date() - timedelta(days=1)
         client.command("TRUNCATE TABLE mrt_ads_daily")
         client.command(

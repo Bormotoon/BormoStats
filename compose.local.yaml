@@ -1,0 +1,12 @@
+services:
+  backend:
+    volumes:
+      - ../../frontend/dist:/app/backend/app/ui/dist:ro
+      - ../../backend/app/models/pnl.py:/app/backend/app/models/pnl.py:ro
+      - ../../backend/app/services/pnl_service.py:/app/backend/app/services/pnl_service.py:ro
+      - ../../backend/app/services/daily_pnl_service.py:/app/backend/app/services/daily_pnl_service.py:ro
+      - ../../backend/app/services/article_economics_service.py:/app/backend/app/services/article_economics_service.py:ro
+  proxy:
+    ports: !override
+      - "127.0.0.1:18080:8080"
+      - "127.0.0.1:18443:8443"

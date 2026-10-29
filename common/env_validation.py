@@ -113,13 +113,19 @@ def collect_worker_startup_issues(env: Mapping[str, str | None]) -> list[str]:
     issues = _collect_clickhouse_runtime_issues(env)
     issues.extend(_collect_shared_secret_issues(env))
 
-    for key in REQUIRED_MARKETPLACE_KEYS:
-        if is_placeholder(env.get(key)):
-            issues.append(
-                f"{key} must be set to a real marketplace credential before worker startup"
-            )
+    issues.extend(_collect_marketplace_issues(env))
 
     return issues
+
+
+def _collect_marketplace_issues(env: Mapping[str, str | None]) -> list[str]:
+    groups = (("WB_TOKEN_STATISTICS", "WB_TOKEN_ANALYTICS"),
+              ("OZON_CLIENT_ID", "OZON_API_KEY"))
+    configured = [group for group in groups if any(_normalized(env.get(k)) for k in group)]
+    if not configured:
+        return ["Configure at least one marketplace credential pair (WB or Ozon)"]
+    return [f"{key} must be set for the configured marketplace"
+            for group in configured for key in group if is_placeholder(env.get(key))]
 
 
 def collect_bootstrap_issues(env: Mapping[str, str | None]) -> list[str]:
@@ -141,9 +147,7 @@ def collect_bootstrap_issues(env: Mapping[str, str | None]) -> list[str]:
     if is_placeholder(env.get("REDIS_PASSWORD")):
         issues.append("REDIS_PASSWORD must be set before bootstrap")
 
-    for key in REQUIRED_MARKETPLACE_KEYS:
-        if is_placeholder(env.get(key)):
-            issues.append(f"{key} must be set before bootstrap")
+    issues.extend(_collect_marketplace_issues(env))
 
     return issues
 

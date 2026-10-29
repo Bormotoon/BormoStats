@@ -36,7 +36,6 @@ MART_REBUILD_TABLES = (
     ("mrt_stock_daily", "day"),
     ("mrt_funnel_daily", "day"),
     ("mrt_profit_daily", "day"),
-    ("mrt_supply_planning_daily", "day"),
     ("mrt_ad_performance_daily", "day"),
     ("mrt_finance_daily", "day"),
 )
@@ -73,7 +72,9 @@ def _run_marts(days: int, task_name: str) -> dict[str, str | int]:
             for table_name, day_column in MART_REBUILD_TABLES:
                 client.command(
                     _window_delete(table_name, day_column),
-                    parameters={"days": days},
+                    parameters={
+                        "days": ads_days if table_name == "mrt_ad_performance_daily" else days
+                    },
                     settings=SYNC_MUTATION,
                 )
             client.command(
@@ -86,6 +87,10 @@ def _run_marts(days: int, task_name: str) -> dict[str, str | int]:
             client.command(_load("mrt_funnel_daily.sql"), parameters={"days": days})
             client.command(_load("mrt_ads_daily.sql"), parameters={"days": ads_days})
             client.command(_load("mrt_profit_daily.sql"), parameters={"days": days})
+            client.command(
+                f"ALTER TABLE mrt_supply_planning_daily DELETE WHERE day = {MOSCOW_TODAY}",
+                settings=SYNC_MUTATION,
+            )
             client.command(_load("mrt_supply_planning_daily.sql"))
             client.command(_load("mrt_ad_performance_daily.sql"), parameters={"days": ads_days})
             client.command(_load("mrt_finance_daily_ozon.sql"), parameters={"days": days})

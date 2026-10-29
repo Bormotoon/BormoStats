@@ -69,7 +69,7 @@ def set_watermark(
         parameters={
             "source": source,
             "account_id": account_id,
-            "watermark_ts": candidate.replace(tzinfo=None),
+            "watermark_ts": candidate,
         },
     )
     observe_watermark(source=source, account_id=account_id, watermark_ts=candidate)
