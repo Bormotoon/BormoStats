@@ -143,3 +143,13 @@ def test_partner_stocks_only_reads_warehouses_for_selected_campaign(
     assert len(rows) == 1 and rows[0]["warehouseId"] == 1
     assert calls[1][1] == {"partnerWarehouseId": 1}
     client.close()
+
+
+def test_partner_stock_rejects_ambiguous_warehouse(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = YmClient("secret")
+    monkeypatch.setattr(
+        client, "_paged", lambda *a: [{"id": 1, "models": [{"placementType": "FBS"}]}]
+    )
+    with pytest.raises(ValueError, match="unambiguous campaignId"):
+        client.partner_stocks("100", "10")
+    client.close()

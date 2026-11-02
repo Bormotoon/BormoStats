@@ -164,6 +164,8 @@ class YmClient:
         result: list[dict[str, Any]] = []
         for warehouse in warehouses:
             models = warehouse.get("models") or []
+            if any(isinstance(model, dict) and not model.get("campaignId") for model in models):
+                raise ValueError("Yandex warehouse has no unambiguous campaignId")
             if not any(
                 str(model.get("campaignId") or "") == campaign_id
                 for model in models
