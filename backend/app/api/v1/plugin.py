@@ -14,7 +14,7 @@ router = APIRouter(prefix="/plugin", tags=["plugin"], responses=API_ERROR_RESPON
 def product_overlay(
     client: ChClientDependency,
     auth: ViewerAuth,
-    marketplace: str = Path(pattern=r"^(wb|ozon)$"),
+    marketplace: str = Path(pattern=r"^(wb|ozon|ym)$"),
     product_id: int = Path(ge=1),
 ) -> dict[str, object]:
     """Return competitor product data for browser plugin overlay."""

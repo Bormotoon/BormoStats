@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-MARKETPLACE_PATTERN = r"^(wb|ozon)$"
+MARKETPLACE_PATTERN = r"^(wb|ozon|ym)$"
 ACCOUNT_ID_PATTERN = r"^[A-Za-z0-9._:-]{1,64}$"
 PLACEMENT_PATTERN = r"^(combined|search|recommendations)$"
 

@@ -10,7 +10,7 @@ from common.exports import DATASETS
 
 class ExportRequest(BaseModel):
     dataset: str = Field(pattern="^(" + "|".join(sorted(DATASETS)) + ")$")
-    marketplace: str | None = Field(default=None, pattern=r"^(wb|ozon)$")
+    marketplace: str | None = Field(default=None, pattern=r"^(wb|ozon|ym)$")
     account_id: str | None = Field(default=None, pattern=ACCOUNT_ID_PATTERN)
     date_from: date | None = None
     date_to: date | None = None

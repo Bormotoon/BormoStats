@@ -202,13 +202,20 @@ class ReviewService:
     def reply(self, marketplace: str, review_id: str, text: str, author: str) -> Review:
         review = self.get_review(marketplace, review_id)
         s = self._settings
-        error = send_reply(
-            marketplace,
-            review_id,
-            text,
-            wb_token=s.wb_feedbacks_token or s.wb_content_token,
-            ozon_client_id=s.ozon_client_id,
-            ozon_api_key=s.ozon_api_key,
+        ym_account = s.ym_account_id or s.ym_campaign_id or "default"
+        error = (
+            "Yandex Market account is not configured for this review"
+            if marketplace == "ym" and review.account_id != ym_account
+            else send_reply(
+                marketplace,
+                review_id,
+                text,
+                wb_token=s.wb_feedbacks_token or s.wb_content_token,
+                ozon_client_id=s.ozon_client_id,
+                ozon_api_key=s.ozon_api_key,
+                ym_api_key=s.ym_api_key_reviews or s.ym_api_key,
+                ym_business_id=s.ym_business_id,
+            )
         )
         record_reply(
             self._ch,

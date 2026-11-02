@@ -86,6 +86,7 @@ export function buyerCardUrl(marketplace, productId) {
   if (!/^\d+$/.test(id)) return null;
   if (marketplace === "wb") return `https://www.wildberries.ru/catalog/${id}/detail.aspx`;
   if (marketplace === "ozon") return `https://www.ozon.ru/product/${id}/`;
+  if (marketplace === "ym") return `https://market.yandex.ru/search?text=${encodeURIComponent(id)}`;
   return null;
 }
 

@@ -64,6 +64,8 @@ class PriceCompareRow(BaseModel):
     wb_buyer_price: float | None = None
     ozon_seller_price: float | None = None
     ozon_buyer_price: float | None = None
+    ym_seller_price: float | None = None
+    ym_buyer_price: float | None = None
     buyer_spread_pct: float | None = Field(
         default=None, description="(max - min) / min of the buyer prices, %"
     )
@@ -114,7 +116,7 @@ class OfferCostImportResult(BaseModel):
 class TargetPriceImport(BaseModel):
     """Rows ``article;desired price`` of one marketplace, from a spreadsheet."""
 
-    marketplace: str = Field(pattern=r"^(wb|ozon)$")
+    marketplace: str = Field(pattern=r"^(wb|ozon|ym)$")
     text: str = Field(min_length=1, max_length=2_000_000)
 
 
@@ -132,7 +134,7 @@ class TargetPriceImportResult(BaseModel):
 class KeepPrices(BaseModel):
     """Keep the desired prices of a marketplace live (``keep``) or only simulate them."""
 
-    marketplace: str = Field(pattern=r"^(wb|ozon)$")
+    marketplace: str = Field(pattern=r"^(wb|ozon|ym)$")
     keep: bool
 
 

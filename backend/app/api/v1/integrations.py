@@ -40,7 +40,7 @@ def stock_update(
     ch: ChClientDependency,
     settings: SettingsDependency,
     auth: MarketplaceExecuteAuth,
-    marketplace: str | None = Query(default=None, pattern=r"^(wb|ozon)$"),
+    marketplace: str | None = Query(default=None, pattern=r"^(wb|ozon|ym)$"),
 ) -> list[StockUpdateResult]:
     return _svc(ch, settings, auth).push_stock(body, marketplace)
 

@@ -80,6 +80,6 @@ class ProductPimUpdate(BaseModel):
 
 
 class ProductPimBulkUpdateItem(ProductPimUpdate):
-    marketplace: str = Field(pattern=r"^(wb|ozon)$")
+    marketplace: str = Field(pattern=r"^(wb|ozon|ym)$")
     account_id: str = Field(min_length=1, max_length=64)
     product_id: str = Field(min_length=1, max_length=64)

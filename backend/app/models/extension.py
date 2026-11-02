@@ -28,7 +28,7 @@ def _normalize_ts(value: datetime | None) -> datetime:
 
 class SerpPosition(BaseModel):
     account_id: str = Field(default="default", pattern=ACCOUNT_ID_PATTERN)
-    marketplace: str = Field(default="wb", pattern=r"^(wb|ozon)$")
+    marketplace: str = Field(default="wb", pattern=r"^(wb|ozon|ym)$")
     keyword: str = Field(min_length=1, max_length=256)
     product_id: int = Field(ge=1, le=2**63 - 1)
     position: int = Field(ge=1, le=10_000)
@@ -42,7 +42,7 @@ class SerpPosition(BaseModel):
 
 class CompetitorPrice(BaseModel):
     account_id: str = Field(default="default", pattern=ACCOUNT_ID_PATTERN)
-    marketplace: str = Field(default="wb", pattern=r"^(wb|ozon)$")
+    marketplace: str = Field(default="wb", pattern=r"^(wb|ozon|ym)$")
     competitor_product_id: str = Field(min_length=1, max_length=64)
     competitor_name: str = Field(default="", max_length=256)
     price_rub: float = Field(ge=0, le=100_000_000)

@@ -21,13 +21,13 @@ router = APIRouter(
     dependencies=[Depends(require_platform_admin)],
 )
 
-MarketplacePath = Path(pattern=r"^(wb|ozon)$")
+MarketplacePath = Path(pattern=r"^(wb|ozon|ym)$")
 
 
 @router.get("/")
 def list_costs(
     client: ChClientDependency,
-    marketplace: str | None = Query(default=None, pattern=r"^(wb|ozon)$"),
+    marketplace: str | None = Query(default=None, pattern=r"^(wb|ozon|ym)$"),
     limit: int = Query(default=5000, ge=1, le=50_000),
 ) -> dict[str, object]:
     """List product cost prices."""

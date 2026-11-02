@@ -1,7 +1,8 @@
+import { useSearchParams } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useI18n } from "../utils/i18n.jsx";
 import { request, safeCall } from "../utils/api.js";
-import { moneyFmt, percentFmt } from "../utils/formats.js";
+import { moneyFmt, percentFmt, marketplaceName } from "../utils/formats.js";
 import { Spinner } from "../components/StatusChip.jsx";
 import { motion } from "motion/react";
 
@@ -17,6 +18,9 @@ function PnlCard({ label, value, accent, sub }) {
 
 export default function PnL() {
   const { t } = useI18n();
+  const [searchParams] = useSearchParams();
+  const marketplace = searchParams.get("marketplace") || "";
+  const accountId = searchParams.get("accountId") || "";
   const [pnl, setPnl] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,11 +31,11 @@ export default function PnL() {
       safeCall(() => request("/api/v1/pnl", { admin: true })),
       safeCall(() => request("/api/v1/pnl/expenses", { admin: true })),
     ]).then(([pRes, eRes]) => {
-      setPnl(pRes.ok ? pRes.data : []);
+      setPnl(pRes.ok ? pRes.data.filter(r => (!marketplace || r.marketplace === marketplace) && (!accountId || r.account_id === accountId)) : []);
       setExpenses(eRes.ok ? eRes.data : []);
       setLoading(false);
     });
-  }, []);
+  }, [marketplace, accountId]);
 
   if (loading) return <Spinner />;
 
@@ -73,7 +77,7 @@ export default function PnL() {
               <div key={i} className="flex justify-between items-center py-1.5 border-b border-[var(--color-outline-variant)] last:border-0 text-sm">
                 <div>
                   <p className="font-medium">{row.month}</p>
-                  <p className="text-xs text-[var(--color-on-surface-variant)]">{row.marketplace ? `${row.marketplace} · ${row.account_id}` : "косвенные расходы"}</p>
+                  <p className="text-xs text-[var(--color-on-surface-variant)]">{row.marketplace ? `${marketplaceName(row.marketplace)} · ${row.account_id}` : "косвенные расходы"}</p>
                 </div>
                 <p className="font-mono font-semibold">{moneyFmt(row.net_profit_rub)}</p>
               </div>

@@ -103,7 +103,7 @@ def delete_category(category_id: str, ch: ChClientDependency, auth: AdminAuth) -
 def list_products(
     ch: ChClientDependency,
     auth: ViewerAuth,
-    marketplace: str | None = Query(default=None, pattern=r"^(wb|ozon)$"),
+    marketplace: str | None = Query(default=None, pattern=r"^(wb|ozon|ym)$"),
     account_id: str | None = Query(default=None, max_length=64),
     q: str | None = Query(default=None, max_length=200, description="title substring or id"),
 ) -> list[ProductPim]:

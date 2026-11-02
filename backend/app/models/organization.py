@@ -59,7 +59,7 @@ class ShopAccount(BaseModel):
 
 class ShopAccountCreate(BaseModel):
     account_id: str = Field(min_length=1, max_length=64)
-    marketplace: str = Field(min_length=2, max_length=10, pattern=r"^(wb|ozon)$")
+    marketplace: str = Field(min_length=2, max_length=10, pattern=r"^(wb|ozon|ym)$")
     title: str = Field(min_length=1, max_length=255)
     is_active: bool = True
 

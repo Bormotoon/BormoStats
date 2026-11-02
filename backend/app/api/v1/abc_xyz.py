@@ -15,7 +15,7 @@ router = APIRouter(prefix="/abc-xyz", tags=["abc-xyz"], responses=API_ERROR_RESP
 def get_abc_xyz(
     ch: ChClientDependency,
     auth: ManagerAuth,
-    marketplace: str | None = Query(default=None, pattern=r"^(wb|ozon)$"),
+    marketplace: str | None = Query(default=None, pattern=r"^(wb|ozon|ym)$"),
     account_id: str | None = Query(default=None, max_length=64),
 ) -> list[dict[str, Any]]:
     return AbcXyzService(ch, auth.organization_id).get_analysis(marketplace, account_id)

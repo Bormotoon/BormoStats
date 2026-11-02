@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useI18n } from "../utils/i18n.jsx";
 import { request } from "../utils/api.js";
@@ -14,6 +15,9 @@ const DELIVERY_STYLES = {
 
 export default function Integrations() {
   const { t } = useI18n();
+  const [searchParams] = useSearchParams();
+  const marketplace = searchParams.get("marketplace") || "";
+  const accountId = searchParams.get("accountId") || "";
   const [tab, setTab] = useState("stock");
   const [subs, setSubs] = useState([]);
   const [logs, setLogs] = useState([]);
@@ -73,7 +77,7 @@ export default function Integrations() {
       };
     });
     if (items.length === 0) return;
-    const params = {};
+    const params = { marketplace };
     const results = await run(() => request("/api/v1/integrations/stock/update", {
       method: "POST",
       body: items,

@@ -9,7 +9,7 @@ from app.services.tenancy import account_scope_sql
 from clickhouse_connect.driver import Client
 
 FRESHNESS_MARTS = ("mrt_sales_daily", "mrt_stock_daily", "mrt_funnel_daily", "mrt_ads_daily")
-COLLECTOR_TASK_PREFIXES = ("tasks.wb_collect.", "tasks.ozon_collect.")
+COLLECTOR_TASK_PREFIXES = ("tasks.wb_collect.", "tasks.ozon_collect.", "tasks.ym_collect.")
 
 
 class FreshnessService:
@@ -55,8 +55,13 @@ class FreshnessService:
             "SELECT task_name, count() AS failures, max(finished_at) AS last_failure"
             " FROM sys_task_runs"
             " WHERE status = 'failed' AND finished_at >= now() - INTERVAL 24 HOUR"
-            " AND (startsWith(task_name, {p1:String}) OR startsWith(task_name, {p2:String}))"
+            " AND (startsWith(task_name, {p1:String}) OR startsWith(task_name, {p2:String})"
+            " OR startsWith(task_name, {p3:String}))"
             " GROUP BY task_name ORDER BY failures DESC",
-            {"p1": COLLECTOR_TASK_PREFIXES[0], "p2": COLLECTOR_TASK_PREFIXES[1]},
+            {
+                "p1": COLLECTOR_TASK_PREFIXES[0],
+                "p2": COLLECTOR_TASK_PREFIXES[1],
+                "p3": COLLECTOR_TASK_PREFIXES[2],
+            },
         )
         return {"marts": marts, "collectors": watermarks, "source_errors_24h": failures}

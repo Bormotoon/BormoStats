@@ -3,6 +3,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from "rea
 const LANG_KEY = "bormostats_ui_lang";
 
 const ru = {
+  marketplace: { ym: "Яндекс Маркет", ymApiKey: "Ключ Yandex Market API (YM_API_KEY)", ymBusinessId: "ID кабинета (YM_BUSINESS_ID)", ymCampaignId: "ID магазина (YM_CAMPAIGN_ID)", ymWarehouse: "Склад Яндекс Маркета", ymCofinance: "Софинансирование Маркета" },
   brand: { name: "BormoStats", tagline: "Аналитика маркетплейсов" },
   nav: {
     dashboard: "Дашборд", sales: "Продажи", finance: "Финансы", stocks: "Остатки",
@@ -23,6 +24,7 @@ const ru = {
     taskRuns: "Запуски задач", adminActions: "Действия админа", system: "Система",
   },
   pageSubtitles: {
+    history: "История версий данных маркетплейсов",
     bidder: "Управление ставками рекламных кампаний",
     reviews: "Ответы покупателям: ИИ, шаблоны и автоответы на отзывы без текста",
     pricing: "Разбор цены, сравнение по маркетплейсам, желаемые цены и себестоимость",
@@ -44,6 +46,7 @@ const ru = {
     system: "Health, readiness, метрики Prometheus",
   },
   common: {
+    all: "Все",
     loading: "Загрузка…", noData: "Нет данных", error: "Ошибка",
     rows: "Записей", reload: "Обновить", settings: "Настройки",
     apiBaseUrl: "API Base URL", adminApiKey: "API-ключ",
@@ -187,6 +190,11 @@ const ru = {
     action: "Действие", days: "Дней", execute: "Выполнить", executing: "Выполнение…",
     response: "Ответ", completed: "выполнено успешно",
     actionLabels: {
+      backfill_ym_orders: "Я.Маркет: заказы",
+      backfill_ym_sales: "Я.Маркет: продажи",
+      backfill_ym_funnel: "Я.Маркет: воронка",
+      backfill_ym_finance: "Я.Маркет: финансы",
+
       backfill_wb_sales: "WB Sales Backfill", backfill_wb_orders: "WB Orders Backfill",
       backfill_wb_funnel: "WB Funnel Backfill", backfill_ozon_postings: "Ozon Postings Backfill",
       backfill_ozon_finance: "Ozon Finance Backfill", transform_recent: "Transform Recent",
@@ -195,6 +203,11 @@ const ru = {
       prune_raw: "Prune Old Raw",
     },
     actionDescs: {
+      backfill_ym_orders: "Загрузить данные Яндекс Маркета за выбранный период",
+      backfill_ym_sales: "Загрузить данные Яндекс Маркета за выбранный период",
+      backfill_ym_funnel: "Загрузить данные Яндекс Маркета за выбранный период",
+      backfill_ym_finance: "Загрузить данные Яндекс Маркета за выбранный период",
+
       backfill_wb_sales: "Перезапустить сбор сырых данных WB sales за указанный период",
       backfill_wb_orders: "Перезапустить сбор WB orders до 90 дней",
       backfill_wb_funnel: "Пересобрать сырые данные WB funnel",
@@ -232,6 +245,7 @@ const ru = {
 };
 
 const en = {
+  marketplace: { ym: "Yandex Market", ymApiKey: "Yandex Market API key (YM_API_KEY)", ymBusinessId: "Business ID (YM_BUSINESS_ID)", ymCampaignId: "Campaign ID (YM_CAMPAIGN_ID)", ymWarehouse: "Yandex Market warehouse", ymCofinance: "Yandex Market co-financing" },
   brand: { name: "BormoStats", tagline: "Marketplace Analytics" },
   nav: {
     dashboard: "Dashboard", sales: "Sales", finance: "Finance", stocks: "Stocks",
@@ -252,6 +266,7 @@ const en = {
     taskRuns: "Task Runs", adminActions: "Admin Actions", system: "System",
   },
   pageSubtitles: {
+    history: "Marketplace data version history",
     bidder: "Ad campaign bid management",
     reviews: "Replies to buyers: AI, templates and auto replies to ratings without text",
     pricing: "Price breakdown, comparison across marketplaces, desired prices and cost prices",
@@ -272,6 +287,7 @@ const en = {
     system: "Health, readiness, and Prometheus metrics",
   },
   common: {
+    all: "All",
     loading: "Loading…", noData: "No data", error: "Error",
     rows: "Rows", reload: "Reload", settings: "Settings",
     apiBaseUrl: "API Base URL", adminApiKey: "API key",
@@ -415,6 +431,11 @@ const en = {
     action: "Action", days: "Days", execute: "Execute Action", executing: "Executing…",
     response: "Response", completed: "completed successfully",
     actionLabels: {
+      backfill_ym_orders: "Yandex Market: orders",
+      backfill_ym_sales: "Yandex Market: sales",
+      backfill_ym_funnel: "Yandex Market: funnel",
+      backfill_ym_finance: "Yandex Market: finance",
+
       backfill_wb_sales: "WB Sales Backfill", backfill_wb_orders: "WB Orders Backfill",
       backfill_wb_funnel: "WB Funnel Backfill", backfill_ozon_postings: "Ozon Postings Backfill",
       backfill_ozon_finance: "Ozon Finance Backfill", transform_recent: "Transform Recent",
@@ -423,6 +444,11 @@ const en = {
       prune_raw: "Prune Old Raw",
     },
     actionDescs: {
+      backfill_ym_orders: "Backfill Yandex Market data for the selected period",
+      backfill_ym_sales: "Backfill Yandex Market data for the selected period",
+      backfill_ym_funnel: "Backfill Yandex Market data for the selected period",
+      backfill_ym_finance: "Backfill Yandex Market data for the selected period",
+
       backfill_wb_sales: "Requeue WB sales raw for a bounded window",
       backfill_wb_orders: "Requeue WB orders for up to 90 days",
       backfill_wb_funnel: "Rebuild WB funnel raw data",

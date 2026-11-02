@@ -1,3 +1,5 @@
+import { useSearchParams } from "react-router-dom";
+import { marketplaceName } from "../utils/formats.js";
 import { useState, useEffect } from "react";
 import { useI18n } from "../utils/i18n.jsx";
 import { request, safeCall } from "../utils/api.js";
@@ -9,6 +11,9 @@ import { Megaphone, Sliders, FloppyDisk, Trash } from "@phosphor-icons/react";
 
 export default function Bidder() {
   const { t } = useI18n();
+  const [searchParams] = useSearchParams();
+  const marketplace = searchParams.get("marketplace") || "";
+  const accountId = searchParams.get("accountId") || "";
   const [campaigns, setCampaigns] = useState([]);
   const [rules, setRules] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -19,14 +24,14 @@ export default function Bidder() {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      safeCall(() => request("/api/v1/bidder/campaigns", { admin: true })),
-      safeCall(() => request("/api/v1/bidder/rules", { admin: true })),
+      safeCall(() => request("/api/v1/bidder/campaigns", { admin: true, query: { marketplace, account_id: accountId } })),
+      safeCall(() => request("/api/v1/bidder/rules", { admin: true, query: { marketplace, account_id: accountId } })),
     ]).then(([cRes, rRes]) => {
       setCampaigns(cRes.ok ? cRes.data : []);
       setRules(rRes.ok ? rRes.data : []);
       setLoading(false);
     });
-  }, []);
+  }, [marketplace, accountId]);
 
   const getRuleForCampaign = (campaignId) =>
     rules.find((r) => r.campaign_id === campaignId);
@@ -37,11 +42,11 @@ export default function Bidder() {
       campaign_id: campaign.campaign_id,
       marketplace: campaign.marketplace,
       account_id: campaign.account_id,
-      [field]: value,
       target_cpm: existing?.target_cpm || 0,
       max_cpm: existing?.max_cpm || 0,
       target_position: existing?.target_position || 0,
-      product_id: existing?.product_id || "",
+      product_id: existing?.product_id || (campaign.marketplace === "ym" ? campaign.campaign_id : ""),
+      [field]: value,
     };
 
     setSaving((s) => ({ ...s, [campaign.campaign_id]: true }));
@@ -142,7 +147,7 @@ export default function Bidder() {
                     {campaign.title}
                   </h3>
                   <p className="text-xs text-[var(--color-on-surface-variant)] mt-0.5">
-                    {campaign.marketplace === "wb" ? "WB" : "Ozon"} · {campaign.account_id} · {campaign.campaign_id}
+                    {marketplaceName(campaign.marketplace)} · {campaign.account_id} · {campaign.campaign_id}
                   </p>
                 </div>
                 <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
@@ -157,43 +162,43 @@ export default function Bidder() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="flex items-center justify-between text-xs font-semibold text-[var(--color-on-surface-variant)] mb-1">
-                    <span>Target CPM</span>
-                    <span className="font-mono">{moneyFmt(rule?.target_cpm ?? 0)}</span>
+                    <span>{campaign.marketplace === "ym" ? "Ставка буста, %" : "Target CPM"}</span>
+                    <span className="font-mono">{campaign.marketplace === "ym" ? `${(rule?.target_cpm ?? 0).toFixed(2)} %` : moneyFmt(rule?.target_cpm ?? 0)}</span>
                   </label>
                   <CommitRange
                     min={0}
-                    max={500}
-                    step={5}
+                    max={campaign.marketplace === "ym" ? 99.99 : 500}
+                    step={campaign.marketplace === "ym" ? 0.01 : 5}
                     value={rule?.target_cpm ?? 0}
                     onCommit={(v) => upsertRule(campaign, "target_cpm", v)}
                     className="w-full accent-[var(--color-primary)]"
                   />
                   <div className="flex justify-between text-xs text-[var(--color-on-surface-variant)] mt-0.5">
                     <span>0</span>
-                    <span>500 ₽</span>
+                    <span>{campaign.marketplace === "ym" ? "99,99 %" : "500 ₽"}</span>
                   </div>
                 </div>
 
                 <div>
                   <label className="flex items-center justify-between text-xs font-semibold text-[var(--color-on-surface-variant)] mb-1">
-                    <span>Max CPM</span>
-                    <span className="font-mono">{moneyFmt(rule?.max_cpm ?? 0)}</span>
+                    <span>{campaign.marketplace === "ym" ? "Максимальная ставка, %" : "Max CPM"}</span>
+                    <span className="font-mono">{campaign.marketplace === "ym" ? `${(rule?.max_cpm ?? 0).toFixed(2)} %` : moneyFmt(rule?.max_cpm ?? 0)}</span>
                   </label>
                   <CommitRange
                     min={0}
-                    max={1000}
-                    step={10}
+                    max={campaign.marketplace === "ym" ? 99.99 : 1000}
+                    step={campaign.marketplace === "ym" ? 0.01 : 10}
                     value={rule?.max_cpm ?? 0}
                     onCommit={(v) => upsertRule(campaign, "max_cpm", v)}
                     className="w-full accent-[var(--color-warning)]"
                   />
                   <div className="flex justify-between text-xs text-[var(--color-on-surface-variant)] mt-0.5">
                     <span>0</span>
-                    <span>1 000 ₽</span>
+                    <span>{campaign.marketplace === "ym" ? "99,99 %" : "1 000 ₽"}</span>
                   </div>
                 </div>
 
-                <div>
+                {campaign.marketplace !== "ym" && <div>
                   <label className="flex items-center justify-between text-xs font-semibold text-[var(--color-on-surface-variant)] mb-1">
                     <span>Target Position</span>
                     <span className="font-mono">{rule?.target_position ?? 0}</span>
@@ -210,10 +215,10 @@ export default function Bidder() {
                     <span>0</span>
                     <span>100</span>
                   </div>
-                </div>
+                </div>}
 
                 <div className="flex flex-col gap-2">
-                  <label className="text-xs font-semibold text-[var(--color-on-surface-variant)]">
+                  {campaign.marketplace !== "ym" && <label className="text-xs font-semibold text-[var(--color-on-surface-variant)]">
                     Артикул WB (nm_id) для ставки
                     <input
                       type="text"
@@ -225,7 +230,7 @@ export default function Bidder() {
                       disabled={!!rule}
                       className="mt-1 w-full px-2 py-1 rounded border border-[var(--color-outline)] bg-[var(--color-surface)] text-sm font-mono"
                     />
-                  </label>
+                  </label>}
                   <DryRunToggle rule={rule} disabled={isSaving} onChange={(v) => upsertRule(campaign, "dry_run", v)} />
                 </div>
 
@@ -245,7 +250,7 @@ export default function Bidder() {
 
               {campaign.current_cpm !== null && campaign.current_cpm !== undefined && (
                 <div className="mt-3 pt-3 border-t border-[var(--color-outline-variant)] text-xs text-[var(--color-on-surface-variant)]">
-                  Current CPM: <span className="font-mono font-semibold">{moneyFmt(campaign.current_cpm)}</span>
+                  {campaign.marketplace === "ym" ? "Текущая ставка" : "Current CPM"}: <span className="font-mono font-semibold">{campaign.marketplace === "ym" ? `${campaign.current_cpm.toFixed(2)} %` : moneyFmt(campaign.current_cpm)}</span>
                 </div>
               )}
             </motion.div>

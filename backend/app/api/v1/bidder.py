@@ -19,7 +19,7 @@ def _svc(ch: ChClientDependency, auth: AuthContext) -> BidderService:
 def list_campaigns(
     ch: ChClientDependency,
     auth: ManagerAuth,
-    marketplace: str | None = Query(default=None, pattern=r"^(wb|ozon)$"),
+    marketplace: str | None = Query(default=None, pattern=r"^(wb|ozon|ym)$"),
     account_id: str | None = Query(default=None, max_length=64),
 ) -> list[AdCampaign]:
     return _svc(ch, auth).list_campaigns(marketplace, account_id)
@@ -38,7 +38,7 @@ def sync_campaigns(
 def list_rules(
     ch: ChClientDependency,
     auth: ManagerAuth,
-    marketplace: str | None = Query(default=None, pattern=r"^(wb|ozon)$"),
+    marketplace: str | None = Query(default=None, pattern=r"^(wb|ozon|ym)$"),
     account_id: str | None = Query(default=None, max_length=64),
 ) -> list[AdRule]:
     return _svc(ch, auth).list_rules(marketplace, account_id)

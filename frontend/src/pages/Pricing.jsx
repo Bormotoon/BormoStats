@@ -17,6 +17,7 @@ const TABS = [
 const MARKETPLACES = [
   { id: "wb", label: "WB", name: "Wildberries", color: "#CB11AB" },
   { id: "ozon", label: "Ozon", name: "Ozon", color: "#005BFF" },
+  { id: "ym", label: "Я.Маркет", name: "Яндекс Маркет", color: "#FC3F1D" },
 ];
 // the desired price is the price the buyer sees on the marketplace, after its discounts;
 // older rules made on the repricer page may keep another price
@@ -24,7 +25,7 @@ const MODE_SHORT = { seller_price: "держит цену со скидкой п
 // the repricer keeps a buyer price on a discount measured on the card's own sales (3+ on WB, any
 // on Ozon), or on WB on the account's median over 10+ orders (workers/app/tasks/repricer.py)
 function minSamples(marketplace) {
-  return marketplace === "ozon" ? 1 : 3;
+  return marketplace === "ozon" || marketplace === "ym" ? 1 : 3;
 }
 function discountUsable(row) {
   if (row.mp_discount_scope === "product") return row.mp_discount_samples >= minSamples(row.marketplace);
@@ -677,7 +678,7 @@ function Breakdown({ rows, setRows, onError, onReload, actionsEnabled, params, s
               label: "Артикул площадки",
               type: "text",
               render: (r) => (
-                <span className="font-mono text-xs" title={r.marketplace === "ozon" ? "SKU на Ozon" : "Артикул WB (nmID)"}>
+                <span className="font-mono text-xs" title={r.marketplace === "ym" ? "SKU на Яндекс Маркете" : r.marketplace === "ozon" ? "SKU на Ozon" : "Артикул WB (nmID)"}>
                   {r.product_id}
                 </span>
               ),
@@ -750,8 +751,8 @@ function Compare({ rows }) {
     <div className="space-y-3">
       <p className="text-xs text-[var(--color-on-surface-variant)]">
         Цена для покупателя — после скидки маркетплейса, измеренной на продажах товара; на Ozon без продаж — прочерк, там на
-        витрине обычно цена со скидкой продавца. Товары сопоставлены по артикулу продавца. Яндекс Маркет появится после
-        подключения. В фильтрах цен можно писать «&gt; 500», «&lt; 300» или «200-400».
+        витрине обычно цена со скидкой продавца. Товары сопоставлены по артикулу продавца. В фильтрах цен можно писать
+        «&gt; 500», «&lt; 300» или «200-400».
       </p>
       <DataTable
         rows={rows}
@@ -762,7 +763,7 @@ function Compare({ rows }) {
           { key: "title", label: "Название", type: "text", width: 40 },
           { key: "wb_buyer_price", label: "Цена на WB", type: "money", render: (r) => priceCell(r.wb_buyer_price, r.wb_seller_price) },
           { key: "ozon_buyer_price", label: "Цена на Ozon", type: "money", render: (r) => priceCell(r.ozon_buyer_price, r.ozon_seller_price) },
-          { key: "ym_buyer_price", label: "Цена на ЯМ", type: "money", value: () => null, render: () => <Dash /> },
+          { key: "ym_buyer_price", label: "Цена на Я.Маркет", type: "money", render: (r) => priceCell(r.ym_buyer_price, r.ym_seller_price) },
           { key: "buyer_spread_pct", label: "Разница", type: "percent", value: (r) => (r.buyer_spread_pct === null || r.buyer_spread_pct === undefined ? null : r.buyer_spread_pct / 100) },
         ]}
       />

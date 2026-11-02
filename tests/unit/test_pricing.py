@@ -103,6 +103,7 @@ def test_compare_spread_needs_both_marketplaces() -> None:
             "wb_buyer_price": 400.0,
             "ozon_seller_price": 800.0,
             "ozon_buyer_price": 360.0,
+            "on_ym": 0,
             "on_wb": 1,
             "on_ozon": 1,
         }
@@ -112,6 +113,21 @@ def test_compare_spread_needs_both_marketplaces() -> None:
         {"offer_id": "btn2", "wb_seller_price": 500.0, "wb_buyer_price": 400.0, "on_wb": 1}
     )
     assert wb_only.ozon_buyer_price is None and wb_only.buyer_spread_pct is None
+
+
+def test_compare_spread_includes_yandex_market() -> None:
+    row = _compare_row(
+        {
+            "offer_id": "btn1",
+            "wb_buyer_price": 400.0,
+            "ym_seller_price": 450.0,
+            "ym_buyer_price": 360.0,
+            "on_wb": 1,
+            "on_ym": 1,
+        }
+    )
+    assert row.ym_buyer_price == 360.0
+    assert row.buyer_spread_pct == pytest.approx(11.11)
 
 
 def test_cost_list_shows_the_card_photo() -> None:

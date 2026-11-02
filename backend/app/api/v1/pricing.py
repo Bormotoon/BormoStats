@@ -26,7 +26,7 @@ from fastapi import APIRouter, HTTPException, Path, Query, status
 
 router = APIRouter(prefix="/pricing", tags=["pricing"], responses=API_ERROR_RESPONSES)
 
-MarketplacePath = Path(pattern=r"^(wb|ozon)$")
+MarketplacePath = Path(pattern=r"^(wb|ozon|ym)$")
 OfferPath = Path(min_length=1, max_length=OFFER_ID_MAX)
 
 
@@ -38,7 +38,7 @@ def _svc(ch: ChClientDependency, auth: AuthContext) -> PricingService:
 def price_breakdown(
     ch: ChClientDependency,
     auth: ManagerAuth,
-    marketplace: str | None = Query(default=None, pattern=r"^(wb|ozon)$"),
+    marketplace: str | None = Query(default=None, pattern=r"^(wb|ozon|ym)$"),
     account_id: str | None = Query(default=None, max_length=64),
 ) -> list[PriceBreakdownRow]:
     """Per card: list price, seller and marketplace discounts, buyer price, fees, margin."""

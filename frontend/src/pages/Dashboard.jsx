@@ -60,7 +60,7 @@ export default function Dashboard() {
   const topProducts = totalsBy(salesRows, (r) => `${r.marketplace}|${r.account_id}|${r.product_id}`, ["qty", "revenue", "returns_qty", "payout"])
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 10)
-    .map((row, i) => ({ ...row, rank: i + 1, marketplace: row.marketplace === "wb" ? "WB" : "Ozon" }));
+    .map((row, i) => ({ ...row, rank: i + 1, marketplace: marketplaceName(row.marketplace) }));
 
   const taskIcons = { turnover: Package, stagnant: WarningCircle, bad_ad: Megaphone };
   const taskColors = { turnover: "text-blue-600", stagnant: "text-orange-600", bad_ad: "text-red-600" };

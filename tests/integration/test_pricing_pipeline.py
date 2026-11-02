@@ -215,6 +215,8 @@ def test_price_breakdown_compare_and_target(integration_runtime: Any, api_client
                 "wb_buyer_price": 400.0,
                 "ozon_seller_price": 800.0,
                 "ozon_buyer_price": 400.0,
+                "ym_seller_price": None,
+                "ym_buyer_price": None,
                 "buyer_spread_pct": 0.0,
             }
         ]

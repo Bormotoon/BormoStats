@@ -17,6 +17,10 @@ BACKFILL_MAX_DAYS: dict[tuple[str, str], int] = {
     ("ozon", "balance"): 730,
     # WB keeps realization reports from 2025-01-01; the task clamps earlier days
     ("wb", "finance"): 730,
+    ("ym", "orders"): 365,
+    ("ym", "sales"): 365,
+    ("ym", "funnel"): 365,
+    ("ym", "finance"): 730,
     ("marts", "build"): 730,
 }
 
@@ -24,6 +28,7 @@ BACKFILL_MAX_DAYS: dict[tuple[str, str], int] = {
 class BackfillMarketplace(StrEnum):
     WB = "wb"
     OZON = "ozon"
+    YM = "ym"
     MARTS = "marts"
 
 
@@ -101,7 +106,7 @@ class PruneOldRawRequest(BaseModel):
 
 
 class ProductCostCreate(BaseModel):
-    marketplace: str = Field(min_length=2, max_length=10, pattern=r"^(wb|ozon)$")
+    marketplace: str = Field(min_length=2, max_length=10, pattern=r"^(wb|ozon|ym)$")
     product_id: int = Field(ge=1)
     cost_price_rub: float = Field(ge=0.0)
 

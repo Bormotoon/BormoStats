@@ -22,7 +22,7 @@ from app.models.integrations import (
 from app.services.task_queue import send_task
 from clickhouse_connect.driver import Client
 
-from collectors.marketplace_actions import OzonActionsClient, WbActionsClient
+from collectors.marketplace_actions import OzonActionsClient, WbActionsClient, YmActionsClient
 from common.secret_box import encrypt_secret
 from common.url_safety import validate_outbound_url
 from common.webhooks import EVENT_TYPES, WILDCARD_EVENT
@@ -72,6 +72,8 @@ class IntegrationsService:
             results.append(self._push_wb_stock(items))
         if marketplace is None or marketplace == "ozon":
             results.append(self._push_ozon_stock(items))
+        if marketplace is None or marketplace == "ym":
+            results.append(self._push_ym_stock(items))
         self.emit_event(
             "stock.update.completed",
             {
@@ -140,6 +142,52 @@ class IntegrationsService:
                 errors=[f"HTTP {result.status_code} {result.body}"],
             )
         return StockUpdateResult(marketplace="ozon", success=True)
+
+    def _push_ym_stock(self, items: list[StockUpdateItem]) -> StockUpdateResult:
+        settings = self._settings
+        if not settings.marketplace_actions_enabled:
+            return StockUpdateResult(
+                marketplace="ym", success=False, errors=["Marketplace actions disabled"]
+            )
+        account_id = settings.ym_account_id or settings.ym_campaign_id or "default"
+        accounts = self._ch.query(
+            "SELECT count() FROM dim_account FINAL WHERE marketplace = 'ym' "
+            "AND account_id = {aid:String} AND organization_id = {oid:String}",
+            parameters={"aid": account_id, "oid": self._org},
+        )
+        if not accounts.result_rows or not accounts.result_rows[0][0]:
+            return StockUpdateResult(
+                marketplace="ym",
+                success=False,
+                errors=["Yandex account is not available to this organization"],
+            )
+        if not settings.ym_api_key or not settings.ym_business_id or not settings.ym_campaign_id:
+            return StockUpdateResult(
+                marketplace="ym",
+                success=False,
+                errors=["YM_API_KEY or YM_CAMPAIGN_ID not configured"],
+            )
+        by_warehouse: dict[int, list[tuple[str, int]]] = defaultdict(list)
+        errors: list[str] = []
+        for item in items:
+            if item.warehouse_id is None:
+                errors.append(f"{item.sku}: warehouse_id is required for Yandex Market")
+            else:
+                by_warehouse[item.warehouse_id].append((item.sku, item.stock))
+        if not by_warehouse:
+            return StockUpdateResult(marketplace="ym", success=False, errors=errors)
+        with YmActionsClient(
+            api_key=settings.ym_api_key,
+            business_id=settings.ym_business_id,
+            campaign_id=settings.ym_campaign_id,
+        ) as client:
+            for warehouse_id, stocks in by_warehouse.items():
+                result = client.set_stocks(warehouse_id, stocks)
+                if not result.ok:
+                    errors.append(
+                        f"warehouse {warehouse_id}: HTTP {result.status_code} {result.body}"
+                    )
+        return StockUpdateResult(marketplace="ym", success=not errors, errors=errors)
 
     # -- Webhook Subscriptions ---------------------------------------------------
 

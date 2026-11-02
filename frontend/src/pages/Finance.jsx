@@ -15,7 +15,7 @@ const CATEGORIES = [
   "sales", "returns", "commission", "acquiring", "logistics", "reverse_logistics",
   "storage", "acceptance", "penalties", "other",
 ];
-const MARKETPLACES = ["ozon", "wb"];
+const MARKETPLACES = ["ozon", "wb", "ym"];
 
 /** The caption of a balance card: when it was taken and what period it has accrued over. */
 export function balanceCaption(b, t) {

@@ -21,14 +21,20 @@ names AS (
 warehouses AS (
   SELECT 'ozon' AS marketplace, account_id, warehouse_id,
     argMax(JSONExtractString(payload, 1, 'warehouse_name'), snapshot_ts) AS warehouse_name
-  FROM raw_ozon_stocks
+  FROM raw_ozon_stocks FINAL
   WHERE snapshot_ts >= now() - INTERVAL 7 DAY AND warehouse_id IS NOT NULL
   GROUP BY account_id, warehouse_id
   UNION ALL
   SELECT 'wb' AS marketplace, account_id, toInt64(warehouse_id) AS warehouse_id,
     argMax(JSONExtractString(payload, 1, 'warehouseName'), snapshot_ts) AS warehouse_name
-  FROM raw_wb_stocks
+  FROM raw_wb_stocks FINAL
   WHERE snapshot_ts >= now() - INTERVAL 7 DAY AND warehouse_id IS NOT NULL
+  GROUP BY account_id, warehouse_id
+  UNION ALL
+  SELECT 'ym' AS marketplace, account_id, warehouse_id,
+    argMax(warehouse_name, snapshot_ts) AS warehouse_name
+  FROM raw_ym_stocks FINAL
+  WHERE snapshot_ts >= now() - INTERVAL 7 DAY
   GROUP BY account_id, warehouse_id
 ),
 latest AS (
@@ -46,6 +52,7 @@ SELECT
   multiIf(
     any(w.warehouse_name) != '', any(w.warehouse_name),
     s.warehouse_id IS NULL AND s.marketplace = 'wb', 'Склад WB',
+    s.warehouse_id IS NULL AND s.marketplace = 'ym', 'Склад Я.Маркет',
     s.warehouse_id IS NULL, '',
     toString(s.warehouse_id)
   ) AS warehouse_name,

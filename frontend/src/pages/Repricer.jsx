@@ -1,3 +1,5 @@
+import { useSearchParams } from "react-router-dom";
+import { marketplaceName } from "../utils/formats.js";
 import { useState, useEffect } from "react";
 import { useI18n } from "../utils/i18n.jsx";
 import { request, safeCall } from "../utils/api.js";
@@ -21,6 +23,9 @@ const FALLBACK_NOTES = {
 
 export default function Repricer() {
   const { t } = useI18n();
+  const [searchParams] = useSearchParams();
+  const marketplace = searchParams.get("marketplace") || "";
+  const accountId = searchParams.get("accountId") || "";
   const [rules, setRules] = useState([]);
   const [breakeven, setBreakeven] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -30,14 +35,14 @@ export default function Repricer() {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      safeCall(() => request("/api/v1/repricer/rules", { admin: true })),
-      safeCall(() => request("/api/v1/repricer/breakeven", { admin: true })),
+      safeCall(() => request("/api/v1/repricer/rules", { admin: true, query: { marketplace, account_id: accountId } })),
+      safeCall(() => request("/api/v1/repricer/breakeven", { admin: true, query: { marketplace, account_id: accountId } })),
     ]).then(([rRes, bRes]) => {
       setRules(rRes.ok ? rRes.data : []);
       setBreakeven(bRes.ok ? bRes.data : []);
       setLoading(false);
     });
-  }, []);
+  }, [marketplace, accountId]);
 
   const deleteRule = async (ruleId) => {
     const res = await safeCall(() =>
@@ -104,7 +109,7 @@ export default function Repricer() {
               <div className="flex items-start justify-between">
                 <div>
                   <h3 className="font-semibold text-sm">
-                    {rule.marketplace === "wb" ? "WB" : "Ozon"} — {rule.product_id}
+                    {marketplaceName(rule.marketplace)} — {rule.product_id}
                   </h3>
                   <p className="text-xs text-[var(--color-on-surface-variant)] mt-0.5">
                     {rule.account_id} · {RULE_MODES[rule.mode] || rule.mode}

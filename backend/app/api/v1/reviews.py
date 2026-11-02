@@ -30,7 +30,7 @@ from fastapi import APIRouter, HTTPException, Path, Query, status
 
 router = APIRouter(prefix="/reviews", tags=["reviews"], responses=API_ERROR_RESPONSES)
 
-MarketplacePath = Path(pattern=r"^(wb|ozon)$")
+MarketplacePath = Path(pattern=r"^(wb|ozon|ym)$")
 ReviewIdPath = Path(min_length=1, max_length=128)
 SYNC_TASK = "tasks.reviews.sync_reviews"
 
@@ -48,7 +48,7 @@ def list_reviews(
     ch: ChClientDependency,
     auth: ManagerAuth,
     settings: SettingsDependency,
-    marketplace: str | None = Query(default=None, pattern=r"^(wb|ozon)$"),
+    marketplace: str | None = Query(default=None, pattern=r"^(wb|ozon|ym)$"),
     review_status: ReviewStatus = Query(default="unanswered", alias="status"),
     has_text: bool | None = Query(default=None),
     rating: int | None = Query(default=None, ge=1, le=5),

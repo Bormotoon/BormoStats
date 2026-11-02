@@ -91,6 +91,7 @@ export default function History() {
               <option value="">{t("common.all")}</option>
               <option value="ozon">Ozon</option>
               <option value="wb">WB</option>
+              <option value="ym">Яндекс Маркет</option>
             </select>
           </label>
           <label className="flex flex-col gap-1 text-xs">

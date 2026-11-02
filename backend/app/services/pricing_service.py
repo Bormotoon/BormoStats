@@ -108,7 +108,10 @@ class PricingService:
             " anyIf(p.buyer_price, p.marketplace = 'wb') AS wb_buyer_price,"
             " anyIf(p.seller_price, p.marketplace = 'ozon') AS ozon_seller_price,"
             " anyIf(p.buyer_price, p.marketplace = 'ozon') AS ozon_buyer_price,"
-            " countIf(p.marketplace = 'wb') AS on_wb, countIf(p.marketplace = 'ozon') AS on_ozon"
+            " anyIf(p.seller_price, p.marketplace = 'ym') AS ym_seller_price,"
+            " anyIf(p.buyer_price, p.marketplace = 'ym') AS ym_buyer_price,"
+            " countIf(p.marketplace = 'wb') AS on_wb, countIf(p.marketplace = 'ozon') AS on_ozon,"
+            " countIf(p.marketplace = 'ym') AS on_ym"
             " FROM mrt_price_current AS p FINAL"
             f"{clause}"
             " GROUP BY p.offer_id ORDER BY p.offer_id LIMIT 20000",
@@ -433,7 +436,7 @@ def _discount_usable(r: dict[str, Any]) -> bool:
     (workers/app/tasks/repricer.py)."""
     samples = int(r.get("mp_discount_samples") or 0)
     if r.get("mp_discount_scope") == "product":
-        return samples >= (1 if r["marketplace"] == "ozon" else 3)
+        return samples >= (1 if r["marketplace"] in {"ozon", "ym"} else 3)
     return r.get("mp_discount_scope") == "account" and r["marketplace"] == "wb" and samples >= 10
 
 
@@ -502,8 +505,10 @@ def _compare_row(r: dict[str, Any]) -> PriceCompareRow:
         wb_buyer_price=present("wb_buyer_price", "on_wb"),
         ozon_seller_price=present("ozon_seller_price", "on_ozon"),
         ozon_buyer_price=present("ozon_buyer_price", "on_ozon"),
+        ym_seller_price=present("ym_seller_price", "on_ym"),
+        ym_buyer_price=present("ym_buyer_price", "on_ym"),
     )
-    buyer = [p for p in (row.wb_buyer_price, row.ozon_buyer_price) if p]
+    buyer = [p for p in (row.wb_buyer_price, row.ozon_buyer_price, row.ym_buyer_price) if p]
     if len(buyer) > 1:
         row.buyer_spread_pct = round((max(buyer) - min(buyer)) / min(buyer) * 100, 2)
     return row

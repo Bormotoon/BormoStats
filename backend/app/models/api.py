@@ -15,7 +15,7 @@ MAX_PAGE_OFFSET = 50_000
 DEFAULT_DATE_WINDOW_DAYS = 30
 MAX_DATE_WINDOW_DAYS = 92
 
-MarketplaceFilter = Literal["wb", "ozon"] | None
+MarketplaceFilter = Literal["wb", "ozon", "ym"] | None
 
 
 class ApiError(BaseModel):

@@ -19,7 +19,7 @@ def _svc(ch: ChClientDependency, auth: AuthContext) -> RepricerService:
 def list_rules(
     ch: ChClientDependency,
     auth: ManagerAuth,
-    marketplace: str | None = Query(default=None, pattern=r"^(wb|ozon)$"),
+    marketplace: str | None = Query(default=None, pattern=r"^(wb|ozon|ym)$"),
     account_id: str | None = Query(default=None, max_length=64),
 ) -> list[PriceRule]:
     return _svc(ch, auth).list_rules(marketplace, account_id)
@@ -67,7 +67,7 @@ def delete_rule(
 def list_breakeven(
     ch: ChClientDependency,
     auth: ManagerAuth,
-    marketplace: str | None = Query(default=None, pattern=r"^(wb|ozon)$"),
+    marketplace: str | None = Query(default=None, pattern=r"^(wb|ozon|ym)$"),
     account_id: str | None = Query(default=None, max_length=64),
 ) -> list[BreakevenRow]:
     return _svc(ch, auth).get_breakeven(marketplace, account_id)

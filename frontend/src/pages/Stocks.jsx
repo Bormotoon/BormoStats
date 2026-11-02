@@ -78,7 +78,7 @@ export default function Stocks() {
           subvalue={`${t("stocks.asOf")} ${ruDate(asOf)} · ${numberFmt(productTotals.size)} ${t("stocks.products")}`}
           className="col-span-2"
         />
-        {["wb", "ozon"].map((mp) => {
+        {["wb", "ozon", "ym"].map((mp) => {
           const mpRows = rows.filter((r) => r.marketplace === mp);
           if (!mpRows.length) return null;
           return <MetricCard key={mp} label={`${t("stocks.totalStock")} ${marketplaceName(mp)}`} value={`${numberFmt(sum(mpRows, "stock_end"))} шт`} subvalue={`${t("stocks.warehousesWithStock")}: ${new Set(mpRows.filter((r) => Number(r.stock_end) > 0).map((r) => r.warehouse_name)).size}`} />;

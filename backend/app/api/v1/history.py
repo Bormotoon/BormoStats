@@ -82,7 +82,7 @@ def history_snapshot(
     *,
     auth: AnalyticsReadAuth,
     client: ChClientDependency,
-    marketplace: Annotated[str, Query(pattern=r"^(wb|ozon)$")],
+    marketplace: Annotated[str, Query(pattern=r"^(wb|ozon|ym)$")],
     entity_key: Annotated[str, Query(min_length=1, max_length=512)],
     account_id: Annotated[str, Query(max_length=64, pattern=r"^[A-Za-z0-9._:-]*$")] = "",
     repo: RepoParam = PRODUCT_REPO,
