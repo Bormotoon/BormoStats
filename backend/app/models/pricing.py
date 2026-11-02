@@ -33,6 +33,8 @@ class PriceBreakdownRow(BaseModel):
     acquiring_rub: float
     logistics_rub: float
     fees_rub: float
+    ym_costs_ready: bool | None = None
+    ym_fee_source: str = ""
     cost_price: float | None = None
     margin_rub: float | None = None
     margin_pct: float | None = None

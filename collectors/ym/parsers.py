@@ -6,6 +6,7 @@ import hashlib
 import json
 from datetime import UTC, date, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from collectors.common.time import as_ch_datetime, parse_dt
 
@@ -40,6 +41,18 @@ def _dt(value: Any) -> datetime:
         except ValueError:
             pass
     return datetime.now(UTC)
+
+
+def _stats_dt(value: Any) -> datetime:
+    # Statistics API documents timestamps without an offset in Moscow time.
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value)
+            if parsed.tzinfo is None:
+                return parsed.replace(tzinfo=ZoneInfo("Europe/Moscow")).astimezone(UTC)
+        except ValueError:
+            pass
+    return _dt(value)
 
 
 def _product_id(item: dict[str, Any]) -> int:
@@ -380,3 +393,134 @@ def parse_feedbacks(
             }
         )
     return result
+
+
+def parse_order_statistics(
+    records: list[dict[str, Any]], run_id: str, account_id: str
+) -> list[dict[str, Any]]:
+    """Keep per-order prices; attribute order-level fees only to single-offer orders."""
+    rows: list[dict[str, Any]] = []
+
+    def attributed(fees: dict[str, float], count: int, types: set[str]) -> float | None:
+        values = [value for key, value in fees.items() if key in types]
+        return sum(values) if count == 1 and values else None
+
+    for order in records:
+        items = [
+            item
+            for item in order.get("items", [])
+            if isinstance(item, dict) and item.get("shopSku") and not item.get("shopServiceType")
+        ]
+        present = {str(item["shopSku"]) for item in items}
+        items.extend(
+            item
+            for item in order.get("initialItems", [])
+            if isinstance(item, dict)
+            and item.get("shopSku")
+            and not item.get("shopServiceType")
+            and str(item["shopSku"]) not in present
+        )
+        item_count = len(items)
+        commissions = [c for c in order.get("commissions", []) if isinstance(c, dict)]
+        fees: dict[str, float] = {}
+        for commission in commissions:
+            kind = str(commission.get("type") or "")
+            if "actual" in commission:
+                fees[kind] = fees.get(kind, 0) + _float(commission["actual"])
+        for item in items:
+            price_parts = {
+                str(p.get("type")): _float(p.get("costPerItem"))
+                for p in item.get("prices", [])
+                if isinstance(p, dict) and p.get("costPerItem") is not None
+            }
+
+            rows.append(
+                {
+                    "run_id": run_id,
+                    "account_id": account_id,
+                    "order_id": _int(order.get("id")),
+                    "offer_id": str(item["shopSku"]),
+                    "product_id": _product_id(item | {"offerId": item["shopSku"]}),
+                    "status": str(order.get("status") or "UNKNOWN"),
+                    "created_at": as_ch_datetime(_stats_dt(order.get("creationDate"))),
+                    "updated_at": as_ch_datetime(
+                        _stats_dt(order.get("statusUpdateDate") or order.get("creationDate"))
+                    ),
+                    "qty": max(0, _int(item.get("count"))),
+                    "buyer_price": price_parts.get("BUYER"),
+                    "cashback": price_parts.get("CASHBACK"),
+                    "marketplace_discount": price_parts.get("MARKETPLACE"),
+                    "cofinance_value": _float(item["cofinanceValue"])
+                    if item.get("cofinanceValue") is not None
+                    else None,
+                    "fee": attributed(fees, item_count, {"FEE"}),
+                    "acquiring": attributed(fees, item_count, {"AGENCY", "PAYMENT_TRANSFER"}),
+                    "logistics": attributed(
+                        fees,
+                        item_count,
+                        {
+                            "DELIVERY_TO_CUSTOMER",
+                            "EXPRESS_DELIVERY_TO_CUSTOMER",
+                            "SORTING",
+                            "INTAKE_SORTING",
+                            "CROSSREGIONAL_DELIVERY",
+                            "AGENCY_COMMISSION_3PL",
+                        },
+                    ),
+                    "payload": json.dumps(
+                        {
+                            "item": item,
+                            "initialItems": order.get("initialItems", []),
+                            "commissions": commissions,
+                        },
+                        ensure_ascii=True,
+                        default=str,
+                    ),
+                    "ingested_at": as_ch_datetime(datetime.now(UTC)),
+                }
+            )
+    return rows
+
+
+def parse_tariff_quotes(
+    records: list[dict[str, Any]], run_id: str, account_id: str
+) -> list[dict[str, Any]]:
+    """Preserve ambiguous alternatives without pretending they are additive."""
+    rows = []
+    groups = {
+        "fee": {"FEE"},
+        "acquiring": {"AGENCY_COMMISSION", "PAYMENT_TRANSFER"},
+        "logistics": {
+            "DELIVERY_TO_CUSTOMER",
+            "EXPRESS_DELIVERY",
+            "SORTING",
+            "MIDDLE_MILE",
+            "CROSSREGIONAL_DELIVERY",
+            "ITEM_BOOKING",
+        },
+    }
+    for record in records:
+        tariffs = record.get("tariffs") or []
+        values: dict[str, float | None] = {}
+        for name, kinds in groups.items():
+            matches = [t for t in tariffs if isinstance(t, dict) and t.get("type") in kinds]
+            counts = [str(t.get("type")) for t in matches]
+            values[name] = (
+                sum(_float(t["amount"]) for t in matches)
+                if matches
+                and len(counts) == len(set(counts))
+                and all(t.get("amount") is not None for t in matches)
+                else None
+            )
+        rows.append(
+            {
+                "run_id": run_id,
+                "account_id": account_id,
+                "offer_id": str(record["_offerId"]),
+                "price": _float(record["_price"]),
+                **values,
+                "payload": json.dumps(record, ensure_ascii=True, default=str),
+                "snapshot_ts": as_ch_datetime(datetime.now(UTC)),
+            }
+        )
+    return rows

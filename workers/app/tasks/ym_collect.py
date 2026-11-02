@@ -17,11 +17,13 @@ from collectors.ym.client import YmClient
 from collectors.ym.parsers import (
     normalize_report_row,
     parse_offer_mappings,
+    parse_order_statistics,
     parse_orders,
     parse_prices,
     parse_shows_boost,
     parse_shows_sales,
     parse_stocks,
+    parse_tariff_quotes,
     parse_united_netting,
 )
 
@@ -45,9 +47,10 @@ def _with_product_ids(client: YmClient, records: list[dict[str, Any]]) -> list[d
         offer = str(row.get("offerId") or row.get("shopSku") or row.get("offer_id") or "")
         if offer in by_offer:
             card = by_offer[offer]
-            row["marketSku"] = card["market_sku"]
+            if card["market_sku"]:
+                row["marketSku"] = card["market_sku"]
             row["purchasePrice"] = {"value": card["purchase_price"]}
-        for key in ("items", "offers"):
+        for key in ("items", "initialItems", "offers"):
             if isinstance(row.get(key), list):
                 row[key] = [enrich(item) for item in row[key]]
         return row
@@ -82,7 +85,12 @@ def _collect(
         ):
             now = datetime.now(UTC)
             records = fetch(client, now)
-            if table not in {"raw_ym_campaigns", "dim_ad_campaign", "raw_ym_offer_mappings"}:
+            if table not in {
+                "raw_ym_campaigns",
+                "dim_ad_campaign",
+                "raw_ym_offer_mappings",
+                "raw_ym_tariff_quotes",
+            }:
                 records = _with_product_ids(client, records)
             rows = parse(records, run_id=run_id, account_id=account_id)
             if not rows:
@@ -115,6 +123,26 @@ ORDER_COLUMNS = [
     "buyer_price",
     "seller_price",
     "subsidy",
+    "payload",
+    "ingested_at",
+]
+STATS_COLUMNS = [
+    "run_id",
+    "account_id",
+    "order_id",
+    "offer_id",
+    "product_id",
+    "status",
+    "created_at",
+    "updated_at",
+    "qty",
+    "buyer_price",
+    "cashback",
+    "marketplace_discount",
+    "cofinance_value",
+    "fee",
+    "acquiring",
+    "logistics",
     "payload",
     "ingested_at",
 ]
@@ -256,6 +284,8 @@ def _orders(days: int, *, recent: bool = False) -> dict[str, Any]:
             records = _with_product_ids(client, records)
             rows = parse_orders(records, run_id=run_id, account_id=YM_ACCOUNT_ID)
             inserted = insert_rows(ch, "raw_ym_orders", ORDER_COLUMNS, rows)
+            delivered = [row for row in rows if row["status"] == "DELIVERED"]
+            insert_rows(ch, "raw_ym_delivered_snapshots", ORDER_COLUMNS, delivered)
             if recent:
                 set_watermark(ch, source, YM_ACCOUNT_ID, now)
         log_task_run(ch, task_name, run_id, started, "success", inserted, "ym orders collected")
@@ -276,7 +306,105 @@ def ym_orders_recent() -> dict[str, Any]:
 
 @shared_task(name="tasks.ym_collect.ym_orders_backfill_days")
 def ym_orders_backfill_days(days: int = 14) -> dict[str, Any]:
-    return _orders(days)
+    orders = _orders(days)
+    if orders.get("status") != "success":
+        return orders
+    stats = _order_stats(days, recent=False)
+    return {**orders, "stats_rows": stats.get("rows", 0), "stats_status": stats.get("status")}
+
+
+def _order_stats(days: int, *, recent: bool) -> dict[str, Any]:
+    def fetch(client: YmClient, now: datetime) -> list[dict[str, Any]]:
+        records: list[dict[str, Any]] = []
+        start = (
+            get_watermark(get_ch_client(), "ym_order_stats", YM_ACCOUNT_ID) - timedelta(days=2)
+            if recent
+            else now - timedelta(days=max(1, min(days, 365)))
+        )
+        start = min(start, now)
+        while start <= now:
+            end = min(start + timedelta(days=29), now)
+            records.extend(client.stats_orders(YM_CAMPAIGN_ID, start, end))
+            start = end + timedelta(days=1)
+        return records
+
+    return _collect(
+        "ym_order_stats_recent" if recent else "ym_order_stats_backfill_days",
+        "ym_order_stats",
+        "raw_ym_order_stats",
+        STATS_COLUMNS,
+        fetch,
+        parse_order_statistics,
+        watermark=recent,
+    )
+
+
+@shared_task(name="tasks.ym_collect.ym_order_stats_recent")
+def ym_order_stats_recent() -> dict[str, Any]:
+    return _order_stats(60, recent=True)
+
+
+@shared_task(name="tasks.ym_collect.ym_order_stats_backfill_days")
+def ym_order_stats_backfill_days(days: int = 14) -> dict[str, Any]:
+    return _order_stats(days, recent=False)
+
+
+@shared_task(name="tasks.ym_collect.ym_tariff_quotes_snapshot")
+def ym_tariff_quotes_snapshot() -> dict[str, Any]:
+    def fetch(client: YmClient, now: datetime) -> list[dict[str, Any]]:
+        mappings = client.offer_mappings(YM_BUSINESS_ID)
+        prices = {str(row.get("offerId") or ""): row for row in client.offer_prices(YM_CAMPAIGN_ID)}
+        requests: list[tuple[str, dict[str, Any]]] = []
+        for mapping in mappings:
+            offer = mapping.get("offer") or {}
+            if not isinstance(offer, dict):
+                continue
+            offer_id = str(offer.get("offerId") or "")
+            price = (prices.get(offer_id) or {}).get("price") or {}
+            dimensions = offer.get("weightDimensions") or {}
+            category = offer.get("marketCategoryId") or (mapping.get("mapping") or {}).get(
+                "marketCategoryId"
+            )
+            if not offer_id or not isinstance(dimensions, dict) or not isinstance(price, dict):
+                continue
+            values = {key: dimensions.get(key) for key in ("length", "width", "height", "weight")}
+            if (
+                not category
+                or not price.get("value")
+                or not all(isinstance(v, (int, float)) and v > 0 for v in values.values())
+            ):
+                continue
+            requests.append(
+                (offer_id, {"categoryId": int(category), "price": price["value"], **values})
+            )
+        result: list[dict[str, Any]] = []
+        for offset in range(0, len(requests), 200):
+            batch = requests[offset : offset + 200]
+            quotes = client.calculate_tariffs(YM_CAMPAIGN_ID, [entry for _, entry in batch])
+            result.extend(
+                {**quote, "_offerId": offer_id, "_price": entry["price"]}
+                for (offer_id, entry), quote in zip(batch, quotes, strict=True)
+            )
+        return result
+
+    return _collect(
+        "ym_tariff_quotes_snapshot",
+        "ym_tariffs",
+        "raw_ym_tariff_quotes",
+        [
+            "run_id",
+            "account_id",
+            "offer_id",
+            "price",
+            "fee",
+            "acquiring",
+            "logistics",
+            "payload",
+            "snapshot_ts",
+        ],
+        fetch,
+        parse_tariff_quotes,
+    )
 
 
 @shared_task(name="tasks.ym_collect.ym_stocks_snapshot")

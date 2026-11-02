@@ -194,6 +194,23 @@ class YmClient:
             endpoints.OFFER_PRICES_PATH.format(campaign_id=campaign_id), {}, page_size
         )
 
+    def calculate_tariffs(
+        self, campaign_id: str, offers: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        if not offers:
+            return []
+        if len(offers) > 200:
+            raise ValueError("Yandex tariff request supports at most 200 offers")
+        payload = self._post(
+            endpoints.TARIFFS_CALCULATE_PATH,
+            {"parameters": {"campaignId": int(campaign_id)}, "offers": offers},
+        )
+        result = payload.get("result", {}) if isinstance(payload, dict) else {}
+        rows = _items(result, "offers")
+        if len(rows) != len(offers):
+            raise ValueError("Yandex tariff result does not match requested offers")
+        return rows
+
     def feedbacks(
         self, business_id: str, body: dict[str, Any], *, page_size: int = 200
     ) -> list[dict[str, Any]]:

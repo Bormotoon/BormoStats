@@ -5,6 +5,14 @@ from __future__ import annotations
 from celery.schedules import crontab
 
 beat_schedule = {
+    "ym_tariff_quotes_snapshot": {
+        "task": "tasks.ym_collect.ym_tariff_quotes_snapshot",
+        "schedule": crontab(minute="16", hour="*/6"),
+    },
+    "ym_order_stats_recent": {
+        "task": "tasks.ym_collect.ym_order_stats_recent",
+        "schedule": crontab(minute="8,38"),
+    },
     "ym_campaigns_snapshot": {
         "task": "tasks.ym_collect.ym_campaigns_snapshot",
         "schedule": crontab(minute="32", hour="*/2"),

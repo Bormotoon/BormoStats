@@ -33,7 +33,8 @@ INSERT INTO mrt_price_current
   mp_discount_pct, mp_discount_scope, mp_discount_samples, buyer_price,
   commission_pct, commission_rub, acquiring_rub, logistics_rub, fees_rub,
   cost_price, margin_rub, margin_pct, breakeven_price,
-  min_price, auto_actions_enabled, price_index_color, price_seen_at, built_at
+  min_price, auto_actions_enabled, price_index_color, price_seen_at, built_at,
+  ym_costs_ready, ym_fee_source
 )
 WITH
   {built_at:DateTime} AS build_ts,
@@ -158,6 +159,26 @@ WITH
       commission_pct, logistics_rub, acquiring_rub,
       coalesce(buyer_price, cofinance_price) AS buyer_price, snapshot_ts
     FROM raw_ym_prices FINAL
+  ),
+  -- Discounts use the seller and buyer prices of the same order, never today's
+  -- seller price compared against a historical buyer price. Order-level costs are
+  -- present only when the collector could attribute them to one offer.
+  ym_stats AS
+  (
+    SELECT s.account_id AS account_id, s.offer_id AS offer_id,
+      countIf(s.buyer_price IS NOT NULL AND s.buyer_price > 0 AND o.seller_price > 0) AS samples,
+      quantileExactIf(0.5)((1 - s.buyer_price / nullIf(o.seller_price, 0)) * 100,
+        s.buyer_price IS NOT NULL AND s.buyer_price > 0 AND o.seller_price > 0) AS discount_pct,
+      countIf(s.fee IS NOT NULL AND o.seller_price > 0 AND s.qty > 0) AS fee_samples,
+      sumIf(s.fee, s.fee IS NOT NULL AND o.seller_price > 0 AND s.qty > 0)
+        / nullIf(sumIf(o.seller_price * s.qty, s.fee IS NOT NULL AND o.seller_price > 0 AND s.qty > 0), 0) * 100 AS fee_pct,
+      sumIf(s.acquiring, s.acquiring IS NOT NULL) / nullIf(sumIf(s.qty, s.acquiring IS NOT NULL), 0) AS acquiring_unit,
+      sumIf(s.logistics, s.logistics IS NOT NULL) / nullIf(sumIf(s.qty, s.logistics IS NOT NULL), 0) AS logistics_unit
+    FROM raw_ym_order_stats AS s FINAL
+    INNER JOIN raw_ym_orders AS o FINAL ON o.account_id = s.account_id
+      AND o.order_id = s.order_id AND o.offer_id = s.offer_id
+    WHERE s.created_at >= now() - INTERVAL 60 DAY AND s.status = 'DELIVERED'
+    GROUP BY s.account_id, s.offer_id
   ),
   -- one row per product line of a sale accrual; amounts are strings ("623")
   ozon_lines AS
@@ -291,12 +312,21 @@ WITH
       c.list_price,
       if(c.discount_base > c.seller_price AND c.discount_base > 0,
          (1 - c.seller_price / c.discount_base) * 100, 0),
-      c.seller_price, if(c.buyer_price IS NOT NULL AND c.seller_price > 0,
-        (1 - c.buyer_price / c.seller_price) * 100, NULL),
-      if(c.buyer_price IS NOT NULL, 'product', ''), toUInt32(c.buyer_price IS NOT NULL), c.commission_pct,
-      c.acquiring_rub, c.logistics_rub, CAST(NULL, 'Nullable(Float64)'),
-      CAST(NULL, 'Nullable(UInt8)'), '', c.snapshot_ts
+      c.seller_price,
+      if(c.buyer_price IS NOT NULL AND c.seller_price > 0,
+        (1 - c.buyer_price / c.seller_price) * 100, if(d.samples > 0, d.discount_pct, NULL)),
+      if(c.buyer_price IS NOT NULL OR d.samples > 0, 'product', ''),
+      toUInt32(if(c.buyer_price IS NOT NULL, 1, ifNull(d.samples, 0))),
+      if(d.fee_samples > 0, d.fee_pct, if(t.fee IS NOT NULL AND c.seller_price > 0,
+        t.fee / c.seller_price * 100, c.commission_pct)),
+      coalesce(d.acquiring_unit, t.acquiring, c.acquiring_rub),
+      coalesce(d.logistics_unit, t.logistics, c.logistics_rub),
+      CAST(NULL, 'Nullable(Float64)'), CAST(NULL, 'Nullable(UInt8)'), '', c.snapshot_ts
     FROM ym_cards AS c
+    LEFT JOIN ym_stats AS d ON d.account_id = c.account_id AND d.offer_id = c.offer_id
+    LEFT JOIN (SELECT * FROM raw_ym_tariff_quotes FINAL WHERE snapshot_ts >= now() - INTERVAL 1 DAY) AS t
+      ON t.account_id = c.account_id AND t.offer_id = c.offer_id AND t.price = c.seller_price
+
   )
 SELECT
    p.marketplace AS marketplace,
@@ -321,22 +351,36 @@ SELECT
   if(ifNull(k.cost_price, 0) > 0, k.cost_price,
     if(ifNull(l.cost_price, 0) > 0, l.cost_price,
       if(p.marketplace = 'ym' AND y.purchase_price > 0, y.purchase_price, NULL))) AS cost_price,
-  round(seller_price - fees_rub - cost_price, 2) AS margin_rub,
+  if(p.marketplace = 'ym' AND NOT (
+    (ifNull(z.fee_samples, 0) > 0 OR q.fee IS NOT NULL) AND
+    (z.acquiring_unit IS NOT NULL OR q.acquiring IS NOT NULL) AND
+    (z.logistics_unit IS NOT NULL OR q.logistics IS NOT NULL)), NULL,
+    round(seller_price - fees_rub - cost_price, 2)) AS margin_rub,
   round(if(seller_price > 0, margin_rub / seller_price * 100, NULL), 2) AS margin_pct,
-  round(if(commission_pct < 100,
+  round(if((p.marketplace != 'ym' OR ((ifNull(z.fee_samples, 0) > 0 OR q.fee IS NOT NULL)
+    AND (z.acquiring_unit IS NOT NULL OR q.acquiring IS NOT NULL)
+    AND (z.logistics_unit IS NOT NULL OR q.logistics IS NOT NULL))) AND commission_pct < 100,
     (cost_price + acquiring_rub + logistics_rub) / (1 - commission_pct / 100), NULL), 2)
     AS breakeven_price,
   p.min_price AS min_price,
   p.auto_actions_enabled AS auto_actions_enabled,
   p.price_index_color AS price_index_color,
   p.price_seen_at AS price_seen_at,
-  build_ts AS built_at
+  build_ts AS built_at,
+  if(p.marketplace = 'ym', toUInt8((ifNull(z.fee_samples, 0) > 0 OR q.fee IS NOT NULL)
+    AND (z.acquiring_unit IS NOT NULL OR q.acquiring IS NOT NULL)
+    AND (z.logistics_unit IS NOT NULL OR q.logistics IS NOT NULL)), NULL) AS ym_costs_ready,
+  if(p.marketplace != 'ym', '', if(ifNull(z.fee_samples, 0) > 0, 'actual',
+    if(q.fee IS NOT NULL, 'forecast', 'unknown'))) AS ym_fee_source
 FROM priced AS p
 LEFT JOIN products AS i
   ON i.marketplace = p.marketplace AND i.account_id = p.account_id AND i.product_id = p.product_id
 LEFT JOIN costs AS k
   ON k.marketplace = p.marketplace AND k.account_id = p.account_id AND k.offer_id = p.offer_id
 LEFT JOIN legacy_costs AS l ON l.marketplace = p.marketplace AND l.product_id = p.product_id
+LEFT JOIN ym_stats AS z ON p.marketplace = 'ym' AND z.account_id = p.account_id AND z.offer_id = p.offer_id
+LEFT JOIN (SELECT * FROM raw_ym_tariff_quotes FINAL WHERE snapshot_ts >= now() - INTERVAL 1 DAY) AS q
+  ON p.marketplace = 'ym' AND q.account_id = p.account_id AND q.offer_id = p.offer_id AND q.price = p.seller_price
 LEFT JOIN (SELECT account_id, offer_id, purchase_price FROM raw_ym_prices FINAL) AS y
   ON p.marketplace = 'ym' AND y.account_id = p.account_id AND y.offer_id = p.offer_id
 WHERE p.offer_id != '' AND p.seller_price > 0

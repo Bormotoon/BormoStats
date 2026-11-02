@@ -76,6 +76,11 @@ STAT_SPECS: dict[str, StatSpec] = {
     "raw_ozon_finance_ops": StatSpec("ozon", ("operation_id",), "operation_ts"),
     # finance block: the balance breakdown of a day, report lines, balance snapshots
     "raw_ozon_finance_balance": StatSpec("ozon", ("day",), "day"),
+    "raw_ym_tariff_quotes": StatSpec("ym", ("offer_id",), "snapshot_ts"),
+    "raw_ym_delivered_snapshots": StatSpec(
+        "ym", ("order_id", "offer_id", "updated_at"), "updated_at"
+    ),
+    "raw_ym_order_stats": StatSpec("ym", ("order_id", "offer_id"), "updated_at"),
     "raw_ym_orders": StatSpec("ym", ("order_id", "offer_id"), "created_at"),
     "raw_ym_stocks": StatSpec(
         "ym",

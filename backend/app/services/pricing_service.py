@@ -34,7 +34,8 @@ _PRICE_COLS = (
     " p.margin_rub AS margin_rub, p.margin_pct AS margin_pct,"
     " p.breakeven_price AS breakeven_price, p.min_price AS min_price,"
     " p.auto_actions_enabled AS auto_actions_enabled, p.price_index_color AS price_index_color,"
-    " p.price_seen_at AS price_seen_at"
+    " p.price_seen_at AS price_seen_at, p.ym_costs_ready AS ym_costs_ready,"
+    " p.ym_fee_source AS ym_fee_source"
 )
 # the latest rule per card; a card may carry an older rule created through /repricer/rules
 _RULES = (
@@ -475,6 +476,8 @@ def _breakdown_row(r: dict[str, Any]) -> PriceBreakdownRow:
         acquiring_rub=float(r["acquiring_rub"]),
         logistics_rub=float(r["logistics_rub"]),
         fees_rub=float(r["fees_rub"]),
+        ym_costs_ready=None if r.get("ym_costs_ready") is None else bool(r["ym_costs_ready"]),
+        ym_fee_source=str(r.get("ym_fee_source") or ""),
         cost_price=_opt_float(r.get("cost_price")),
         margin_rub=_opt_float(r.get("margin_rub")),
         margin_pct=_opt_float(r.get("margin_pct")),

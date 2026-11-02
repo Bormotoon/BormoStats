@@ -264,3 +264,109 @@ def test_payment_report_uses_transaction_source_for_sales_and_returns() -> None:
         "sales",
         "returns",
     ]
+
+
+def test_statistics_retains_buyer_prices_and_only_attributable_order_commissions() -> None:
+    from collectors.ym.parsers import parse_order_statistics
+
+    order = {
+        "id": 101,
+        "status": "DELIVERED",
+        "creationDate": "2026-11-01",
+        "commissions": [{"type": "FEE", "actual": 120}, {"type": "AGENCY", "actual": 10}],
+        "items": [
+            {
+                "shopSku": "one",
+                "marketSku": 44,
+                "count": 2,
+                "prices": [
+                    {"type": "BUYER", "costPerItem": 800},
+                    {"type": "CASHBACK", "costPerItem": 100},
+                ],
+            }
+        ],
+    }
+    one = parse_order_statistics([order], "run", "account")[0]
+    assert (one["buyer_price"], one["cashback"], one["fee"], one["acquiring"]) == (
+        800,
+        100,
+        120,
+        10,
+    )
+    order["items"].append({"shopSku": "two", "count": 1})
+    multiple = parse_order_statistics([order], "run", "account")
+    assert all(row["fee"] is None and row["acquiring"] is None for row in multiple)
+    assert multiple[1]["buyer_price"] is None
+
+
+def test_tariffs_do_not_sum_alternative_prices_for_same_service() -> None:
+    from collectors.ym.parsers import parse_tariff_quotes
+
+    row = parse_tariff_quotes(
+        [
+            {
+                "_offerId": "sku",
+                "_price": 1000,
+                "tariffs": [
+                    {"type": "FEE", "amount": 80},
+                    {"type": "SORTING", "amount": 5},
+                    {"type": "SORTING", "amount": 10},
+                    {"type": "AGENCY_COMMISSION", "amount": 20},
+                ],
+            }
+        ],
+        "run",
+        "account",
+    )[0]
+    assert row["fee"] == 80
+    assert row["acquiring"] == 20
+    assert row["logistics"] is None
+
+
+def test_statistics_preserves_fully_removed_item_details_without_fabricating_price() -> None:
+    from collectors.ym.parsers import parse_order_statistics
+
+    rows = parse_order_statistics(
+        [
+            {
+                "id": 44,
+                "status": "RETURNED",
+                "creationDate": "2026-11-01",
+                "items": [],
+                "commissions": [],
+                "initialItems": [
+                    {
+                        "shopSku": "x",
+                        "count": 0,
+                        "initialCount": 2,
+                        "details": [
+                            {"itemStatus": "RETURNED", "itemCount": 2, "updateDate": "2026-11-02"}
+                        ],
+                    }
+                ],
+            }
+        ],
+        "r",
+        "a",
+    )
+    assert len(rows) == 1 and rows[0]["offer_id"] == "x"
+    assert rows[0]["buyer_price"] is None
+    assert "RETURNED" in rows[0]["payload"]
+
+
+def test_statistics_interprets_naive_time_in_moscow() -> None:
+    from collectors.ym.parsers import parse_order_statistics
+
+    row = parse_order_statistics(
+        [
+            {
+                "id": 1,
+                "creationDate": "2026-11-01",
+                "statusUpdateDate": "2026-11-01T12:00:00",
+                "items": [{"shopSku": "s", "count": 1}],
+            }
+        ],
+        "r",
+        "a",
+    )[0]
+    assert row["updated_at"] == datetime(2026, 11, 1, 9)

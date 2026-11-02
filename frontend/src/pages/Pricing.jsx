@@ -233,7 +233,13 @@ function TargetCell({ row, onSave, onFallback, fromFile }) {
 }
 
 function FeesCell({ row }) {
+  if (row.marketplace === "ym" && row.ym_costs_ready === false) {
+    return <span title="Недостаточно данных о комиссиях и услугах для полной оценки">Недостаточно данных</span>;
+  }
   const parts = [`комиссия ${pct(row.commission_pct)} = ${moneyFmt(row.commission_rub)}`];
+  if (row.marketplace === "ym") {
+    parts.push(row.ym_fee_source === "actual" ? "комиссия по заказам; другие расходы могут быть прогнозом" : "прогноз тарифа");
+  }
   if (row.acquiring_rub) parts.push(`эквайринг ${moneyFmt(row.acquiring_rub)}`);
   parts.push(`логистика ${moneyFmt(row.logistics_rub)} за шт.`);
   return (
@@ -717,7 +723,7 @@ function Breakdown({ rows, setRows, onError, onReload, actionsEnabled, params, s
               render: (r) => (
                 <>
                   {r.margin_rub === null ? (
-                    <span title="Укажите себестоимость"><Dash /></span>
+                    <span title={r.marketplace === "ym" && r.ym_costs_ready === false ? "Недостаточно данных о расходах Маркета" : "Укажите себестоимость"}><Dash /></span>
                   ) : (
                     <Money value={r.margin_rub} className={r.margin_rub < 0 ? "text-red-600 font-semibold" : ""} />
                   )}

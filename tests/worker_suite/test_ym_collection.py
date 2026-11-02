@@ -81,3 +81,60 @@ def test_business_wide_ads_are_not_assigned_to_one_of_multiple_shops(
     monkeypatch.setattr(ym_collect, "_collect", collect)
     with pytest.raises(ValueError, match="business-wide"):
         ym_collect._collect_report("ym_ads_recent", "shows-boost", 3, "raw_ym_ads", [], lambda x: x)
+
+
+def test_tariff_snapshot_builds_only_complete_offers(monkeypatch: pytest.MonkeyPatch) -> None:
+    requests: list[dict[str, Any]] = []
+
+    class Client:
+        def offer_mappings(self, business_id: str) -> list[dict[str, Any]]:
+            return [
+                {
+                    "offer": {
+                        "offerId": "a",
+                        "marketCategoryId": 5,
+                        "weightDimensions": {"length": 10, "width": 20, "height": 30, "weight": 1},
+                    }
+                },
+                {"offer": {"offerId": "incomplete"}},
+            ]
+
+        def offer_prices(self, campaign_id: str) -> list[dict[str, Any]]:
+            return [{"offerId": "a", "price": {"value": 1000}}]
+
+        def calculate_tariffs(
+            self, campaign_id: str, offers: list[dict[str, Any]]
+        ) -> list[dict[str, Any]]:
+            requests.extend(offers)
+            return [{"tariffs": [{"type": "FEE", "amount": 80}]}]
+
+    def collect(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        rows = args[4](Client(), datetime.now(UTC))
+        assert rows[0]["_offerId"] == "a"
+        assert args[5](rows, run_id="r", account_id="a")[0]["fee"] == 80
+        return {"status": "success"}
+
+    monkeypatch.setattr(ym_collect, "_collect", collect)
+    assert ym_collect.ym_tariff_quotes_snapshot()["status"] == "success"
+    assert requests[0]["categoryId"] == 5 and requests[0]["price"] == 1000
+
+
+def test_stats_backfill_splits_dates_and_does_not_advance_recent_watermark(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    windows: list[tuple[datetime, datetime]] = []
+
+    class Client:
+        def stats_orders(self, campaign_id: str, start: datetime, end: datetime) -> list[Any]:
+            windows.append((start, end))
+            return []
+
+    def collect(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        assert kwargs["watermark"] is False
+        args[4](Client(), datetime(2026, 11, 2, tzinfo=UTC))
+        return {"status": "success", "rows": 0}
+
+    monkeypatch.setattr(ym_collect, "_collect", collect)
+    assert ym_collect.ym_order_stats_backfill_days(60)["status"] == "success"
+    assert len(windows) == 3
+    assert all((end - start).days <= 29 for start, end in windows)
