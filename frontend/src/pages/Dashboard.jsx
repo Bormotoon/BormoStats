@@ -131,6 +131,7 @@ export default function Dashboard() {
 
       <section className="md3-card-elevated p-4">
         <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">{t("dashboard.topProducts")} {period}</h3>
+        {salesRows.some((row) => row.marketplace === "ym") && <p className="mb-3 text-sm text-[var(--color-on-surface-variant)]">{t("sales.ymPayoutNotice")}</p>}
         <DataTable rows={topProducts} filterable={false} preferredColumns={["rank", "image_url", "title", "offer_id", "marketplace", "product_id", "qty", "revenue", "returns_qty", "payout"]} />
       </section>
     </div>

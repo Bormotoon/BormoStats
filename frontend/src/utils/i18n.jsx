@@ -137,6 +137,7 @@ const ru = {
     },
   },
   sales: {
+    ymPayoutNotice: "Для Яндекс Маркета сумма «к выплате» здесь не учитывает удержания площадки. Сверяйте выплаты и расходы в разделе «Финансы».",
     revenue: "Выручка", qty: "Кол-во", returns: "Возвраты", payout: "За товары после комиссии",
     revenueHint: "выкупы по цене продавца, без возвратов", qtyHint: "выкуплено, шт.",
     returnsHint: "возвращено, шт.", payoutHint: "до логистики, хранения и удержаний; итог к выплате — в «Финансах»",
@@ -378,6 +379,7 @@ const en = {
     },
   },
   sales: {
+    ymPayoutNotice: "Yandex Market payout here excludes marketplace fees. Check payments and charges in Finance.",
     revenue: "Revenue", qty: "Qty", returns: "Returns", payout: "Goods after commission",
     revenueHint: "buyouts at the seller's price, returns excluded", qtyHint: "units sold",
     returnsHint: "units returned", payoutHint: "before logistics, storage and charges; the payout is on Finance",

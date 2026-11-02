@@ -35,6 +35,7 @@ export default function Sales() {
 
   return (
     <div className="space-y-4">
+      {rows.some((row) => row.marketplace === "ym") && <p className="text-sm text-[var(--color-on-surface-variant)]">{t("sales.ymPayoutNotice")}</p>}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <MetricCard label={t("sales.revenue")} value={moneyFmt(sum(rows, "revenue"))} subvalue={`${t("sales.revenueHint")}, ${period}`} accent="success" />
         <MetricCard label={t("sales.qty")} value={`${numberFmt(sum(rows, "qty"))} шт`} subvalue={`${t("sales.qtyHint")} ${period}`} />
