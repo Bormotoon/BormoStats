@@ -147,7 +147,9 @@ class IntegrationsService:
         settings = self._settings
         if not settings.marketplace_actions_enabled:
             return StockUpdateResult(
-                marketplace="ym", success=False, errors=["Marketplace actions disabled"]
+                marketplace="ym",
+                success=False,
+                errors=["Отправка на маркетплейсы отключена на сервере"],
             )
         account_id = settings.ym_account_id or settings.ym_campaign_id or "default"
         accounts = self._ch.query(

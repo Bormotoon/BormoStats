@@ -197,7 +197,7 @@ export default function Integrations() {
                 className="w-32 px-2 py-1 rounded border border-[var(--color-outline)] bg-[var(--color-surface)] text-sm"
                 value={warehouseInput}
                 onChange={(e) => setWarehouseInput(e.target.value)}
-                placeholder="ID склада WB"
+                placeholder={marketplace === "ym" ? "ID склада Я.Маркета" : "ID склада WB"}
               />
               <button
                 onClick={handlePushStock}
