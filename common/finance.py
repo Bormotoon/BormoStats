@@ -40,6 +40,7 @@ YM_FINANCE_RULES: tuple[tuple[str, str], ...] = (
     ("storage", r"storage|хранен"),
     ("acceptance", r"accept|приемк|приёмк"),
     ("penalties", r"penalt|штраф"),
+    ("other", r"boost|буст|продвижение|продвижен"),  # boost/promotion as other, checked before sales
     ("returns", r"return|возврат"),
     ("sales", r"sale|продаж|платеж покупателя|платёж покупателя"),
 )
@@ -50,6 +51,9 @@ def classify_ym_finance(transaction_type: str, service_type: str) -> str:
     import re
 
     text = f"{service_type} {transaction_type}".strip().lower()
+    # Boost/promotion must not be classified as sales - check specific boost patterns first
+    if re.search(r"буст\s+продаж|продаж.*буст|boost.*продаж", text):
+        return "other"
     return next(
         (category for category, pattern in YM_FINANCE_RULES if re.search(pattern, text)), "other"
     )
