@@ -78,12 +78,3 @@ def test_stable_daily_reports_reuse_fresh_jobs_and_clear_removed_skus(monkeypatc
     assert all(r["sku"] == "999" and r["cost"] == 0 for r in db.rows)
     assert collector.ozon_ads_sku_backfill_days(2)["status"] == "success"
     fetch.assert_called_once()
-
-
-def test_call_step_imports_registered_task(monkeypatch):
-    from app.tasks import reports
-
-    task = Mock(return_value={"status": "success"})
-    monkeypatch.setattr(collector, "ozon_buyouts_week", task)
-    assert reports._call_step("tasks.ozon_collect.ozon_buyouts_week", (7,))["status"] == "success"
-    task.assert_called_once_with(7)

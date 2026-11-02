@@ -42,7 +42,6 @@ OZON_TZ = ZoneInfo("Europe/Moscow")
 # accruals of recent days are still being posted, so every run re-reads them
 FINANCE_LOOKBACK_DAYS = 3
 ADS_LOOKBACK_DAYS = 3
-POSTINGS_LOOKBACK_DAYS = 90
 
 
 @shared_task(name='tasks.ozon_collect.ozon_buyouts_week')
@@ -367,11 +366,8 @@ def _collect_postings(account_id: str, from_ts: datetime | None = None) -> dict[
     ):
         ch_client = get_ch_client()
         try:
+            watermark = from_ts or get_watermark(ch_client, "ozon_postings", account_id)
             now_ts = datetime.now(UTC)
-            watermark = from_ts if from_ts is not None else min(
-                get_watermark(ch_client, "ozon_postings", account_id),
-                now_ts - timedelta(days=POSTINGS_LOOKBACK_DAYS),
-            )
             records = ozon.postings_since(
                 from_ts=watermark,
                 to_ts=now_ts,
@@ -612,14 +608,9 @@ def _collect_finance_balance(account_id: str, from_day: date) -> dict[str, Any]:
 @shared_task(name="tasks.ozon_collect.ozon_finance_balance")
 def ozon_finance_balance(account_id: str = OZON_ACCOUNT_ID) -> dict[str, Any]:
     try:
-        # Catch up after downtime instead of permanently missing balance days.
-        today = _ozon_today()
-        watermark_day = get_watermark(
-            get_ch_client(), "ozon_finance_balance", account_id
-        ).astimezone(OZON_TZ).date()
         return _collect_finance_balance(
             account_id=account_id,
-            from_day=min(today, watermark_day) - timedelta(days=FINANCE_BALANCE_LOOKBACK_DAYS),
+            from_day=_ozon_today() - timedelta(days=FINANCE_BALANCE_LOOKBACK_DAYS),
         )
     except LockNotAcquiredError:
         return {"status": "skipped", "reason": "lock_not_acquired"}

@@ -17,7 +17,6 @@ TASK_QUEUES: tuple[str, ...] = (
 )
 
 TASK_ROUTES: dict[str, dict[str, str]] = {
-    "tasks.reports.*": {"queue": "etl"},
     "tasks.wb_collect.*": {"queue": "wb"},
     "tasks.ozon_collect.*": {"queue": "ozon"},
     "tasks.competitor_collect.*": {"queue": "competitor"},

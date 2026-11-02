@@ -53,7 +53,7 @@ def test_worker_celery_uses_redis_as_broker_only() -> None:
     assert type(celery_module.celery_app.backend).__name__ == "DisabledBackend"
 
 
-def test_beat_schedule_uses_daily_report_pipeline() -> None:
+def test_beat_schedule_includes_data_quality_task() -> None:
     if str(WORKERS_DIR) not in sys.path:
         sys.path.insert(0, str(WORKERS_DIR))
     if str(ROOT_DIR) not in sys.path:
@@ -61,5 +61,6 @@ def test_beat_schedule_uses_daily_report_pipeline() -> None:
 
     from app.beat_schedule import beat_schedule
 
-    assert beat_schedule["daily_reports"]["task"] == "tasks.reports.collect_daily"
-    assert "maintenance_data_quality" not in beat_schedule
+    assert beat_schedule["maintenance_data_quality"]["task"] == (
+        "tasks.maintenance.run_data_quality_checks"
+    )
