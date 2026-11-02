@@ -88,6 +88,12 @@ class Settings(BaseSettings):
     )
     ozon_client_id: str = Field(default="", alias="OZON_CLIENT_ID")
     ozon_api_key: str = Field(default="", alias="OZON_API_KEY")
+    ym_api_key: str = Field(default="", alias="YM_API_KEY")
+    ym_api_key_pricing: str = Field(default="", alias="YM_API_KEY_PRICING")
+    ym_api_key_reviews: str = Field(default="", alias="YM_API_KEY_REVIEWS")
+    ym_business_id: str = Field(default="", alias="YM_BUSINESS_ID")
+    ym_campaign_id: str = Field(default="", alias="YM_CAMPAIGN_ID")
+    ym_account_id: str = Field(default="", alias="YM_ACCOUNT_ID")
 
     rate_limit_per_minute: str = Field(default="100/minute", alias="RATE_LIMIT_PER_MINUTE")
     admin_rate_limit_per_minute: str = Field(

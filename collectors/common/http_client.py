@@ -126,7 +126,9 @@ class JsonHttpClient:
             self._open_until = datetime.now(UTC) + timedelta(seconds=self.circuit_reset_seconds)
 
     def _retry_delay(self, response: httpx.Response, attempt: int) -> float | None:
-        if response.status_code == 429:
+        if response.status_code == 429 or (
+            response.status_code == 420 and self.marketplace.lower() == "ym"
+        ):
             if self.marketplace.lower() == "wb":
                 wb_delay = wb_retry_delay_seconds(response)
                 if wb_delay is not None:
@@ -137,6 +139,8 @@ class JsonHttpClient:
         return None
 
     def _retry_reason(self, response: httpx.Response) -> str | None:
+        if response.status_code == 420 and self.marketplace.lower() == "ym":
+            return "rate_limited_420"
         if response.status_code == 429:
             return "throttled"
         if 500 <= response.status_code <= 599:

@@ -237,6 +237,28 @@ def _check_ozon_perf(timeout_seconds: float) -> CheckResult:
         return CheckResult("ozon_perf", False, _as_error_detail(exc), warning=True)
 
 
+def _check_yandex_market(timeout_seconds: float) -> CheckResult:
+    api_key = os.getenv("YM_API_KEY", "").strip()
+    business_id = os.getenv("YM_BUSINESS_ID", "").strip()
+    if not api_key and not business_id:
+        return CheckResult("yandex_market", True, "not configured; skipped", warning=True)
+    if not api_key or not business_id:
+        return CheckResult(
+            "yandex_market", False, "YM_API_KEY and YM_BUSINESS_ID must be configured together"
+        )
+    try:
+        status, _ = _request_json(
+            "POST",
+            f"https://api.partner.market.yandex.ru/v2/businesses/{business_id}/offer-mappings",
+            timeout_seconds=timeout_seconds,
+            headers={"Api-Key": api_key},
+            json_body={"offerIds": [], "limit": 1},
+        )
+        return CheckResult("yandex_market", True, f"status={status}")
+    except Exception as exc:
+        return CheckResult("yandex_market", False, _as_error_detail(exc))
+
+
 def main() -> int:
     args = parse_args()
 
@@ -263,6 +285,7 @@ def main() -> int:
         _check_ozon_seller(args.timeout_seconds),
         _check_ozon_finance(args.timeout_seconds),
         _check_ozon_perf(args.timeout_seconds),
+        _check_yandex_market(args.timeout_seconds),
     ]
 
     failed_hard = False

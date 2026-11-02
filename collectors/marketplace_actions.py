@@ -18,6 +18,7 @@ import httpx
 from collectors.common.http_client import CircuitOpenError, JsonHttpClient
 from collectors.ozon import endpoints as ozon_endpoints
 from collectors.wb import endpoints as wb_endpoints
+from collectors.ym import endpoints as ym_endpoints
 
 OZON_STOCKS_BATCH = 100
 WB_BIDS_BATCH = 50
@@ -232,5 +233,112 @@ def _ozon_result(payload: Any) -> ActionResult:
             ok=False,
             status_code=200,
             body=json.dumps(failed, ensure_ascii=False)[:_BODY_LIMIT],
+        )
+    return ActionResult.success(payload)
+
+
+class YmActionsClient:
+    """Yandex Market Partner API write operations; callers enforce dry-run and audit."""
+
+    def __init__(self, *, api_key: str = "", business_id: str = "", campaign_id: str = "") -> None:
+        self._api_key = api_key
+        self._business_id = business_id
+        self._campaign_id = campaign_id
+        self._http = JsonHttpClient(ym_endpoints.BASE_URL, marketplace="ym")
+
+    def close(self) -> None:
+        self._http.close()
+
+    def __enter__(self) -> YmActionsClient:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
+
+    @property
+    def configured(self) -> bool:
+        return bool(self._api_key and self._business_id)
+
+    @property
+    def can_set_stocks(self) -> bool:
+        return bool(self._api_key and self._business_id)
+
+    def _headers(self) -> dict[str, str]:
+        return {"Api-Key": self._api_key, "Content-Type": "application/json"}
+
+    def set_prices(self, prices: Sequence[tuple[str, float]]) -> ActionResult:
+        if not self.configured:
+            return ActionResult.failure(RuntimeError("YM_API_KEY and YM_BUSINESS_ID are required"))
+        body = {
+            "offers": [
+                {"offerId": offer_id, "price": {"value": price, "currencyId": "RUR"}}
+                for offer_id, price in prices
+            ]
+        }
+        try:
+            payload = self._http.post(
+                (
+                    ym_endpoints.CAMPAIGN_PRICES_UPDATE_PATH.format(campaign_id=self._campaign_id)
+                    if self._campaign_id
+                    else ym_endpoints.BUSINESS_PRICES_UPDATE_PATH.format(
+                        business_id=self._business_id
+                    )
+                ),
+                headers=self._headers(),
+                json=body,
+            )
+        except Exception as exc:
+            return ActionResult.failure(exc)
+        return _ym_result(payload)
+
+    def set_stocks(self, warehouse_id: int, stocks: Sequence[tuple[str, int]]) -> ActionResult:
+        if not self.can_set_stocks:
+            return ActionResult.failure(RuntimeError("YM_API_KEY and YM_BUSINESS_ID are required"))
+        from datetime import UTC, datetime
+
+        body = {
+            "skuItems": [
+                {
+                    "sku": offer_id,
+                    "partnerWarehouseId": warehouse_id,
+                    "count": count,
+                    "updatedAt": datetime.now(UTC).isoformat(),
+                }
+                for offer_id, count in stocks
+            ]
+        }
+        try:
+            payload = self._http.post(
+                f"/v3/businesses/{self._business_id}/offers/stocks/update",
+                headers=self._headers(),
+                json=body,
+            )
+        except Exception as exc:
+            return ActionResult.failure(exc)
+        return _ym_result(payload)
+
+    def set_bids(self, bids: Sequence[tuple[str, float]]) -> ActionResult:
+        if not self.configured:
+            return ActionResult.failure(RuntimeError("YM_API_KEY and YM_BUSINESS_ID are required"))
+        if any(not offer_id or not 0.5 <= bid <= 99.99 for offer_id, bid in bids):
+            return ActionResult.failure(
+                ValueError("Yandex boost bid must be between 0.5% and 99.99%")
+            )
+        body = {"bids": [{"sku": offer_id, "bid": round(bid * 100)} for offer_id, bid in bids]}
+        try:
+            payload = self._http.put(
+                ym_endpoints.BIDS_UPDATE_PATH.format(business_id=self._business_id),
+                headers=self._headers(),
+                json=body,
+            )
+        except Exception as exc:
+            return ActionResult.failure(exc)
+        return _ym_result(payload)
+
+
+def _ym_result(payload: Any) -> ActionResult:
+    if isinstance(payload, dict) and (payload.get("status") == "ERROR" or payload.get("errors")):
+        return ActionResult(
+            ok=False, status_code=200, body=json.dumps(payload, ensure_ascii=False)[:_BODY_LIMIT]
         )
     return ActionResult.success(payload)

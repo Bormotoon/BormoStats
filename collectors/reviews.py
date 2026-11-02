@@ -30,6 +30,7 @@ OZON_REVIEW_LIST_PATH = "/v1/review/list"
 OZON_REVIEW_COMMENT_PATH = "/v1/review/comment/create"
 OZON_REVIEW_PAGE = 100
 OZON_REVIEW_MAX_PAGES = 200
+YM_BASE_URL = "https://api.partner.market.yandex.ru"
 
 
 def _ts(value: Any) -> datetime:
@@ -132,6 +133,38 @@ class OzonReviewsClient:
         )
 
 
+class YmReviewsClient:
+    def __init__(self, api_key: str, business_id: str) -> None:
+        self._api_key = api_key
+        self._business_id = business_id
+        self._http = JsonHttpClient(YM_BASE_URL, marketplace="ym")
+
+    def close(self) -> None:
+        self._http.close()
+
+    def __enter__(self) -> YmReviewsClient:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
+
+    def _headers(self) -> dict[str, str]:
+        return {"Api-Key": self._api_key}
+
+    def feedbacks(self, *, page_size: int = 200) -> Iterator[dict[str, Any]]:
+        from collectors.ym.client import YmClient
+
+        with YmClient(self._api_key) as client:
+            yield from client.feedbacks(self._business_id, {}, page_size=page_size)
+
+    def answer(self, feedback_id: str, text: str) -> None:
+        self._http.post(
+            f"/v2/businesses/{self._business_id}/goods-feedback/comments/update",
+            headers=self._headers(),
+            json={"feedbackId": int(feedback_id), "comment": {"text": text}},
+        )
+
+
 def parse_wb_feedback(
     item: dict[str, Any], *, account_id: str, synced_at: datetime
 ) -> dict[str, Any]:
@@ -192,6 +225,45 @@ def parse_ozon_review(
     }
 
 
+def parse_ym_feedback(
+    item: dict[str, Any], *, account_id: str, synced_at: datetime
+) -> dict[str, Any]:
+    description = item.get("description") or {}
+    statistics = item.get("statistics") or {}
+    description = description if isinstance(description, dict) else {}
+    statistics = statistics if isinstance(statistics, dict) else {}
+    text = str(description.get("comment") or "")
+    pros = str(description.get("advantages") or "")
+    cons = str(description.get("disadvantages") or "")
+    product = item.get("product") or {}
+    product = product if isinstance(product, dict) else {}
+    return {
+        "marketplace": "ym",
+        "account_id": account_id,
+        "review_id": str(item.get("feedbackId") or ""),
+        "product_id": str(product.get("marketSku") or item.get("marketSku") or ""),
+        "offer_id": str(
+            (item.get("identifiers") or {}).get("offerId")
+            or product.get("offerId")
+            or item.get("offerId")
+            or ""
+        ),
+        "product_name": str(product.get("name") or ""),
+        "rating": int(statistics.get("rating") or 0),
+        "text": text,
+        "pros": pros,
+        "cons": cons,
+        "has_text": 1 if review_has_text(text, pros, cons) else 0,
+        "user_name": str(item.get("author") or ""),
+        "photos": len(item.get("photos") or []),
+        "created_at": _ts(item.get("createdAt")),
+        "is_answered": 0 if item.get("needReaction") else 1,
+        "answer_text": "",
+        "payload": json.dumps(item, ensure_ascii=False)[:20_000],
+        "synced_at": synced_at,
+    }
+
+
 REVIEW_COLUMNS = [
     "marketplace",
     "account_id",
@@ -222,6 +294,8 @@ def send_reply(
     wb_token: str = "",
     ozon_client_id: str = "",
     ozon_api_key: str = "",
+    ym_api_key: str = "",
+    ym_business_id: str = "",
 ) -> str:
     """Send one reply; returns "" on success or the error to show and keep."""
     try:
@@ -235,6 +309,11 @@ def send_reply(
                 return "нет ключа Ozon Seller API (OZON_CLIENT_ID, OZON_API_KEY)"
             with OzonReviewsClient(ozon_client_id, ozon_api_key) as ozon:
                 ozon.comment(review_id, text)
+        elif marketplace == "ym":
+            if not (ym_api_key and ym_business_id):
+                return "нет ключа Yandex Market Partner API (YM_API_KEY, YM_BUSINESS_ID)"
+            with YmReviewsClient(ym_api_key, ym_business_id) as ym:
+                ym.answer(review_id, text)
         else:
             return f"площадка {marketplace} не поддерживается"
     except Exception as exc:

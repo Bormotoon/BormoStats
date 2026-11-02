@@ -13,6 +13,7 @@ PLACEHOLDER_VALUES = frozenset(
         "replace-with-long-random-admin-key",
         "replace-with-real-ozon-api-key",
         "replace-with-real-ozon-client-id",
+        "replace-with-real-yandex-market-api-key",
         "replace-with-real-wb-analytics-token",
         "replace-with-real-wb-statistics-token",
         "replace-with-strong-clickhouse-password",
@@ -30,6 +31,7 @@ REQUIRED_MARKETPLACE_KEYS = (
     "OZON_CLIENT_ID",
     "OZON_API_KEY",
 )
+OPTIONAL_MARKETPLACE_KEYS = ("YM_API_KEY", "YM_BUSINESS_ID", "YM_CAMPAIGN_ID")
 
 
 class InvalidConfigurationError(RuntimeError):
@@ -119,6 +121,12 @@ def collect_worker_startup_issues(env: Mapping[str, str | None]) -> list[str]:
                 f"{key} must be set to a real marketplace credential before worker startup"
             )
 
+    ym_configured = any(not is_placeholder(env.get(key)) for key in OPTIONAL_MARKETPLACE_KEYS)
+    if ym_configured:
+        for key in OPTIONAL_MARKETPLACE_KEYS:
+            if is_placeholder(env.get(key)):
+                issues.append(f"{key} must be set when Yandex Market is configured")
+
     return issues
 
 
@@ -144,6 +152,12 @@ def collect_bootstrap_issues(env: Mapping[str, str | None]) -> list[str]:
     for key in REQUIRED_MARKETPLACE_KEYS:
         if is_placeholder(env.get(key)):
             issues.append(f"{key} must be set before bootstrap")
+
+    ym_configured = any(not is_placeholder(env.get(key)) for key in OPTIONAL_MARKETPLACE_KEYS)
+    if ym_configured:
+        for key in OPTIONAL_MARKETPLACE_KEYS:
+            if is_placeholder(env.get(key)):
+                issues.append(f"{key} must be set when Yandex Market is configured")
 
     return issues
 

@@ -25,3 +25,31 @@ FINANCE_CATEGORIES: tuple[str, ...] = (
     "penalties",  # fines
     "other",  # everything else, positive compensations included
 )
+
+
+# Specific services precede generic words such as "return" and "payment".
+YM_FINANCE_RULES: tuple[tuple[str, str], ...] = (
+    ("payouts", r"payout|выплат|перечисление продавцу"),
+    (
+        "reverse_logistics",
+        r"reverse|return.*(delivery|logistic|processing)|возвратная логист|невыкуп",
+    ),
+    ("commission", r"commission|(^| )fee( |$)|размещен|комисс"),
+    ("acquiring", r"acquir|agency|payment_transfer|прием.*платеж|приём.*платеж"),
+    ("logistics", r"delivery|logistic|sorting|достав|складская обработка"),
+    ("storage", r"storage|хранен"),
+    ("acceptance", r"accept|приемк|приёмк"),
+    ("penalties", r"penalt|штраф"),
+    ("returns", r"return|возврат"),
+    ("sales", r"sale|продаж|платеж покупателя|платёж покупателя"),
+)
+
+
+def classify_ym_finance(transaction_type: str, service_type: str) -> str:
+    """Classify a signed money movement without changing its sign."""
+    import re
+
+    text = f"{service_type} {transaction_type}".strip().lower()
+    return next(
+        (category for category, pattern in YM_FINANCE_RULES if re.search(pattern, text)), "other"
+    )
