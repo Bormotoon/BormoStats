@@ -76,6 +76,25 @@ STAT_SPECS: dict[str, StatSpec] = {
     "raw_ozon_finance_ops": StatSpec("ozon", ("operation_id",), "operation_ts"),
     # finance block: the balance breakdown of a day, report lines, balance snapshots
     "raw_ozon_finance_balance": StatSpec("ozon", ("day",), "day"),
+    "raw_ym_orders": StatSpec("ym", ("order_id", "offer_id"), "created_at"),
+    "raw_ym_stocks": StatSpec(
+        "ym",
+        ("offer_id", "warehouse_id"),
+        "snapshot_ts",
+        volatile=("run_id", "snapshot_ts"),
+        observed_column="snapshot_ts",
+    ),
+    "raw_ym_prices": StatSpec(
+        "ym",
+        ("offer_id",),
+        "snapshot_ts",
+        volatile=("run_id", "snapshot_ts"),
+        observed_column="snapshot_ts",
+    ),
+    "raw_ym_offer_mappings": StatSpec("ym", ("offer_id",), "ingested_at"),
+    "raw_ym_funnel": StatSpec("ym", ("day", "product_id"), "day"),
+    "raw_ym_ads": StatSpec("ym", ("day", "campaign_id", "product_id"), "day"),
+    "raw_ym_finance": StatSpec("ym", ("transaction_id",), "event_date"),
     "raw_wb_sales_report": StatSpec("wb", ("rrd_id",), "day"),
     "raw_marketplace_balance": StatSpec(
         "",

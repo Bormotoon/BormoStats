@@ -29,7 +29,7 @@ WITH cards AS
   WHERE r.repo = 'product' AND r.is_deleted = 0
 )
 SELECT
-  'wb' AS marketplace,
+   'wb' AS marketplace,
   account_id,
   toString(JSONExtractUInt(body, 'card', 'nmID')) AS product_id,
   JSONExtractUInt(body, 'card', 'nmID') AS nm_id,
@@ -80,3 +80,22 @@ SELECT
   now() AS updated_at
 FROM cards
 WHERE marketplace = 'ozon' AND JSONExtractUInt(body, 'info', 'sku') > 0
+
+UNION ALL
+
+SELECT
+  'ym' AS marketplace,
+  account_id,
+  toString(JSONExtractUInt(body, 'market', 'marketSku')) AS product_id,
+  NULL AS nm_id,
+  NULL AS chrt_id,
+  JSONExtractString(body, 'offer', 'offerId') AS sku,
+  JSONExtractString(body, 'offer', 'offerId') AS offer_id,
+  NULL AS ozon_product_id,
+  nullIf(JSONExtractString(body, 'offer', 'name'), '') AS title,
+  nullIf(JSONExtractString(body, 'market', 'vendor', 'name'), '') AS brand,
+  nullIf(JSONExtractString(body, 'market', 'marketCategoryName'), '') AS category,
+  nullIf(JSONExtractString(body, 'offer', 'pictures', 1), '') AS image_url,
+  now() AS updated_at
+FROM cards
+WHERE marketplace = 'ym' AND JSONExtractUInt(body, 'market', 'marketSku') > 0;

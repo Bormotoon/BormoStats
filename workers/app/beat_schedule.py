@@ -5,6 +5,22 @@ from __future__ import annotations
 from celery.schedules import crontab
 
 beat_schedule = {
+    "ym_campaigns_snapshot": {
+        "task": "tasks.ym_collect.ym_campaigns_snapshot",
+        "schedule": crontab(minute="32", hour="*/2"),
+    },
+    "ym_bids_snapshot": {
+        "task": "tasks.ym_collect.ym_bids_snapshot",
+        "schedule": crontab(minute="*/15"),
+    },
+    "ym_offer_mappings_snapshot": {
+        "task": "tasks.ym_collect.ym_offer_mappings_snapshot",
+        "schedule": crontab(minute="37", hour="*/2"),
+    },
+    "ym_public_snapshot": {
+        "task": "tasks.competitor_collect.ym_public_snapshot",
+        "schedule": crontab(minute="35", hour="*/2"),
+    },
     "wb_sales_incremental": {
         "task": "tasks.wb_collect.wb_sales_incremental",
         "schedule": crontab(minute="*/15"),
@@ -36,6 +52,30 @@ beat_schedule = {
     "ozon_postings_incremental": {
         "task": "tasks.ozon_collect.ozon_postings_incremental",
         "schedule": crontab(minute="*/20"),
+    },
+    "ym_orders_recent": {
+        "task": "tasks.ym_collect.ym_orders_recent",
+        "schedule": crontab(minute="*/20"),
+    },
+    "ym_stocks_snapshot": {
+        "task": "tasks.ym_collect.ym_stocks_snapshot",
+        "schedule": crontab(minute="*/30"),
+    },
+    "ym_prices_snapshot": {
+        "task": "tasks.ym_collect.ym_prices_snapshot",
+        "schedule": crontab(minute="*/30"),
+    },
+    "ym_funnel_recent": {
+        "task": "tasks.ym_collect.ym_funnel_recent",
+        "schedule": crontab(minute="15", hour="*/2"),
+    },
+    "ym_ads_recent": {
+        "task": "tasks.ym_collect.ym_ads_recent",
+        "schedule": crontab(minute="35", hour="*/3"),
+    },
+    "ym_finance_recent": {
+        "task": "tasks.ym_collect.ym_finance_recent",
+        "schedule": crontab(minute="45"),
     },
     "ozon_stocks_snapshot": {
         "task": "tasks.ozon_collect.ozon_stocks_snapshot",
@@ -132,6 +172,10 @@ beat_schedule = {
     "history_ozon_catalog": {
         "task": "tasks.history.ozon_catalog_snapshot",
         "schedule": crontab(minute="27", hour="*/1"),
+    },
+    "history_ym_catalog": {
+        "task": "tasks.history.ym_catalog_snapshot",
+        "schedule": crontab(minute="42", hour="*/2"),
     },
     # must finish before maintenance_prune_raw (02:00) may delete anything
     "history_backfill_raw": {

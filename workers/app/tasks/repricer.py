@@ -65,7 +65,12 @@ from app.utils.marketplace_actions import (
 from app.utils.runtime import get_ch_client, get_redis_client, log_task_run, new_run_context
 from clickhouse_connect.driver import Client
 
-from collectors.marketplace_actions import ActionResult, OzonActionsClient, WbActionsClient
+from collectors.marketplace_actions import (
+    ActionResult,
+    OzonActionsClient,
+    WbActionsClient,
+    YmActionsClient,
+)
 
 LOGGER = structlog.get_logger(__name__)
 TASK_NAME = "tasks.repricer.repricer_evaluate_rules"
@@ -93,7 +98,7 @@ DEFAULT_MAX_STEP_PCT = 10.0
 # a buyer-price rule acts on a discount measured on the card's own sales — 3+ on WB, any on Ozon,
 # whose per-card points discount is the card's own even on one sale — or on WB on the account's
 # median over 10+ orders (Ozon's discounts vary too much between cards for that)
-MIN_DISCOUNT_SAMPLES = {"wb": 3, "ozon": 1}
+MIN_DISCOUNT_SAMPLES = {"wb": 3, "ozon": 1, "ym": 1}
 DEFAULT_MIN_DISCOUNT_SAMPLES = 3
 MIN_ACCOUNT_DISCOUNT_SAMPLES = 10
 ACCOUNT_DISCOUNT_MARKETPLACES = frozenset({"wb"})
@@ -412,6 +417,7 @@ def ozon_old_price(snap: PriceSnapshot, new_price: float) -> float:
 def price_executor(
     wb: WbActionsClient,
     ozon: OzonActionsClient,
+    ym: YmActionsClient,
     rule: PriceRule,
     snap: PriceSnapshot,
     action: PlannedAction,
@@ -439,6 +445,8 @@ def price_executor(
             old_price=ozon_old_price(snap, price),
             min_price=action.after_value,
         )
+    if rule.marketplace == "ym" and ym.configured and action.target_type == TARGET_PRICE:
+        return lambda: ym.set_prices([(rule.product_id, action.after_value)])
     return None
 
 
@@ -455,9 +463,18 @@ def repricer_evaluate_rules() -> dict[str, object]:
             OzonActionsClient(
                 client_id=os.getenv("OZON_CLIENT_ID", ""), api_key=os.getenv("OZON_API_KEY", "")
             ) as ozon,
+            YmActionsClient(
+                api_key=os.getenv("YM_API_KEY_PRICING", "") or os.getenv("YM_API_KEY", ""),
+                business_id=os.getenv("YM_BUSINESS_ID", ""),
+                campaign_id=os.getenv("YM_CAMPAIGN_ID", ""),
+            ) as ym,
         ):
             budget = max_actions_per_run()
             for rule in fetch_active_rules(client):
+                ym_account = os.getenv("YM_ACCOUNT_ID") or os.getenv("YM_CAMPAIGN_ID") or "default"
+                if rule.marketplace == "ym" and rule.account_id != ym_account:
+                    stats["ym_account_mismatch"] += 1
+                    continue
                 stats["checked"] += 1
                 try:
                     snap = fetch_snapshot(client, rule)
@@ -481,7 +498,7 @@ def repricer_evaluate_rules() -> dict[str, object]:
                     if not action.dry_run and budget <= 0:
                         stats["deferred"] += 1
                         continue
-                    executor = price_executor(wb, ozon, rule, snap, action)
+                    executor = price_executor(wb, ozon, ym, rule, snap, action)
                     status = execute_action(client, action, executor)
                     stats[status] += 1
                     if status in (STATUS_APPLIED, STATUS_FAILED):

@@ -25,9 +25,11 @@ from collectors.reviews import (
     REVIEW_COLUMNS,
     OzonReviewsClient,
     WbFeedbacksClient,
+    YmReviewsClient,
     describe_error,
     parse_ozon_review,
     parse_wb_feedback,
+    parse_ym_feedback,
     send_reply,
 )
 from common.review_store import (
@@ -148,6 +150,20 @@ def _fill_ozon_names(ch: Any, account_id: str, rows: list[dict[str, Any]]) -> No
         row["offer_id"], row["product_name"] = offer, title
 
 
+def collect_ym(ch: Any, account_id: str, now: datetime) -> tuple[str, str, int]:
+    key = os.getenv("YM_API_KEY_REVIEWS", "") or os.getenv("YM_API_KEY", "")
+    business = os.getenv("YM_BUSINESS_ID", "")
+    if not key or not business:
+        return STATUS_NO_CREDENTIALS, "нет YM_API_KEY или YM_BUSINESS_ID", 0
+    with YmReviewsClient(key, business) as client:
+        rows = [
+            parse_ym_feedback(i, account_id=account_id, synced_at=now) for i in client.feedbacks()
+        ]
+    _insert_reviews(ch, rows)
+    unanswered = sum(not row["is_answered"] for row in rows)
+    return STATUS_OK, f"загружено {len(rows)}, неотвеченных {unanswered}", unanswered
+
+
 def collect_ozon(ch: Any, account_id: str, now: datetime) -> tuple[str, str, int]:
     client_id = os.getenv("OZON_CLIENT_ID", "").strip()
     api_key = os.getenv("OZON_API_KEY", "").strip()
@@ -217,6 +233,10 @@ def auto_reply(ch: Any, organization_id: str, budget: int, stats: Counter[str]) 
         os.getenv("AI_API_URL", ""), os.getenv("AI_API_KEY", ""), os.getenv("AI_MODEL", "")
     ) as ai:
         for review in pending_auto_reviews(ch, organization_id, budget):
+            ym_account = os.getenv("YM_ACCOUNT_ID") or os.getenv("YM_CAMPAIGN_ID") or "default"
+            if review["marketplace"] == "ym" and review["account_id"] != ym_account:
+                stats["ym_account_mismatch"] += 1
+                continue
             mode = settings.mode_for(int(review["rating"]))
             if mode == "off":
                 continue
@@ -231,6 +251,8 @@ def auto_reply(ch: Any, organization_id: str, budget: int, stats: Counter[str]) 
                 wb_token=wb_feedbacks_token(),
                 ozon_client_id=os.getenv("OZON_CLIENT_ID", ""),
                 ozon_api_key=os.getenv("OZON_API_KEY", ""),
+                ym_api_key=os.getenv("YM_API_KEY_REVIEWS", "") or os.getenv("YM_API_KEY", ""),
+                ym_business_id=os.getenv("YM_BUSINESS_ID", ""),
             )
             record_reply(
                 ch,
@@ -261,6 +283,11 @@ def sync_reviews() -> dict[str, object]:
             for marketplace, account_id, collect in (
                 ("wb", WB_ACCOUNT_ID, collect_wb),
                 ("ozon", OZON_ACCOUNT_ID, collect_ozon),
+                (
+                    "ym",
+                    os.getenv("YM_ACCOUNT_ID") or os.getenv("YM_CAMPAIGN_ID") or "default",
+                    collect_ym,
+                ),
             ):
                 try:
                     status, message, unanswered = collect(ch, account_id, now)

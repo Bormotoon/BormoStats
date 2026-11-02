@@ -30,12 +30,14 @@ from collectors.ozon.errors import is_capability_error
 from collectors.ozon.parsers import build_ozon_products
 from collectors.wb.client import WbCatalogClient
 from collectors.wb.parsers import build_wb_products
+from collectors.ym.client import YmClient
 from common.history import PRODUCT_REPO
 
 LOGGER = logging.getLogger(__name__)
 
 WB_ACCOUNT_ID = os.getenv("WB_ACCOUNT_ID", "default")
 OZON_ACCOUNT_ID = os.getenv("OZON_ACCOUNT_ID", "default")
+YM_ACCOUNT_ID = os.getenv("YM_ACCOUNT_ID") or os.getenv("YM_CAMPAIGN_ID") or "default"
 PRODUCT_IGNORE_ENV = "HISTORY_PRODUCT_IGNORE_PATHS"
 # a token without the catalogue scope answers 401/403; that must not fail the whole snapshot
 _WB_SCOPE_STATUSES = {401, 403}
@@ -164,6 +166,47 @@ def ozon_catalog_snapshot(account_id: str = OZON_ACCOUNT_ID) -> dict[str, Any]:
         task_name="tasks.history.ozon_catalog_snapshot",
         source="ozon_catalog",
         marketplace="ozon",
+        account_id=account_id,
+        build=build,
+    )
+
+
+@shared_task(name="tasks.history.ym_catalog_snapshot")
+def ym_catalog_snapshot(account_id: str = YM_ACCOUNT_ID) -> dict[str, Any]:
+    api_key = os.getenv("YM_API_KEY", "")
+    business_id = os.getenv("YM_BUSINESS_ID", "")
+    if not api_key or not business_id:
+        return {"status": "skipped", "reason": "missing Yandex Market credentials"}
+
+    def build() -> tuple[dict[str, dict[str, Any]], tuple[str, ...]]:
+        with YmClient(api_key) as ym:
+            mappings = ym.offer_mappings(business_id)
+            prices = (
+                ym.offer_prices(os.getenv("YM_CAMPAIGN_ID", ""))
+                if os.getenv("YM_CAMPAIGN_ID")
+                else []
+            )
+        docs: dict[str, dict[str, Any]] = {}
+        price_by_offer = {str(row.get("offerId") or ""): row for row in prices}
+        for row in mappings:
+            mapping = row.get("mapping") if isinstance(row.get("mapping"), dict) else row
+            mapping = mapping if isinstance(mapping, dict) else {}
+            offer = row.get("offer") or mapping.get("offer")
+            offer = offer if isinstance(offer, dict) else {}
+            key = str(offer.get("offerId") or row.get("offerId") or "")
+            if not key:
+                continue
+            docs[key] = {
+                "offer": offer,
+                "market": mapping.get("market", mapping),
+                "price": price_by_offer.get(key),
+            }
+        return docs, ()
+
+    return _commit_catalogue(
+        task_name="tasks.history.ym_catalog_snapshot",
+        source="ym_catalog",
+        marketplace="ym",
         account_id=account_id,
         build=build,
     )

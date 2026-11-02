@@ -29,7 +29,7 @@ from app.utils.marketplace_actions import (
 from app.utils.runtime import get_ch_client, get_redis_client, log_task_run, new_run_context
 from clickhouse_connect.driver import Client
 
-from collectors.marketplace_actions import ActionResult, WbActionsClient
+from collectors.marketplace_actions import ActionResult, WbActionsClient, YmActionsClient
 
 LOGGER = structlog.get_logger(__name__)
 TASK_NAME = "tasks.bidder.bidder_evaluate_rules"
@@ -116,8 +116,10 @@ def plan_bid_change(rule: BidRule, current: float | None) -> PlannedAction | Non
 
 
 def bid_executor(
-    wb: WbActionsClient, rule: BidRule, action: PlannedAction
+    wb: WbActionsClient, ym: YmActionsClient, rule: BidRule, action: PlannedAction
 ) -> Callable[[], ActionResult] | None:
+    if rule.marketplace == "ym" and ym.configured:
+        return lambda: ym.set_bids([(rule.product_id, action.after_value)])
     if rule.marketplace != "wb" or not wb.can_set_bids:
         return None
     if not (rule.campaign_id.isdigit() and rule.product_id.isdigit()):
@@ -140,9 +142,17 @@ def bidder_evaluate_rules() -> dict[str, object]:
         with (
             lock_scope(get_redis_client(), source="bidder", account_id="all", ttl_seconds=900),
             WbActionsClient(promotion_token=os.getenv("WB_TOKEN_PROMOTION", "")) as wb,
+            YmActionsClient(
+                api_key=os.getenv("YM_API_KEY_PRICING", "") or os.getenv("YM_API_KEY", ""),
+                business_id=os.getenv("YM_BUSINESS_ID", ""),
+            ) as ym,
         ):
             budget = max_actions_per_run()
             for rule in fetch_active_rules(client):
+                ym_account = os.getenv("YM_ACCOUNT_ID") or os.getenv("YM_CAMPAIGN_ID") or "default"
+                if rule.marketplace == "ym" and rule.account_id != ym_account:
+                    stats["ym_account_mismatch"] += 1
+                    continue
                 stats["checked"] += 1
                 try:
                     action = plan_bid_change(rule, current_cpm(client, rule))
@@ -151,7 +161,7 @@ def bidder_evaluate_rules() -> dict[str, object]:
                     if not action.dry_run and budget <= 0:
                         stats["deferred"] += 1
                         continue
-                    status = execute_action(client, action, bid_executor(wb, rule, action))
+                    status = execute_action(client, action, bid_executor(wb, ym, rule, action))
                     stats[status] += 1
                     if status in (STATUS_APPLIED, STATUS_FAILED):
                         budget -= 1

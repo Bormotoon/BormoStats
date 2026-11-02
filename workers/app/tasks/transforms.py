@@ -73,8 +73,25 @@ def _run_transform(days: int, task_name: str) -> dict[str, int | str]:
             client.command(_load("ozon_stocks_to_stg.sql"), parameters={"days": days})
             client.command(_load("ozon_ads_to_stg.sql"), parameters={"days": ads_days})
             client.command(_load("ozon_finance_to_stg.sql"), parameters={"days": ads_days})
+            for ym_transform in (
+                "ym_orders_to_stg.sql",
+                "ym_sales_to_stg.sql",
+                "ym_stocks_to_stg.sql",
+                "ym_funnel_to_stg.sql",
+                "ym_ads_to_stg.sql",
+                "ym_finance_to_stg.sql",
+            ):
+                client.command(
+                    _load(ym_transform),
+                    parameters={
+                        "days": ads_days
+                        if ym_transform in {"ym_ads_to_stg.sql", "ym_finance_to_stg.sql"}
+                        else days
+                    },
+                )
             client.command(_load("sync_dim_product_wb.sql"), parameters={"days": max(days, 30)})
             client.command(_load("sync_dim_product_ozon.sql"), parameters={"days": max(days, 30)})
+            client.command(_load("sync_dim_product_ym.sql"))
             client.command(_load("sync_dim_product_catalog.sql"))
         log_task_run(
             client,

@@ -35,6 +35,14 @@ CLICKHOUSE_IMAGE = (
 )
 REDIS_IMAGE = "redis:8.10.2@sha256:2c2dff791878316e3b083188be0d578423b24813cdda5de0e80ea4f7b3e6bfd6"
 TRUNCATE_TABLES = (
+    "raw_ym_orders",
+    "raw_ym_stocks",
+    "raw_ym_prices",
+    "raw_ym_offer_mappings",
+    "raw_ym_funnel",
+    "raw_ym_ads",
+    "raw_ym_finance",
+    "raw_ym_campaigns",
     "sys_watermarks",
     "sys_task_runs",
     "dim_product",

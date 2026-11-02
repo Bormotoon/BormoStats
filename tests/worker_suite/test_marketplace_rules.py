@@ -25,7 +25,12 @@ from app.utils.marketplace_actions import (
     execute_action,
 )
 
-from collectors.marketplace_actions import ActionResult, OzonActionsClient, WbActionsClient
+from collectors.marketplace_actions import (
+    ActionResult,
+    OzonActionsClient,
+    WbActionsClient,
+    YmActionsClient,
+)
 from tests.fakes import FakeClickHouse
 
 
@@ -239,7 +244,7 @@ def test_wb_price_keeps_the_cards_discount() -> None:
     snap = _snap()
     action, _ = plan_price_change(rule, snap, now=NOW)
     assert action is not None
-    executor = price_executor(wb, OzonActionsClient(), rule, snap, action)
+    executor = price_executor(wb, OzonActionsClient(), YmActionsClient(), rule, snap, action)
     assert executor is not None and executor().ok
     # seller price 550 at the card's 50 % discount is a list price of 1100
     assert seen == [{"data": [{"nmID": 1001, "price": 1100, "discount": 50}]}]
@@ -258,7 +263,7 @@ def test_ozon_price_scales_the_crossed_out_price() -> None:
     snap = _snap()
     action, _ = plan_price_change(rule, snap, now=NOW)
     assert action is not None
-    executor = price_executor(WbActionsClient(), ozon, rule, snap, action)
+    executor = price_executor(WbActionsClient(), ozon, YmActionsClient(), rule, snap, action)
     assert executor is not None and executor().ok
     # the limit price follows the price, so promotions cannot sell the card below it
     assert seen[0]["prices"] == [
@@ -270,7 +275,12 @@ def test_ozon_price_scales_the_crossed_out_price() -> None:
             "min_price": "550.00",
         }
     ]
-    assert price_executor(WbActionsClient(), OzonActionsClient(), rule, snap, action) is None
+    assert (
+        price_executor(
+            WbActionsClient(), OzonActionsClient(), YmActionsClient(), rule, snap, action
+        )
+        is None
+    )
 
 
 def test_ozon_raises_a_limit_price_under_the_kept_price() -> None:
@@ -292,7 +302,7 @@ def test_ozon_raises_a_limit_price_under_the_kept_price() -> None:
         300.0,
         500.0,
     )
-    executor = price_executor(WbActionsClient(), ozon, rule, snap, action)
+    executor = price_executor(WbActionsClient(), ozon, YmActionsClient(), rule, snap, action)
     assert executor is not None and executor().ok
     assert seen[0]["prices"] == [
         {
@@ -313,6 +323,26 @@ def test_ozon_raises_a_limit_price_under_the_kept_price() -> None:
     # a rule that waits for the card's discount does not touch the limit either
     waiting = _snap(mp_discount_pct=None, mp_discount_scope="", price_limit=300.0)
     assert plan_price_change(rule, waiting, now=NOW) == (None, "no_discount_data")
+
+
+def test_ym_price_executor_sends_business_offer_update(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[dict[str, object]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json={"status": "OK"})
+
+    ym = YmActionsClient(api_key="key", business_id="business")
+    _mock(ym, "_http", handler)
+    rule = _price_rule(marketplace="ym", target_price=480)
+    snap = _snap()
+    action, _ = plan_price_change(rule, snap, now=NOW)
+    assert action is not None
+    executor = price_executor(WbActionsClient(), OzonActionsClient(), ym, rule, snap, action)
+    assert executor is not None and executor().ok
+    assert seen == [
+        {"offers": [{"offerId": "SKU-1", "price": {"value": 550.0, "currencyId": "RUR"}}]}
+    ]
 
 
 def _action(dry_run: bool = False) -> PlannedAction:
@@ -395,7 +425,7 @@ def test_wb_bid_request_matches_api_contract() -> None:
     rule = _bid_rule(dry_run=False)
     action = plan_bid_change(rule, current=150.0)
     assert action is not None
-    executor = bid_executor(wb, rule, action)
+    executor = bid_executor(wb, YmActionsClient(), rule, action)
     assert executor is not None and executor().ok
     request = seen[0]
     assert request.method == "PATCH" and request.url.path == "/api/advert/v1/bids"
@@ -408,7 +438,7 @@ def test_wb_bid_request_matches_api_contract() -> None:
             }
         ]
     }
-    assert bid_executor(WbActionsClient(), rule, action) is None  # no promotion token
+    assert bid_executor(WbActionsClient(), YmActionsClient(), rule, action) is None
 
 
 def test_ozon_price_failure_is_reported_per_item() -> None:

@@ -90,6 +90,8 @@ def _run_marts(days: int, task_name: str) -> dict[str, str | int]:
             client.command(_load("mrt_ad_performance_daily.sql"), parameters={"days": ads_days})
             client.command(_load("mrt_finance_daily_ozon.sql"), parameters={"days": days})
             client.command(_load("mrt_finance_daily_wb.sql"), parameters={"days": days})
+            client.command(_load("mrt_finance_daily_ym.sql"), parameters={"days": days})
+            client.command(_load("mrt_finance_daily_ym.sql"), parameters={"days": days})
             # the P&L is monthly: every month the window touches is rebuilt whole
             client.command(
                 "ALTER TABLE mrt_pnl_monthly DELETE"

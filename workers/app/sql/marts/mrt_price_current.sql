@@ -48,10 +48,12 @@ WITH
   (
     SELECT
       maxIf(finished_at, task_name = 'tasks.history.wb_catalog_snapshot') AS wb_seen,
-      maxIf(finished_at, task_name = 'tasks.history.ozon_catalog_snapshot') AS ozon_seen
+  maxIf(finished_at, task_name = 'tasks.history.ozon_catalog_snapshot') AS ozon_seen,
+      maxIf(finished_at, task_name = 'tasks.history.ym_catalog_snapshot') AS ym_seen
     FROM sys_task_runs
     WHERE status = 'success'
-      AND task_name IN ('tasks.history.wb_catalog_snapshot', 'tasks.history.ozon_catalog_snapshot')
+      AND task_name IN ('tasks.history.wb_catalog_snapshot', 'tasks.history.ozon_catalog_snapshot',
+                        'tasks.history.ym_catalog_snapshot')
   ),
   wb_cards AS
   (
@@ -148,6 +150,14 @@ WITH
         AS tariff_logistics_fbs
     FROM heads
     WHERE marketplace = 'ozon' AND JSONExtractFloat(body, 'price', 'price', 'price') > 0
+  ),
+  ym_cards AS
+  (
+    SELECT account_id, offer_id, toString(product_id) AS product_id,
+      list_price, seller_price, list_price AS discount_base, purchase_price,
+      commission_pct, logistics_rub, acquiring_rub,
+      coalesce(buyer_price, cofinance_price) AS buyer_price, snapshot_ts
+    FROM raw_ym_prices FINAL
   ),
   -- one row per product line of a sale accrual; amounts are strings ("623")
   ozon_lines AS
@@ -274,9 +284,22 @@ WITH
     FROM ozon_cards AS c
     LEFT JOIN ozon_discount AS d ON d.account_id = c.account_id AND d.product_id = c.product_id
     LEFT JOIN ozon_account AS oa ON oa.account_id = c.account_id
+
+    UNION ALL
+
+    SELECT 'ym', c.account_id, c.offer_id, c.product_id, CAST(NULL, 'Nullable(UInt64)'),
+      c.list_price,
+      if(c.discount_base > c.seller_price AND c.discount_base > 0,
+         (1 - c.seller_price / c.discount_base) * 100, 0),
+      c.seller_price, if(c.buyer_price IS NOT NULL AND c.seller_price > 0,
+        (1 - c.buyer_price / c.seller_price) * 100, NULL),
+      if(c.buyer_price IS NOT NULL, 'product', ''), toUInt32(c.buyer_price IS NOT NULL), c.commission_pct,
+      c.acquiring_rub, c.logistics_rub, CAST(NULL, 'Nullable(Float64)'),
+      CAST(NULL, 'Nullable(UInt8)'), '', c.snapshot_ts
+    FROM ym_cards AS c
   )
 SELECT
-  p.marketplace AS marketplace,
+   p.marketplace AS marketplace,
   p.account_id AS account_id,
   p.offer_id AS offer_id,
   p.product_id AS product_id,
@@ -296,7 +319,8 @@ SELECT
   round(p.logistics_rub, 2) AS logistics_rub,
   round(commission_rub + acquiring_rub + logistics_rub, 2) AS fees_rub,
   if(ifNull(k.cost_price, 0) > 0, k.cost_price,
-    if(ifNull(l.cost_price, 0) > 0, l.cost_price, NULL)) AS cost_price,
+    if(ifNull(l.cost_price, 0) > 0, l.cost_price,
+      if(p.marketplace = 'ym' AND y.purchase_price > 0, y.purchase_price, NULL))) AS cost_price,
   round(seller_price - fees_rub - cost_price, 2) AS margin_rub,
   round(if(seller_price > 0, margin_rub / seller_price * 100, NULL), 2) AS margin_pct,
   round(if(commission_pct < 100,
@@ -313,5 +337,7 @@ LEFT JOIN products AS i
 LEFT JOIN costs AS k
   ON k.marketplace = p.marketplace AND k.account_id = p.account_id AND k.offer_id = p.offer_id
 LEFT JOIN legacy_costs AS l ON l.marketplace = p.marketplace AND l.product_id = p.product_id
+LEFT JOIN (SELECT account_id, offer_id, purchase_price FROM raw_ym_prices FINAL) AS y
+  ON p.marketplace = 'ym' AND y.account_id = p.account_id AND y.offer_id = p.offer_id
 WHERE p.offer_id != '' AND p.seller_price > 0
 SETTINGS join_use_nulls = 1

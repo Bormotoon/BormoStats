@@ -299,3 +299,52 @@ def build_marts() -> dict[str, object]:
             str(exc),
         )
         raise
+
+
+@shared_task(name="tasks.competitor_collect.ym_public_snapshot")
+def ym_public_snapshot() -> dict[str, object]:
+    from collectors.competitor.ym import YmPublicClient, parse_ym_page
+
+    ids = [s.strip() for s in os.getenv("COMPETITOR_TRACKED_YM_IDS", "").split(",") if s.strip()]
+    queries = _load_tracked_keywords()
+    if not ids and not queries:
+        return {"status": "skipped", "reason": "no_tracked_products_or_queries"}
+    run_id, started = new_run_context()
+    ch = get_ch_client()
+    client = YmPublicClient()
+    total = 0
+    try:
+        for sku, query in [(sku, "") for sku in ids] + [("", q) for q in queries]:
+            groups = parse_ym_page(client.page(sku=sku, query=query), run_id, query=query)
+            for table, columns, rows in zip(
+                ("raw_competitor_products", "raw_competitor_prices", "raw_competitor_search"),
+                (
+                    RAW_COMPETITOR_PRODUCTS_COLUMNS,
+                    RAW_COMPETITOR_PRICES_COLUMNS,
+                    RAW_COMPETITOR_SEARCH_COLUMNS,
+                ),
+                groups,
+                strict=True,
+            ):
+                total += insert_rows(ch, table, columns, rows)
+        log_task_run(
+            ch,
+            "tasks.competitor_collect.ym_public_snapshot",
+            run_id,
+            started,
+            "success",
+            total,
+            "Market public snapshot",
+        )
+        return {"status": "success", "rows": total}
+    except Exception as exc:
+        log_task_run(
+            ch,
+            "tasks.competitor_collect.ym_public_snapshot",
+            run_id,
+            started,
+            "failed",
+            total,
+            str(exc),
+        )
+        raise

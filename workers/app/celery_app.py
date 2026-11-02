@@ -44,6 +44,7 @@ celery_app = Celery(
     include=[
         "app.tasks.wb_collect",
         "app.tasks.ozon_collect",
+        "app.tasks.ym_collect",
         "app.tasks.competitor_collect",
         "app.tasks.transforms",
         "app.tasks.marts",
