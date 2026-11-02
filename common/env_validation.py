@@ -121,6 +121,9 @@ def collect_worker_startup_issues(env: Mapping[str, str | None]) -> list[str]:
                 f"{key} must be set to a real marketplace credential before worker startup"
             )
 
+    if (env.get("YM_STOCK_MODE") or "grouped") not in {"grouped", "partner"}:
+        issues.append("YM_STOCK_MODE must be grouped or partner")
+
     ym_configured = any(not is_placeholder(env.get(key)) for key in OPTIONAL_MARKETPLACE_KEYS)
     if ym_configured:
         for key in OPTIONAL_MARKETPLACE_KEYS:
@@ -152,6 +155,9 @@ def collect_bootstrap_issues(env: Mapping[str, str | None]) -> list[str]:
     for key in REQUIRED_MARKETPLACE_KEYS:
         if is_placeholder(env.get(key)):
             issues.append(f"{key} must be set before bootstrap")
+
+    if (env.get("YM_STOCK_MODE") or "grouped") not in {"grouped", "partner"}:
+        issues.append("YM_STOCK_MODE must be grouped or partner")
 
     ym_configured = any(not is_placeholder(env.get(key)) for key in OPTIONAL_MARKETPLACE_KEYS)
     if ym_configured:

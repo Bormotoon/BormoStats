@@ -240,10 +240,20 @@ def _ozon_result(payload: Any) -> ActionResult:
 class YmActionsClient:
     """Yandex Market Partner API write operations; callers enforce dry-run and audit."""
 
-    def __init__(self, *, api_key: str = "", business_id: str = "", campaign_id: str = "") -> None:
+    def __init__(
+        self,
+        *,
+        api_key: str = "",
+        business_id: str = "",
+        campaign_id: str = "",
+        stock_mode: str = "grouped",
+    ) -> None:
         self._api_key = api_key
         self._business_id = business_id
         self._campaign_id = campaign_id
+        if stock_mode not in {"grouped", "partner"}:
+            raise ValueError("unknown Yandex stock mode")
+        self._stock_mode = stock_mode
         self._http = JsonHttpClient(ym_endpoints.BASE_URL, marketplace="ym")
 
     def close(self) -> None:
@@ -296,23 +306,41 @@ class YmActionsClient:
             return ActionResult.failure(RuntimeError("YM_API_KEY and YM_BUSINESS_ID are required"))
         from datetime import UTC, datetime
 
-        body = {
-            "skuItems": [
-                {
-                    "sku": offer_id,
-                    "partnerWarehouseId": warehouse_id,
-                    "count": count,
-                    "updatedAt": datetime.now(UTC).isoformat(),
-                }
-                for offer_id, count in stocks
-            ]
-        }
+        timestamp = datetime.now(UTC).isoformat()
         try:
-            payload = self._http.post(
-                f"/v3/businesses/{self._business_id}/offers/stocks/update",
-                headers=self._headers(),
-                json=body,
-            )
+            if self._stock_mode == "partner":
+                body = {
+                    "skuItems": [
+                        {
+                            "sku": offer_id,
+                            "partnerWarehouseId": warehouse_id,
+                            "count": count,
+                            "updatedAt": timestamp,
+                        }
+                        for offer_id, count in stocks
+                    ]
+                }
+                payload = self._http.post(
+                    f"/v3/businesses/{self._business_id}/offers/stocks/update",
+                    headers=self._headers(),
+                    json=body,
+                )
+            else:
+                if not self._campaign_id:
+                    return ActionResult.failure(
+                        ValueError("YM_CAMPAIGN_ID is required for grouped stocks")
+                    )
+                body = {
+                    "skus": [
+                        {"sku": offer_id, "items": [{"count": count, "updatedAt": timestamp}]}
+                        for offer_id, count in stocks
+                    ]
+                }
+                payload = self._http.put(
+                    ym_endpoints.STOCKS_PATH.format(campaign_id=self._campaign_id),
+                    headers=self._headers(),
+                    json=body,
+                )
         except Exception as exc:
             return ActionResult.failure(exc)
         return _ym_result(payload)

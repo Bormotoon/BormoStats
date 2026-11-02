@@ -286,7 +286,11 @@ def ym_stocks_snapshot() -> dict[str, Any]:
         "ym_stocks",
         "raw_ym_stocks",
         STOCK_COLUMNS,
-        lambda c, _: _campaign_rows(c, lambda campaign_id: c.stocks(campaign_id)),
+        lambda c, _: (
+            c.partner_stocks(YM_BUSINESS_ID, YM_CAMPAIGN_ID)
+            if os.getenv("YM_STOCK_MODE", "grouped") == "partner"
+            else _campaign_rows(c, lambda campaign_id: c.stocks(campaign_id))
+        ),
         lambda r, **kw: parse_stocks(r, snapshot_ts=datetime.now(UTC), **kw),
     )
 

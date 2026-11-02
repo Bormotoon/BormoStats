@@ -180,6 +180,7 @@ class IntegrationsService:
             api_key=settings.ym_api_key,
             business_id=settings.ym_business_id,
             campaign_id=settings.ym_campaign_id,
+            stock_mode=settings.ym_stock_mode,
         ) as client:
             for warehouse_id, stocks in by_warehouse.items():
                 result = client.set_stocks(warehouse_id, stocks)

@@ -159,6 +159,34 @@ class YmClient:
             endpoints.STOCKS_PATH.format(campaign_id=campaign_id), {}, min(page_size, 100)
         )
 
+    def partner_stocks(self, business_id: str, campaign_id: str) -> list[dict[str, Any]]:
+        warehouses = self._paged(f"/v3/businesses/{business_id}/warehouses", {}, 30)
+        result: list[dict[str, Any]] = []
+        for warehouse in warehouses:
+            models = warehouse.get("models") or []
+            if not any(
+                str(model.get("campaignId") or "") == campaign_id
+                for model in models
+                if isinstance(model, dict)
+            ):
+                continue
+            warehouse_id = warehouse.get("id")
+            if not warehouse_id:
+                continue
+            offers = self._paged(
+                f"/v3/businesses/{business_id}/offers/stocks",
+                {"partnerWarehouseId": warehouse_id},
+                100,
+            )
+            result.append(
+                {
+                    "warehouseId": warehouse_id,
+                    "warehouseName": warehouse.get("name", ""),
+                    "offers": offers,
+                }
+            )
+        return result
+
     def offer_prices(self, campaign_id: str, *, page_size: int = 200) -> list[dict[str, Any]]:
         return self._paged(
             endpoints.OFFER_PRICES_PATH.format(campaign_id=campaign_id), {}, page_size

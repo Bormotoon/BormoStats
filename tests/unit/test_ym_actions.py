@@ -19,7 +19,7 @@ def test_stock_update_targets_partner_warehouse() -> None:
         def close(self) -> None:
             pass
 
-    client = YmActionsClient(api_key="key", business_id="1", campaign_id="2")
+    client = YmActionsClient(api_key="key", business_id="1", campaign_id="2", stock_mode="partner")
     client._http.close()
     http = Http()
     client._http = http  # type: ignore[assignment]
@@ -34,3 +34,21 @@ def test_bid_outside_market_limits_is_rejected() -> None:
     with YmActionsClient(api_key="key", business_id="1") as client:
         assert not client.set_bids([("sku", 0.49)]).ok
         assert not client.set_bids([("sku", 100)]).ok
+
+
+def test_grouped_stock_updates_use_campaign_api() -> None:
+    class Http:
+        def put(self, path: str, *, headers: Any, json: dict[str, Any]) -> dict[str, str]:
+            assert path == "/v2/campaigns/2/offers/stocks"
+            assert json["skus"][0]["sku"] == "sku"
+            assert json["skus"][0]["items"][0]["count"] == 4
+            assert "warehouseId" not in json["skus"][0]
+            return {"status": "OK"}
+
+        def close(self) -> None:
+            pass
+
+    with YmActionsClient(api_key="key", business_id="1", campaign_id="2") as client:
+        client._http.close()
+        client._http = Http()  # type: ignore[assignment]
+        assert client.set_stocks(77, [("sku", 4)]).ok

@@ -121,3 +121,25 @@ def test_campaigns_iterate_all_pages_and_feedback_limit_is_50(
     )
     client.feedbacks("1", {}, page_size=200)
     assert calls == [50]
+
+
+def test_partner_stocks_only_reads_warehouses_for_selected_campaign(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = YmClient("secret")
+    calls: list[tuple[str, dict[str, Any], int]] = []
+
+    def paged(path: str, body: dict[str, Any], limit: int) -> list[dict[str, Any]]:
+        calls.append((path, body, limit))
+        if path.endswith("/warehouses"):
+            return [
+                {"id": 1, "name": "one", "models": [{"campaignId": 10}]},
+                {"id": 2, "models": [{"campaignId": 20}]},
+            ]
+        return [{"offerId": "sku", "stocks": [{"type": "FIT", "count": 3}]}]
+
+    monkeypatch.setattr(client, "_paged", paged)
+    rows = client.partner_stocks("100", "10")
+    assert len(rows) == 1 and rows[0]["warehouseId"] == 1
+    assert calls[1][1] == {"partnerWarehouseId": 1}
+    client.close()

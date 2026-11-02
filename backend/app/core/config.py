@@ -94,6 +94,9 @@ class Settings(BaseSettings):
     ym_business_id: str = Field(default="", alias="YM_BUSINESS_ID")
     ym_campaign_id: str = Field(default="", alias="YM_CAMPAIGN_ID")
     ym_account_id: str = Field(default="", alias="YM_ACCOUNT_ID")
+    ym_stock_mode: str = Field(
+        default="grouped", alias="YM_STOCK_MODE", pattern="^(grouped|partner)$"
+    )
 
     rate_limit_per_minute: str = Field(default="100/minute", alias="RATE_LIMIT_PER_MINUTE")
     admin_rate_limit_per_minute: str = Field(
