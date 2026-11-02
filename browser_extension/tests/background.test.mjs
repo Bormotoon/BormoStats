@@ -88,3 +88,15 @@ test("refuses to call the API without the host permission", async () => {
   assert.match(response.error, /permission/);
   assert.equal(fetchCalls.length, 0);
 });
+
+test("preserves Yandex marketplace for root host, positions and overlay", async () => {
+  const { dispatch, fetchCalls } = loadBackground({ storage: configured });
+  const sender = { id: "ext-id", tab: { id: 1 }, url: "https://market.yandex.ru/search?text=test" };
+  const result = await dispatch({ v: 1, type: "serp_positions", data: [
+    { marketplace: "ym", keyword: "test", product_id: 123, position: 1 },
+  ] }, sender);
+  assert.equal(result.ok, true);
+  assert.equal(JSON.parse(fetchCalls[0].init.body)[0].marketplace, "ym");
+  await dispatch({ v: 1, type: "product_overlay", data: { marketplace: "ym", product_id: 123 } }, sender);
+  assert.match(fetchCalls[1].url, /\/product\/ym\/123$/);
+});

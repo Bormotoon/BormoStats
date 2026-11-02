@@ -45,8 +45,15 @@
   function extractProductId() {
     const match = window.location.pathname.match(/\/catalog\/(\d+)\/detail\.aspx/);
     if (match) return { marketplace: "wb", product_id: parseInt(match[1], 10) };
+    if (window.location.hostname === "market.yandex.ru" || window.location.hostname.endsWith(".market.yandex.ru")) {
+      // Product/model ids in the URL path are not marketSku. Prefer the sku query.
+      const sku = new URL(window.location.href).searchParams.get("sku")
+        || document.querySelector('[data-market-sku]')?.getAttribute("data-market-sku");
+      if (sku && /^\d+$/.test(sku)) return { marketplace: "ym", product_id: Number(sku) };
+      return null;
+    }
     const ozonMatch = window.location.pathname.match(/\/product\/([\w-]+)/);
-    if (ozonMatch) {
+    if (ozonMatch && window.location.hostname.endsWith("ozon.ru")) {
       const id = ozonMatch[1].split("-").pop();
       return { marketplace: "ozon", product_id: parseInt(id, 10) };
     }
@@ -56,7 +63,8 @@
   function extractSearchResults() {
     const isWb = window.location.hostname.includes("wildberries");
     const isOzon = window.location.hostname.includes("ozon");
-    if (!isWb && !isOzon) return [];
+    const isYm = window.location.hostname.endsWith("market.yandex.ru");
+    if (!isWb && !isOzon && !isYm) return [];
     const results = [];
     if (isWb) {
       const items = document.querySelectorAll('[class*="product-card"]');
@@ -76,6 +84,15 @@
           const id = match[1].split("-").pop();
           results.push({ product_id: parseInt(id, 10), position: i + 1 });
         }
+      });
+    }
+    if (isYm) {
+      const items = document.querySelectorAll('[data-zone-name="productSnippet"], [data-auto="search-snippet"]');
+      items.forEach((el, i) => {
+        const link = el.querySelector('a[href*="/product"], a[href*="sku="]');
+        const sku = el.getAttribute("data-market-sku")
+          || (link ? new URL(link.href).searchParams.get("sku") : null);
+        if (sku && /^\d+$/.test(sku)) results.push({ product_id: Number(sku), position: i + 1 });
       });
     }
     return results;
@@ -158,7 +175,7 @@
   const searchResults = extractSearchResults();
   if (keyword && searchResults.length > 0) {
     const positions = searchResults.map((r) => ({
-      marketplace: window.location.hostname.includes("wildberries") ? "wb" : "ozon",
+      marketplace: window.location.hostname.includes("wildberries") ? "wb" : window.location.hostname.endsWith("market.yandex.ru") ? "ym" : "ozon",
       keyword,
       product_id: r.product_id,
       position: r.position,

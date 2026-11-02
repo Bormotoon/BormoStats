@@ -9,6 +9,6 @@ var BORMOSTATS_PROTOCOL = Object.freeze({
     competitorPrice: "competitor_price",
     productOverlay: "product_overlay",
   }),
-  marketplaceHosts: Object.freeze([/\.wildberries\.(ru|by)$/, /\.ozon\.ru$/]),
+  marketplaceHosts: Object.freeze([/\.wildberries\.(ru|by)$/, /\.ozon\.ru$/, /(^|\.)market\.yandex\.ru$/]),
   maxBatch: 500,
 });

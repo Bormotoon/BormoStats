@@ -40,6 +40,11 @@ async function callApi(path, { method = "GET", body } = {}) {
   return response.json();
 }
 
+function marketplaceCode(value) {
+  if (!["wb", "ozon", "ym"].includes(value)) throw new Error("invalid marketplace");
+  return value;
+}
+
 function toInt(value) {
   const n = Number.parseInt(value, 10);
   return Number.isFinite(n) && n > 0 ? n : null;
@@ -51,7 +56,7 @@ async function handleSerpPositions(data) {
     .slice(0, P.maxBatch)
     .map((row) => ({
       account_id: accountId,
-      marketplace: row.marketplace === "ozon" ? "ozon" : "wb",
+      marketplace: marketplaceCode(row.marketplace),
       keyword: String(row.keyword || "").slice(0, 256),
       product_id: toInt(row.product_id),
       position: toInt(row.position),
@@ -73,7 +78,7 @@ async function handleCompetitorPrice(data) {
     body: [
       {
         account_id: accountId,
-        marketplace: data.marketplace === "ozon" ? "ozon" : "wb",
+        marketplace: marketplaceCode(data.marketplace),
         competitor_product_id: String(productId),
         competitor_name: String(data.competitor_name || "").slice(0, 256),
         price_rub: price,
@@ -87,7 +92,7 @@ async function handleCompetitorPrice(data) {
 
 async function handleProductOverlay(data) {
   const productId = toInt(data?.product_id);
-  const marketplace = data?.marketplace === "ozon" ? "ozon" : "wb";
+  const marketplace = marketplaceCode(data?.marketplace);
   if (!productId) throw new Error("invalid product id");
   return callApi(`/api/v1/plugin/product/${marketplace}/${productId}`);
 }

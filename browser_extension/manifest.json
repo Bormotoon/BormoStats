@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "BormoStats",
   "version": "1.2.0",
-  "description": "Competitor analytics overlay for Wildberries and Ozon",
+  "description": "Competitor analytics overlay for Wildberries, Ozon, and Yandex Market",
   "permissions": ["storage"],
   "optional_host_permissions": ["https://*/*"],
   "background": {
@@ -20,6 +20,7 @@
       "matches": [
         "https://*.wildberries.ru/*",
         "https://*.ozon.ru/*",
+        "https://*.market.yandex.ru/*",
         "https://*.wildberries.by/*"
       ],
       "js": ["protocol.js", "content.js"]
