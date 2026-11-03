@@ -21,12 +21,14 @@ SPEC.loader.exec_module(worker_metrics_export)
 
 
 def test_worker_metrics_payload_contains_expected_task_series(tmp_path: Path) -> None:
-    env = {
-        **os.environ,
-        "PROMETHEUS_MULTIPROC_DIR": str(tmp_path),
-        "WORKER_PROMETHEUS_MULTIPROC_DIR": str(tmp_path),
-        "PYTHONPATH": os.pathsep.join([str(WORKERS_DIR), str(ROOT_DIR)]),
-    }
+    env = {k: v for k, v in os.environ.items() if len(v) < 4096}
+    env.update(
+        {
+            "PROMETHEUS_MULTIPROC_DIR": str(tmp_path),
+            "WORKER_PROMETHEUS_MULTIPROC_DIR": str(tmp_path),
+            "PYTHONPATH": os.pathsep.join([str(WORKERS_DIR), str(ROOT_DIR)]),
+        }
+    )
     producer_code = """
 from datetime import UTC, datetime, timedelta
 

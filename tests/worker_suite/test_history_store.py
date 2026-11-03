@@ -383,6 +383,7 @@ def test_prune_leaves_tables_alone_until_they_are_archived(monkeypatch: pytest.M
     assert [c.split()[2] for c in ch.commands] == ["raw_wb_sales"]
     assert report["tables"] == 1
     assert "raw_wb_orders" in report["skipped_unarchived"]
+    assert "raw_ym_orders" in report["skipped_unarchived"]
 
 
 def test_prune_is_unchanged_when_history_is_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -392,7 +393,7 @@ def test_prune_is_unchanged_when_history_is_disabled(monkeypatch: pytest.MonkeyP
 
     report = maintenance.prune_old_raw(120)
 
-    assert len(ch.commands) == report["tables"] == 9
+    assert len(ch.commands) == report["tables"] == 19
 
 
 def test_retired_entities_get_one_deletion_commit_with_the_reason() -> None:

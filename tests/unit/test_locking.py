@@ -24,6 +24,10 @@ class FakeRedis:
         self.expire_calls: list[tuple[str, int]] = []
         self._guard = threading.Lock()
 
+    def get(self, key: str) -> str | None:
+        with self._guard:
+            return self.values.get(str(key))
+
     def set(self, key: str, token: str, ex: int, nx: bool) -> bool:
         del ex, nx
         with self._guard:

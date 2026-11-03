@@ -197,7 +197,8 @@ def test_official_csv_headers_and_report_amounts() -> None:
                 "SHOP_SKU": "s",
                 "TRANSACTION_SUM": "-1 200,50",
                 "TRANSACTION_TYPE": "charge",
-                "OFFER_OR_SERVICE_NAME": "storage",
+                "SERVICE_TYPE": "storage",
+                "OFFER_OR_SERVICE_NAME": "Storage box",
             }
         ],
         "r",
@@ -206,6 +207,7 @@ def test_official_csv_headers_and_report_amounts() -> None:
     assert finance["amount"] == -1200.5
     assert finance["offer_id"] == "s"
     assert finance["service_type"] == "storage"
+    assert finance["product_name"] == "Storage box"
     funnel = parse_shows_sales(
         [
             {

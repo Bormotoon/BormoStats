@@ -304,7 +304,7 @@ def _ingest_sample_marketplace_data(monkeypatch: pytest.MonkeyPatch) -> date:
         ozon_collect.ozon_ads_daily(target_day=recent_ts.date().isoformat())["status"] == "success"
     )
 
-    return recent_ts.date()
+    return recent_ts.astimezone(ozon_collect.OZON_TZ).date()
 
 
 def test_clickhouse_migrations_are_idempotent(integration_runtime) -> None:

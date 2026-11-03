@@ -211,6 +211,32 @@ def test_other_modes_and_bounds() -> None:
     assert desired_price(_price_rule(max_price=480.0), _snap()).price == 480
 
 
+def test_ym_unknown_cost_and_hard_price_floors_fail_closed() -> None:
+    unknown = desired_price(
+        _price_rule(marketplace="ym", mode="seller_price", target_price=450),
+        _snap(breakeven_price=None),
+    )
+    assert unknown.price is None and unknown.reason == "unknown_cost_auto_price_blocked"
+    conflict = desired_price(
+        _price_rule(mode="seller_price", target_price=800, min_price=600, max_price=500),
+        _snap(),
+    )
+    assert conflict.price is None and conflict.reason == "invalid_price_bounds"
+    floor = plan_price_change(
+        _price_rule(mode="seller_price", target_price=100, max_step_pct=5),
+        _snap(seller_price=500, breakeven_price=480),
+        now=NOW,
+    )[0]
+    assert floor is None or floor.after_value >= 480
+
+
+def test_ym_step_limit_cannot_cross_break_even() -> None:
+    rule = _price_rule(marketplace="ym", mode="seller_price", target_price=400, max_step_pct=50)
+    snap = _snap(seller_price=500, breakeven_price=480)
+    action, _reason = plan_price_change(rule, snap, now=NOW)
+    assert action is None or action.after_value >= 480
+
+
 def test_step_limit_and_tolerance() -> None:
     assert step_limited(500.0, 700.0, 10.0) == 550
     assert step_limited(500.0, 300.0, 10.0) == 450
@@ -394,7 +420,10 @@ def test_live_changes_are_audited(
     monkeypatch.setenv("MARKETPLACE_ACTIONS_ENABLED", "1")
     ch = FakeClickHouse()
     assert execute_action(ch, _action(), lambda: result) == expected
-    ((_, params),) = ch.commands_matching("INSERT INTO sys_marketplace_actions")
+    records = ch.commands_matching("INSERT INTO sys_marketplace_actions")
+    assert len(records) == 2
+    assert records[0][1]["status"] == "pending"
+    params = records[-1][1]
     assert params["status"] == expected
     assert params["response_status"] == result.status_code
     assert len(params["idempotency_key"]) == 64

@@ -65,6 +65,17 @@ def sent(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str, str]]:
 def test_reviews_sync_auto_and_manual_replies(
     integration_runtime: Any, api_client: Any, sent: list[tuple[str, str, str]]
 ) -> None:
+    import os
+
+    from app.core.config import get_settings
+    from app.core.deps import get_app_settings
+    from app.main import app
+
+    os.environ["MARKETPLACE_ACTIONS_ENABLED"] = "true"
+    prev_override = app.dependency_overrides.get(get_app_settings)
+    app.dependency_overrides[get_app_settings] = lambda: get_settings().model_copy(
+        update={"marketplace_actions_enabled": True}
+    )
     client = integration_runtime.ch_client()
     try:
         _FakeWb.unanswered = [
@@ -134,6 +145,11 @@ def test_reviews_sync_auto_and_manual_replies(
         summary = api_client.get("/api/v1/reviews/summary").json()
         assert summary["unanswered_with_text"] == 0 and summary["sent_today"] == 2
     finally:
+        os.environ["MARKETPLACE_ACTIONS_ENABLED"] = "false"
+        if prev_override is not None:
+            app.dependency_overrides[get_app_settings] = prev_override
+        else:
+            app.dependency_overrides.pop(get_app_settings, None)
         client.close()
 
 

@@ -42,6 +42,32 @@ def test_cursor_pagination_sends_page_token(monkeypatch: pytest.MonkeyPatch) -> 
     assert fake.calls[1]["params"]["pageToken"] == "next"
 
 
+def test_pagination_continues_after_empty_intermediate_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = YmClient("secret")
+    fake = FakeHttp(
+        [
+            {"result": {"orders": [{"id": 1}], "paging": {"nextPageToken": "p2"}}},
+            {"result": {"orders": [], "paging": {"nextPageToken": "p3"}}},
+            {"result": {"orders": [{"id": 3}], "paging": {}}},
+        ]
+    )
+    monkeypatch.setattr(client, "http", fake)
+    assert [r["id"] for r in client._paged("/orders", {}, 10)] == [1, 3]
+    assert len(fake.calls) == 3
+
+
+@pytest.mark.parametrize("payload", [[], {"result": None}, {"status": "ERROR"}])
+def test_pagination_rejects_malformed_page_schema(
+    payload: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client = YmClient("secret")
+    monkeypatch.setattr(client, "http", FakeHttp([payload]))
+    with pytest.raises((ValueError, RuntimeError)):
+        client._paged("/orders", {}, 10)
+
+
 def test_orders_split_long_backfill(monkeypatch: pytest.MonkeyPatch) -> None:
     client = YmClient("secret")
     fake = FakeHttp([{"result": {"orders": []}}] * 3)
@@ -90,6 +116,22 @@ def test_report_download_selects_detail_sheet_without_double_counting(
             "https://example.org/report", "CSV", report_type="united-netting"
         )
     assert rows == [{"TRANSACTION_DATE": "2026-11-02", "TRANSACTION_SUM": "10"}]
+
+
+def test_done_report_without_file_or_rows_is_not_empty_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = YmClient("secret")
+
+    class Http(FakeHttp):
+        def get(self, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
+            return {"result": {"status": "DONE"}}
+
+    fake = Http([{"result": {"reportId": "r-1"}}])
+    monkeypatch.setattr(client, "http", fake)
+    monkeypatch.setattr(client, "report_poll_seconds", 0)
+    with pytest.raises(ValueError, match="no valid rows or file"):
+        client.generate_and_fetch_report("shows-sales", {}, timeout_seconds=0.01)
 
 
 def test_campaigns_iterate_all_pages_and_feedback_limit_is_50(

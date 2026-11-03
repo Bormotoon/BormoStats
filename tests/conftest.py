@@ -6,7 +6,22 @@ import os
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT_DIR = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture(autouse=True)
+def clean_huge_env_vars():
+    for k, v in list(os.environ.items()):
+        if len(v) > 4096:
+            del os.environ[k]
+    yield
+    for k, v in list(os.environ.items()):
+        if len(v) > 4096:
+            del os.environ[k]
+
+
 # Backend and workers both ship an ``app`` package, so they cannot share one
 # interpreter. The worker suite (tests/worker_suite) runs in a subprocess started
 # by tests/unit/test_worker_suite.py with BORMOSTATS_TEST_TARGET=workers.

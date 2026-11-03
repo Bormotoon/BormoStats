@@ -70,6 +70,89 @@ def test_rules_are_created_dry_run_with_full_uuid() -> None:
     assert params["dry_run"] == 1 and params["product_id"] == "777"
 
 
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"product_id": "", "target_cpm": 1, "max_cpm": 1},
+        {"product_id": "book-001", "target_cpm": 0.49, "max_cpm": 1},
+        {"product_id": "book-001", "target_cpm": 100, "max_cpm": 100},
+        {"product_id": "book-001", "target_cpm": 1, "max_cpm": 2, "target_position": 1},
+        {"product_id": "book-001", "target_cpm": 1, "max_cpm": 0.8},
+        {"product_id": "book-001", "target_cpm": 1, "max_cpm": 0, "placement": "search"},
+        {"product_id": "book-001", "target_cpm": 1, "max_cpm": 0, "placement": "recommendations"},
+    ],
+)
+def test_ym_bid_rules_reject_unsupported_or_invalid_fields(fields: dict[str, Any]) -> None:
+    with pytest.raises(ValueError):
+        AdRuleCreate(campaign_id="42", marketplace="ym", **fields)
+
+
+def test_ym_bid_rule_accepts_supported_percentage_and_string_sku() -> None:
+    rule = AdRuleCreate(
+        campaign_id="42", marketplace="ym", product_id="book-001", target_cpm=0.5, max_cpm=99.99
+    )
+    assert rule.product_id == "book-001"
+    default_ui_rule = AdRuleCreate(campaign_id="123", marketplace="ym", product_id="sku-1")
+    assert default_ui_rule.target_cpm == 0.5 and default_ui_rule.max_cpm == 0
+
+
+def test_ym_patch_revalidates_merged_existing_rule() -> None:
+    ch = _owned(FakeClickHouse()).on(
+        "FROM dim_ad_rule",
+        [
+            {
+                "rule_id": "r1",
+                "campaign_id": "1",
+                "marketplace": "ym",
+                "account_id": "default",
+                "target_cpm": 1.0,
+                "max_cpm": 0.0,
+                "target_position": 0,
+                "product_id": "book-001",
+                "placement": "combined",
+                "is_active": 1,
+                "dry_run": 1,
+                "created_at": datetime.now(UTC),
+                "updated_at": datetime.now(UTC),
+            }
+        ],
+    )
+    assert BidderService(ch, "org-a").update_rule("r1", AdRuleUpdate(max_cpm=0.8)) is None
+    assert not ch.commands_matching("INSERT INTO dim_ad_rule")
+
+
+def test_ym_patch_rejects_each_unsupported_field() -> None:
+    for fields in (
+        {"target_cpm": 0.49},
+        {"target_cpm": 100},
+        {"target_position": 2},
+        {"placement": "search"},
+        {"placement": "recommendations"},
+    ):
+        ch = _owned(FakeClickHouse()).on(
+            "FROM dim_ad_rule",
+            [
+                {
+                    "rule_id": "r1",
+                    "campaign_id": "1",
+                    "marketplace": "ym",
+                    "account_id": "default",
+                    "target_cpm": 1.0,
+                    "max_cpm": 0.0,
+                    "target_position": 0,
+                    "product_id": "book-001",
+                    "placement": "combined",
+                    "is_active": 1,
+                    "dry_run": 1,
+                    "created_at": datetime.now(UTC),
+                    "updated_at": datetime.now(UTC),
+                }
+            ],
+        )
+        assert BidderService(ch, "org-a").update_rule("r1", AdRuleUpdate(**fields)) is None
+        assert not ch.commands_matching("INSERT INTO dim_ad_rule")
+
+
 def test_rule_lookup_is_scoped_to_org() -> None:
     ch = FakeClickHouse()
     assert BidderService(ch, "org-a").update_rule("r1", AdRuleUpdate(target_cpm=5)) is None

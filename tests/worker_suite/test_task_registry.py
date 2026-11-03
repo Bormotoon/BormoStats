@@ -37,6 +37,8 @@ def test_worker_consumes_every_routed_queue() -> None:
     consumed = {queue.name for queue in celery_app.conf.task_queues}
     routed = {route["queue"] for route in TASK_ROUTES.values()} | {DEFAULT_TASK_QUEUE}
     assert routed <= consumed
+    assert _queue_for("tasks.ym_collect.ym_orders_recent") == "ym"
+    assert _queue_for("tasks.history.ym_catalog_snapshot") == "ym"
 
 
 def test_redeliveries_outlast_the_longest_retry_countdown() -> None:
