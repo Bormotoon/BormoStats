@@ -20,36 +20,47 @@ export default function Bidder() {
   const [saving, setSaving] = useState({});
   const [accountFilter, setAccountFilter] = useState("");
   const [error, setError] = useState("");
+  const [bodySku, setBodySku] = useState({});
 
   useEffect(() => {
+    const controller = new AbortController();
     setLoading(true);
     Promise.all([
-      safeCall(() => request("/api/v1/bidder/campaigns", { admin: true, query: { marketplace, account_id: accountId } })),
-      safeCall(() => request("/api/v1/bidder/rules", { admin: true, query: { marketplace, account_id: accountId } })),
+      safeCall(() => request("/api/v1/bidder/campaigns", { admin: true, signal: controller.signal, query: { marketplace, account_id: accountId } })),
+      safeCall(() => request("/api/v1/bidder/rules", { admin: true, signal: controller.signal, query: { marketplace, account_id: accountId } })),
     ]).then(([cRes, rRes]) => {
+      if (controller.signal.aborted) return;
       setCampaigns(cRes.ok ? cRes.data : []);
       setRules(rRes.ok ? rRes.data : []);
       setLoading(false);
     });
+    return () => controller.abort();
   }, [marketplace, accountId]);
 
-  const getRuleForCampaign = (campaignId) =>
-    rules.find((r) => r.campaign_id === campaignId);
+  const campaignKey = (campaign) => `${campaign.marketplace}:${campaign.account_id}:${campaign.campaign_id}`;
+  const getRuleForCampaign = (campaign) => rules.find(
+    (r) => r.marketplace === campaign.marketplace && r.account_id === campaign.account_id && r.campaign_id === campaign.campaign_id,
+  );
 
   const upsertRule = async (campaign, field, value) => {
-    const existing = getRuleForCampaign(campaign.campaign_id);
+    const existing = getRuleForCampaign(campaign);
+    const key = campaignKey(campaign);
+    if (campaign.marketplace === "ym" && !existing && !bodySku[key]?.trim()) {
+      setError("Укажите SKU продавца для правила Яндекс Маркета");
+      return;
+    }
     const body = {
       campaign_id: campaign.campaign_id,
       marketplace: campaign.marketplace,
       account_id: campaign.account_id,
-      target_cpm: existing?.target_cpm || 0,
-      max_cpm: existing?.max_cpm || 0,
+      target_cpm: existing?.target_cpm ?? (campaign.marketplace === "ym" ? 0.5 : 0),
+      max_cpm: existing?.max_cpm ?? 0,
       target_position: existing?.target_position || 0,
-      product_id: existing?.product_id || (campaign.marketplace === "ym" ? campaign.campaign_id : ""),
+      product_id: existing?.product_id || bodySku[campaignKey(campaign)] || campaign.campaign_id,
       [field]: value,
     };
 
-    setSaving((s) => ({ ...s, [campaign.campaign_id]: true }));
+    setSaving((s) => ({ ...s, [key]: true }));
 
     if (existing) {
       const res = await safeCall(() =>
@@ -79,7 +90,7 @@ export default function Bidder() {
       setError(res.ok ? "" : res.error);
     }
 
-    setSaving((s) => ({ ...s, [campaign.campaign_id]: false }));
+    setSaving((s) => ({ ...s, [key]: false }));
   };
 
   const deleteRule = async (ruleId) => {
@@ -132,12 +143,12 @@ export default function Bidder() {
 
       <div className="grid gap-3">
         {filtered.map((campaign) => {
-          const rule = getRuleForCampaign(campaign.campaign_id);
-          const isSaving = saving[campaign.campaign_id];
+          const rule = getRuleForCampaign(campaign);
+          const isSaving = saving[campaignKey(campaign)];
 
           return (
             <motion.div
-              key={campaign.campaign_id}
+              key={campaignKey(campaign)}
               layout
               className="md3-card-elevated p-4"
             >
@@ -166,7 +177,7 @@ export default function Bidder() {
                     <span className="font-mono">{campaign.marketplace === "ym" ? `${(rule?.target_cpm ?? 0).toFixed(2)} %` : moneyFmt(rule?.target_cpm ?? 0)}</span>
                   </label>
                   <CommitRange
-                    min={0}
+                    min={campaign.marketplace === "ym" ? 0.5 : 0}
                     max={campaign.marketplace === "ym" ? 99.99 : 500}
                     step={campaign.marketplace === "ym" ? 0.01 : 5}
                     value={rule?.target_cpm ?? 0}
@@ -174,7 +185,7 @@ export default function Bidder() {
                     className="w-full accent-[var(--color-primary)]"
                   />
                   <div className="flex justify-between text-xs text-[var(--color-on-surface-variant)] mt-0.5">
-                    <span>0</span>
+                    <span>{campaign.marketplace === "ym" ? "0,5 %" : "0"}</span>
                     <span>{campaign.marketplace === "ym" ? "99,99 %" : "500 ₽"}</span>
                   </div>
                 </div>
@@ -216,6 +227,12 @@ export default function Bidder() {
                     <span>100</span>
                   </div>
                 </div>}
+
+                {campaign.marketplace === "ym" && !rule && <label className="flex flex-col gap-1 text-xs font-semibold text-[var(--color-on-surface-variant)]">
+                  SKU продавца
+                  <input type="text" maxLength={128} value={bodySku[campaignKey(campaign)] ?? ""} onChange={(e) => setBodySku((s) => ({ ...s, [campaignKey(campaign)]: e.target.value }))} className="px-2 py-1 rounded border border-[var(--color-outline)] bg-[var(--color-surface)] font-mono" />
+                </label>}
+
 
                 <div className="flex flex-col gap-2">
                   {campaign.marketplace !== "ym" && <label className="text-xs font-semibold text-[var(--color-on-surface-variant)]">

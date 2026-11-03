@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 MARKETPLACE_PATTERN = r"^(wb|ozon|ym)$"
 ACCOUNT_ID_PATTERN = r"^[A-Za-z0-9._:-]{1,64}$"
@@ -46,16 +46,25 @@ class AdRuleCreate(BaseModel):
     max_cpm: float = Field(default=0, ge=0)
     target_position: int = Field(default=0, ge=0, le=100)
     product_id: str = Field(
-        default="",
-        max_length=64,
-        pattern=r"^[0-9]*$",
-        description="WB article (nm_id) whose bid the rule manages",
+        default="", max_length=128, description="SKU/article managed by the rule"
     )
     placement: str = Field(default="combined", pattern=PLACEMENT_PATTERN)
     dry_run: bool = Field(
         default=True,
         description="New rules only simulate bid changes until explicitly switched off",
     )
+
+    @model_validator(mode="after")
+    def _validate_marketplace_fields(self) -> AdRuleCreate:
+        validate_rule_for_marketplace(self)
+        return self
+
+    @model_validator(mode="before")
+    @classmethod
+    def _defaults_for_ym_ui(cls, values: object) -> object:
+        if isinstance(values, dict) and values.get("marketplace") == "ym":
+            return {"target_cpm": 0.5, **values}
+        return values
 
 
 class AdRuleUpdate(BaseModel):
@@ -65,3 +74,23 @@ class AdRuleUpdate(BaseModel):
     placement: str | None = Field(default=None, pattern=PLACEMENT_PATTERN)
     is_active: bool | None = None
     dry_run: bool | None = None
+
+
+def validate_rule_for_marketplace(rule: AdRule | AdRuleCreate) -> None:
+    marketplace = rule.marketplace.lower()
+    value = rule.product_id or ""
+    if marketplace == "ym":
+        if not value:
+            raise ValueError("YM product_id is required")
+        if not 0.5 <= rule.target_cpm <= 99.99:
+            raise ValueError("YM bids must be between 0.5 and 99.99 percent")
+        if rule.max_cpm != 0 and not 0.5 <= rule.max_cpm <= 99.99:
+            raise ValueError("YM max bid must be 0 (unbounded) or between 0.5 and 99.99")
+        if rule.max_cpm and rule.max_cpm < rule.target_cpm:
+            raise ValueError("YM max bid must not be below target bid")
+        if rule.target_position != 0 or rule.placement != "combined":
+            raise ValueError("YM supports only combined placement without target_position")
+    elif value and not value.isdigit():
+        raise ValueError("product_id must be numeric for this marketplace")
+    elif value and len(value) > 128:
+        raise ValueError("product_id too long")

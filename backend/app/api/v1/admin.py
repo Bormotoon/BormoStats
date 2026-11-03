@@ -50,7 +50,7 @@ def backfill(
     audit: AdminRequestContextDependency,
 ) -> ActionQueueResponse:
     service = AdminService(client, settings)
-    return service.queue_backfill(payload=payload, audit=audit)
+    return service.queue_ym_backfill_chain(payload=payload, audit=audit)
 
 
 @router.post("/transforms/recent", response_model=ActionQueueResponse)

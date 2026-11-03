@@ -32,6 +32,7 @@ export default function Integrations() {
   const [revealedSecret, setRevealedSecret] = useState(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [stockConfig, setStockConfig] = useState(null);
 
   useEffect(() => {
     setLoading(true);
@@ -39,10 +40,12 @@ export default function Integrations() {
       request("/api/v1/integrations/subscriptions").then(r => r || []).catch(() => []),
       request("/api/v1/integrations/logs").then(r => r || []).catch(() => []),
       request("/api/v1/integrations/events").then(r => r || []).catch(() => []),
-    ]).then(([s, l, e]) => {
+      request("/api/v1/integrations/stock/config").catch(() => null),
+    ]).then(([s, l, e, stock]) => {
       setSubs(s);
       setLogs(l);
       setEventTypes(e);
+      setStockConfig(stock);
       setLoading(false);
     });
   }, []);
@@ -72,8 +75,8 @@ export default function Integrations() {
       const parts = line.split(",");
       return {
         sku: parts[0].trim(),
-        stock: parseInt(parts[1] || "0", 10),
-        warehouse_id: parseInt(parts[2] || warehouseInput || "0", 10) || null,
+        stock: Number(parts[1] || "0"),
+        warehouse_id: marketplace === "ym" && stockConfig?.ym_stock_mode !== "partner" ? null : (parseInt(parts[2] || warehouseInput || "0", 10) || null),
       };
     });
     if (items.length === 0) return;
@@ -178,15 +181,15 @@ export default function Integrations() {
               Отправить остатки на маркетплейсы
             </h3>
             <p className="text-xs text-[var(--color-on-surface-variant)]">
-              Формат: каждая строка — <code>sku, количество, warehouse_id</code>
+              Формат: <code>sku, количество</code>{marketplace === "ym" ? (stockConfig?.ym_stock_mode === "partner" ? ", partner warehouse id" : "; адресат: настроенная кампания и группа складов") : ", warehouse_id"}
             </p>
             <textarea
               className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline)] bg-[var(--color-surface)] text-sm min-h-[100px] font-mono"
               value={skuInput}
               onChange={(e) => setSkuInput(e.target.value)}
-              placeholder="123456, 50, 7543&#10;789012, 25, 7543"
+              placeholder={marketplace === "ym" && stockConfig?.ym_stock_mode !== "partner" ? "article-01, 50&#10;article-02, 25" : "article-01, 50, 7543&#10;article-02, 25, 7543"}
             />
-            <div className="flex gap-2 items-center">
+            {(marketplace !== "ym" || stockConfig?.ym_stock_mode === "partner") && <div className="flex gap-2 items-center">
               <input
                 className="w-32 px-2 py-1 rounded border border-[var(--color-outline)] bg-[var(--color-surface)] text-sm"
                 value={stockInput}
@@ -199,6 +202,8 @@ export default function Integrations() {
                 onChange={(e) => setWarehouseInput(e.target.value)}
                 placeholder={marketplace === "ym" ? "ID склада Я.Маркета" : "ID склада WB"}
               />
+            </div>}
+            <div>
               <button
                 onClick={handlePushStock}
                 className="flex items-center gap-1 px-4 py-1.5 rounded-full bg-[var(--color-primary)] text-white text-sm font-medium"

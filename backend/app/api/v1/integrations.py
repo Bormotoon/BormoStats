@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from app.api.errors import API_ERROR_RESPONSES
-from app.core.auth import AdminAuth, AuthContext, MarketplaceExecuteAuth, ViewerAuth
+from app.core.auth import AdminAuth, AuthContext, ManagerAuth, MarketplaceExecuteAuth, ViewerAuth
 from app.core.deps import ChClientDependency, SettingsDependency
 from app.models.integrations import (
     MAX_STOCK_UPDATE_ITEMS,
@@ -42,7 +42,21 @@ def stock_update(
     auth: MarketplaceExecuteAuth,
     marketplace: str | None = Query(default=None, pattern=r"^(wb|ozon|ym)$"),
 ) -> list[StockUpdateResult]:
+    if not settings.marketplace_actions_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="marketplace actions are disabled",
+        )
     return _svc(ch, settings, auth).push_stock(body, marketplace)
+
+
+@router.get("/stock/config")
+def stock_config(settings: SettingsDependency, auth: ManagerAuth) -> dict[str, str]:
+    return {
+        "ym_stock_mode": settings.ym_stock_mode,
+        "ym_campaign_id": settings.ym_campaign_id,
+        "ym_account_id": settings.ym_account_id or settings.ym_campaign_id or "default",
+    }
 
 
 @router.get("/events")

@@ -52,7 +52,10 @@ class AiService:
 
     def generate_description(self, name: str, brand: str, category: str) -> str | None:
         """Generate an SEO-optimized product description."""
-        system = "Ты — эксперт по SEO-оптимизации карточек товаров на Wildberries и Ozon."
+        system = (
+            "Ты — эксперт по SEO-оптимизации карточек товаров на "
+            "Wildberries, Ozon и Яндекс Маркете."
+        )
         user = (
             f"Напиши SEO-оптимизированное описание товара на русском языке.\n"
             f"Название: {name}\nБренд: {brand}\nКатегория: {category}\n\n"

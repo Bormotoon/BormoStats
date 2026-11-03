@@ -147,6 +147,7 @@ class AdminService:
             ("ym", "sales"): "tasks.ym_collect.ym_orders_backfill_days",
             ("ym", "funnel"): "tasks.ym_collect.ym_funnel_backfill_days",
             ("ym", "finance"): "tasks.ym_collect.ym_finance_backfill_days",
+            ("ym", "ads"): "tasks.ym_collect.ym_ads_backfill_days",
             ("marts", "build"): "tasks.marts.build_marts_backfill_days",
         }
         task_name = mapping[(payload.marketplace.value, payload.dataset.value)]
@@ -158,6 +159,19 @@ class AdminService:
             audit=audit,
             parameters=payload.model_dump(mode="json"),
         )
+
+    def queue_ym_backfill_chain(
+        self, payload: BackfillRequest, audit: AdminRequestContext
+    ) -> ActionQueueResponse:
+        if payload.marketplace.value == "ym":
+            return self._queue_task(
+                action="backfill_pipeline",
+                task_name="tasks.ym_collect.ym_backfill_pipeline",
+                args=[payload.dataset.value, payload.days],
+                audit=audit,
+                parameters=payload.model_dump(mode="json"),
+            )
+        return self.queue_backfill(payload, audit)
 
     def queue_transform_recent(
         self,

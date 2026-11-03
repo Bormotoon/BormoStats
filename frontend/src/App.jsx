@@ -23,6 +23,8 @@ import TaskRuns from "./pages/TaskRuns.jsx";
 import AdminActions from "./pages/AdminActions.jsx";
 import System from "./pages/System.jsx";
 import Pim from "./pages/Pim.jsx";
+import Taxes from "./pages/Taxes.jsx";
+import SalesMonthly from "./pages/SalesMonthly.jsx";
 import Integrations from "./pages/Integrations.jsx";
 import { loadSettings, getTheme, getSettings, subscribeSettings } from "./utils/api.js";
 loadSettings();
@@ -47,6 +49,8 @@ const PAGES = {
   adminActions: AdminActions,
   system: System,
   pim: Pim,
+  taxes: Taxes,
+  salesMonthly: SalesMonthly,
   integrations: Integrations,
 };
 

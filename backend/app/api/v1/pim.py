@@ -19,7 +19,7 @@ from app.models.pim import (
 )
 from app.services.ai_service import AiService
 from app.services.pim_service import PimService
-from fastapi import APIRouter, Body, HTTPException, Query, status
+from fastapi import APIRouter, Body, HTTPException, Path, Query, status
 
 router = APIRouter(prefix="/pim", tags=["pim"], responses=API_ERROR_RESPONSES)
 
@@ -112,12 +112,12 @@ def list_products(
 
 @router.patch("/products/{marketplace}/{account_id}/{product_id}")
 def update_product(
-    marketplace: str,
-    account_id: str,
-    product_id: str,
     body: ProductPimUpdate,
     ch: ChClientDependency,
     auth: CatalogWriteAuth,
+    marketplace: str = Path(pattern=r"^(wb|ozon|ym)$"),
+    account_id: str = Path(min_length=1, max_length=64),
+    product_id: str = Path(min_length=1, max_length=64),
 ) -> ProductPim:
     prod = _svc(ch, auth).update_product(marketplace, account_id, product_id, body)
     if prod is None:

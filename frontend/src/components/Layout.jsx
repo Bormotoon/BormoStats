@@ -30,6 +30,8 @@ const NAV_ITEMS = [
   { id: "history", icon: ClockCounterClockwise },
   { id: "watermarks", icon: Drop },
   { id: "pim", icon: Notepad },
+  { id: "taxes", icon: CurrencyRub },
+  { id: "salesMonthly", icon: ShoppingCart },
   { id: "integrations", icon: Plugs },
   { id: "taskRuns", icon: ListChecks },
   { id: "adminActions", icon: ShieldCheck },

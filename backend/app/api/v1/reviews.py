@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.api.errors import API_ERROR_RESPONSES
-from app.core.auth import AdminAuth, AuthContext, ManagerAuth
+from app.core.auth import AdminAuth, AuthContext, ManagerAuth, MarketplaceExecuteAuth
 from app.core.config import Settings
 from app.core.deps import ChClientDependency, SettingsDependency
 from app.models.reviews import (
@@ -49,6 +49,7 @@ def list_reviews(
     auth: ManagerAuth,
     settings: SettingsDependency,
     marketplace: str | None = Query(default=None, pattern=r"^(wb|ozon|ym)$"),
+    account_id: str | None = Query(default=None, max_length=64),
     review_status: ReviewStatus = Query(default="unanswered", alias="status"),
     has_text: bool | None = Query(default=None),
     rating: int | None = Query(default=None, ge=1, le=5),
@@ -59,6 +60,7 @@ def list_reviews(
     """Reviews, newest first; ``status`` is unanswered (default), answered or all."""
     return _svc(ch, auth, settings).list_reviews(
         marketplace=marketplace,
+        account_id=account_id,
         status=review_status,
         has_text=has_text,
         rating=rating,
@@ -86,7 +88,7 @@ def sync_reviews(auth: ManagerAuth, settings: SettingsDependency) -> dict[str, s
 def reply_to_review(
     body: ReplyBody,
     ch: ChClientDependency,
-    auth: ManagerAuth,
+    auth: MarketplaceExecuteAuth,
     settings: SettingsDependency,
     marketplace: str = MarketplacePath,
     review_id: str = ReviewIdPath,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from app.api.errors import API_ERROR_RESPONSES
 from app.core.auth import AdminAuth, AuthContext, ManagerAuth, Scope, ensure_scope
-from app.core.deps import ChClientDependency
+from app.core.deps import ChClientDependency, SettingsDependency
 from app.models.bidder import AdCampaign, AdRule, AdRuleCreate, AdRuleUpdate
 from app.models.marketplace_actions import MarketplaceAction
 from app.services.bidder_service import BidderService
@@ -48,8 +48,11 @@ def list_rules(
 def create_rule(
     body: AdRuleCreate,
     ch: ChClientDependency,
+    settings: SettingsDependency,
     auth: AdminAuth,
 ) -> AdRule:
+    if not settings.marketplace_actions_enabled:
+        body = body.model_copy(update={"dry_run": True})
     if body.dry_run is False:
         ensure_scope(auth, Scope.execute_marketplace, "disable dry-run")
     return _svc(ch, auth).create_rule(body)
@@ -60,8 +63,18 @@ def update_rule(
     rule_id: str,
     body: AdRuleUpdate,
     ch: ChClientDependency,
+    settings: SettingsDependency,
     auth: AdminAuth,
 ) -> AdRule:
+    existing = _svc(ch, auth).get_rule(rule_id)
+    if existing is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="rule not found")
+    merged_dry_run = body.dry_run if body.dry_run is not None else existing.dry_run
+    if not settings.marketplace_actions_enabled and not merged_dry_run:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="marketplace actions are disabled; rule must remain dry-run",
+        )
     if body.dry_run is False:
         ensure_scope(auth, Scope.execute_marketplace, "disable dry-run")
     rule = _svc(ch, auth).update_rule(rule_id, body)

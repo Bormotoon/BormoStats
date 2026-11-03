@@ -21,6 +21,7 @@ BACKFILL_MAX_DAYS: dict[tuple[str, str], int] = {
     ("ym", "sales"): 365,
     ("ym", "funnel"): 365,
     ("ym", "finance"): 730,
+    ("ym", "ads"): 730,
     ("marts", "build"): 730,
 }
 
@@ -39,6 +40,7 @@ class BackfillDataset(StrEnum):
     POSTINGS = "postings"
     FINANCE = "finance"
     BALANCE = "balance"
+    ADS = "ads"
     BUILD = "build"
 
 

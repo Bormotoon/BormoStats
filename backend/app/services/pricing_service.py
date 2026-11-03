@@ -103,7 +103,8 @@ class PricingService:
         clause, params = self._scope("p", None, account_id)
         rows = query_dicts(
             self._ch,
-            "SELECT p.offer_id AS offer_id, anyIf(p.title, p.title IS NOT NULL) AS title,"
+            "SELECT p.offer_id AS offer_id,"
+            " anyIf(p.title, p.title IS NOT NULL) AS title,"
             " anyIf(p.image_url, p.image_url IS NOT NULL) AS image_url,"
             " anyIf(p.seller_price, p.marketplace = 'wb') AS wb_seller_price,"
             " anyIf(p.buyer_price, p.marketplace = 'wb') AS wb_buyer_price,"
@@ -111,8 +112,9 @@ class PricingService:
             " anyIf(p.buyer_price, p.marketplace = 'ozon') AS ozon_buyer_price,"
             " anyIf(p.seller_price, p.marketplace = 'ym') AS ym_seller_price,"
             " anyIf(p.buyer_price, p.marketplace = 'ym') AS ym_buyer_price,"
-            " countIf(p.marketplace = 'wb') AS on_wb, countIf(p.marketplace = 'ozon') AS on_ozon,"
-            " countIf(p.marketplace = 'ym') AS on_ym"
+            " uniqExactIf(p.account_id, p.marketplace = 'wb') AS on_wb,"
+            " uniqExactIf(p.account_id, p.marketplace = 'ozon') AS on_ozon,"
+            " uniqExactIf(p.account_id, p.marketplace = 'ym') AS on_ym"
             " FROM mrt_price_current AS p FINAL"
             f"{clause}"
             " GROUP BY p.offer_id ORDER BY p.offer_id LIMIT 20000",

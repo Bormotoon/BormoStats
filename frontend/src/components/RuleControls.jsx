@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { request, safeCall } from "../utils/api.js";
 
 const STATUS_STYLES = {
+  confirmed: "bg-emerald-100 text-emerald-800",
   applied: "bg-green-100 text-green-700",
+  pending: "bg-yellow-100 text-yellow-800",
   simulated: "bg-blue-100 text-blue-700",
   blocked_kill_switch: "bg-amber-100 text-amber-800",
   failed: "bg-red-100 text-red-700",

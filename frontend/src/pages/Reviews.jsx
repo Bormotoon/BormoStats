@@ -178,6 +178,7 @@ function ReviewCard({ review, onReplied }) {
 function ReviewList({ summary, onChanged }) {
   const [searchParams] = useSearchParams();
   const marketplace = searchParams.get("marketplace") || "";
+  const accountId = searchParams.get("accountId") || "";
   const [filters, setFilters] = useState({ status: "unanswered", has_text: "true", rating: "", q: "" });
   const [state, setState] = useState({ loading: true, items: [], total: 0, error: "" });
   const [offset, setOffset] = useState(0);
@@ -185,7 +186,7 @@ function ReviewList({ summary, onChanged }) {
   const load = useCallback(
     (nextOffset = 0) => {
       setState((s) => ({ ...s, loading: true, error: "" }));
-      const query = { ...filters, marketplace, limit: PAGE, offset: nextOffset };
+      const query = { ...filters, marketplace, account_id: accountId || undefined, limit: PAGE, offset: nextOffset };
       safeCall(() => request("/api/v1/reviews", { query, admin: true })).then((res) => {
         setOffset(nextOffset);
         setState((s) =>
@@ -195,7 +196,7 @@ function ReviewList({ summary, onChanged }) {
         );
       });
     },
-    [filters, marketplace]
+    [filters, marketplace, accountId]
   );
 
   useEffect(() => { load(0); }, [load]);

@@ -157,7 +157,9 @@ function DiscountCell({ row }) {
     const title =
       row.marketplace === "ozon"
         ? "Нет продаж товара за 60 дней. Скидку Ozon («баллы за скидки») Ozon даёт каждому товару свою, у новых её почти нет — на витрине, скорее всего, цена со скидкой продавца"
-        : "Нет продаж за последние 30 дней, скидку не на чем измерить";
+        : row.marketplace === "ym"
+          ? "Нет продаж или данных витрины за 30 дней: скидка софинансирования Яндекс Маркета пока не измерена"
+          : "Нет продаж за последние 30 дней, скидку не на чем измерить";
     return <span title={title}><Dash /></span>;
   }
   const estimate = row.mp_discount_scope !== "product";
@@ -205,7 +207,7 @@ function TargetCell({ row, onSave, onFallback, fromFile }) {
               {numberFmt(gap, 1)}%
             </span>
           )}
-          <span className="block" title={noDiscount ? (row.marketplace === "ozon" ? "Скидку Ozon нужно измерить хотя бы на одной продаже этого товара" : "Скидку маркетплейса нужно измерить хотя бы на 3 продажах этого товара") : undefined}>
+          <span className="block" title={noDiscount ? (row.marketplace === "ozon" ? "Скидку Ozon нужно измерить хотя бы на одной продаже этого товара" : row.marketplace === "ym" ? "Скидку софинансирования Яндекс Маркета нужно измерить хотя бы на одной продаже или цене витрины этого товара" : "Скидку маркетплейса нужно измерить хотя бы на 3 продажах этого товара") : undefined}>
             {ruleStatus(row)}
           </span>
           {noDiscount && ruleCanAct(row) && fallback.note && <span className="block">{fallback.note}</span>}
@@ -481,7 +483,7 @@ function MarketplaceChoice({ rows, onChoose }) {
   return (
     <div className="space-y-3">
       <p className="text-sm text-[var(--color-on-surface-variant)]">Выберите площадку, на которой будете смотреть и менять цены.</p>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
         {MARKETPLACES.map((m) => {
           const cards = rows.filter((r) => r.marketplace === m.id);
           const targets = cards.filter((r) => r.rule_id && r.mode === "buyer_price" && r.target_price).length;

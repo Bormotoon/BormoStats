@@ -99,6 +99,7 @@ class ReviewService:
         self,
         *,
         marketplace: str | None,
+        account_id: str | None = None,
         status: str,
         has_text: bool | None,
         rating: int | None,
@@ -109,6 +110,9 @@ class ReviewService:
         if marketplace:
             where.append("r.marketplace = {mp:String}")
             params["mp"] = marketplace
+        if account_id:
+            where.append("r.account_id = {aid:String}")
+            params["aid"] = account_id
         if status == "unanswered":
             where.append(f"NOT {_ANSWERED}")
         elif status == "answered":
@@ -132,6 +136,7 @@ class ReviewService:
         self,
         *,
         marketplace: str | None = None,
+        account_id: str | None = None,
         status: str = "unanswered",
         has_text: bool | None = None,
         rating: int | None = None,
@@ -140,7 +145,12 @@ class ReviewService:
         offset: int = 0,
     ) -> ReviewPage:
         clause, params = self._where(
-            marketplace=marketplace, status=status, has_text=has_text, rating=rating, query=query
+            marketplace=marketplace,
+            account_id=account_id,
+            status=status,
+            has_text=has_text,
+            rating=rating,
+            query=query,
         )
         rows = query_dicts(
             self._ch,
@@ -204,9 +214,14 @@ class ReviewService:
         s = self._settings
         ym_account = s.ym_account_id or s.ym_campaign_id or "default"
         error = (
-            "Yandex Market account is not configured for this review"
-            if marketplace == "ym" and review.account_id != ym_account
-            else send_reply(
+            "Marketplace actions are disabled"
+            if not self._settings.marketplace_actions_enabled
+            else None
+        )
+        if error is None and marketplace == "ym" and review.account_id != ym_account:
+            error = "Yandex Market account is not configured for this review"
+        if error is None:
+            error = send_reply(
                 marketplace,
                 review_id,
                 text,
@@ -216,7 +231,6 @@ class ReviewService:
                 ym_api_key=s.ym_api_key_reviews or s.ym_api_key,
                 ym_business_id=s.ym_business_id,
             )
-        )
         record_reply(
             self._ch,
             organization_id=self._org,

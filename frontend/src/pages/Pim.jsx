@@ -21,11 +21,12 @@ export default function Pim() {
 
   useEffect(() => {
     setLoading(true);
+    const marketplace = searchParams.get("marketplace") || undefined;
     const accountId = searchParams.get("accountId") || "";
     const q = searchQuery || undefined;
 
     Promise.all([
-      request("/api/v1/pim/products", { query: { account_id: accountId, q } }).then(r => r || []).catch(() => []),
+      request("/api/v1/pim/products", { query: { marketplace, account_id: accountId, q } }).then(r => r || []).catch(() => []),
       request("/api/v1/pim/brands").then(r => r || []).catch(() => []),
       request("/api/v1/pim/categories").then(r => r || []).catch(() => []),
     ]).then(([p, b, c]) => {
@@ -36,8 +37,10 @@ export default function Pim() {
     });
   }, [searchParams, searchQuery]);
 
+  const productKey = (product) => `${product.marketplace}:${product.account_id}:${product.product_id}`;
+
   const handleEdit = (product) => {
-    setEditingId(product.product_id);
+    setEditingId(productKey(product));
     setDraft({ ...product });
   };
 
@@ -61,7 +64,7 @@ export default function Pim() {
       body,
     }).catch(() => null);
     if (updated) {
-      setProducts((prev) => prev.map((p) => (p.product_id === product.product_id ? updated : p)));
+      setProducts((prev) => prev.map((p) => (productKey(p) === productKey(product) ? updated : p)));
     }
     setEditingId(null);
   };
@@ -127,9 +130,10 @@ export default function Pim() {
           ) : (
             <div className="space-y-2">
               {products.map((product) => {
-                const isEditing = editingId === product.product_id;
+                const key = productKey(product);
+                const isEditing = editingId === key;
                 return (
-                  <div key={product.product_id} className="md3-card-elevated p-4">
+                  <div key={key} className="md3-card-elevated p-4">
                     {isEditing ? (
                       <div className="space-y-3">
                         <div className="flex items-center gap-2 text-xs text-[var(--color-on-surface-variant)]">

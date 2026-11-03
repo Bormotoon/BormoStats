@@ -169,28 +169,75 @@ class IntegrationsService:
                 success=False,
                 errors=["YM_API_KEY or YM_CAMPAIGN_ID not configured"],
             )
-        by_warehouse: dict[int, list[tuple[str, int]]] = defaultdict(list)
         errors: list[str] = []
-        for item in items:
-            if item.warehouse_id is None:
-                errors.append(f"{item.sku}: warehouse_id is required for Yandex Market")
-            else:
-                by_warehouse[item.warehouse_id].append((item.sku, item.stock))
-        if not by_warehouse:
-            return StockUpdateResult(marketplace="ym", success=False, errors=errors)
-        with YmActionsClient(
-            api_key=settings.ym_api_key,
-            business_id=settings.ym_business_id,
-            campaign_id=settings.ym_campaign_id,
-            stock_mode=settings.ym_stock_mode,
-        ) as client:
-            for warehouse_id, stocks in by_warehouse.items():
-                result = client.set_stocks(warehouse_id, stocks)
+        stock_mode = getattr(settings, "ym_stock_mode", "grouped")
+        if stock_mode == "partner":
+            warehouses = self._ch.query(
+                "SELECT DISTINCT warehouse_id FROM raw_ym_stocks FINAL"
+                " WHERE account_id = {aid:String}",
+                parameters={"aid": account_id},
+            ).result_rows
+            owned_warehouse_ids = {int(row[0]) for row in warehouses}
+            by_warehouse: dict[int, list[tuple[str, int]]] = defaultdict(list)
+            for item in items:
+                if item.warehouse_id is None:
+                    errors.append(f"{item.sku}: warehouse_id is required for Yandex Market")
+                elif item.warehouse_id not in owned_warehouse_ids:
+                    errors.append(f"{item.sku}: warehouse does not belong to configured campaign")
+                else:
+                    by_warehouse[item.warehouse_id].append((item.sku, item.stock))
+            if errors:
+                return StockUpdateResult(marketplace="ym", success=False, errors=errors)
+            if not by_warehouse:
+                return StockUpdateResult(marketplace="ym", success=False, errors=errors)
+            with YmActionsClient(
+                api_key=settings.ym_api_key,
+                business_id=settings.ym_business_id,
+                campaign_id=settings.ym_campaign_id,
+                stock_mode=stock_mode,
+            ) as client:
+                for warehouse_id, stocks in by_warehouse.items():
+                    result = client.set_stocks(warehouse_id, stocks)
+                    if not result.ok:
+                        errors.append(
+                            f"warehouse {warehouse_id}: HTTP {result.status_code} {result.body}"
+                        )
+            return StockUpdateResult(marketplace="ym", success=not errors, errors=errors)
+        else:
+            duplicate_skus = sorted(
+                {item.sku for item in items if sum(other.sku == item.sku for other in items) > 1}
+            )
+            if duplicate_skus:
+                return StockUpdateResult(
+                    marketplace="ym",
+                    success=False,
+                    errors=[
+                        f"Duplicate SKU in grouped stock request: {sku}" for sku in duplicate_skus
+                    ],
+                )
+            if any(item.warehouse_id is not None for item in items):
+                return StockUpdateResult(
+                    marketplace="ym",
+                    success=False,
+                    errors=[
+                        "Grouped YM destination is campaign-wide; warehouse_id is not accepted"
+                    ],
+                )
+            stocks_all = [(item.sku, item.stock) for item in items]
+            if not stocks_all:
+                return StockUpdateResult(
+                    marketplace="ym", success=False, errors=["No items to update"]
+                )
+            with YmActionsClient(
+                api_key=settings.ym_api_key,
+                business_id=settings.ym_business_id,
+                campaign_id=settings.ym_campaign_id,
+                stock_mode=stock_mode,
+            ) as client:
+                result = client.set_stocks(0, stocks_all)
                 if not result.ok:
-                    errors.append(
-                        f"warehouse {warehouse_id}: HTTP {result.status_code} {result.body}"
-                    )
-        return StockUpdateResult(marketplace="ym", success=not errors, errors=errors)
+                    errors.append(f"HTTP {result.status_code} {result.body}")
+            return StockUpdateResult(marketplace="ym", success=not errors, errors=errors)
 
     # -- Webhook Subscriptions ---------------------------------------------------
 

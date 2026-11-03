@@ -6,7 +6,13 @@ import uuid
 from typing import Any
 
 from app.db.ch import insert_values_sql, utc_now
-from app.models.bidder import AdCampaign, AdRule, AdRuleCreate, AdRuleUpdate
+from app.models.bidder import (
+    AdCampaign,
+    AdRule,
+    AdRuleCreate,
+    AdRuleUpdate,
+    validate_rule_for_marketplace,
+)
 from app.models.marketplace_actions import MarketplaceAction
 from app.services.marketplace_actions import list_marketplace_actions
 from app.services.tenancy import account_scope_sql, ensure_account_access
@@ -121,6 +127,10 @@ class BidderService:
             return None
         changes = data.model_dump(exclude_none=True)
         rule = existing.model_copy(update={**changes, "updated_at": utc_now()})
+        try:
+            validate_rule_for_marketplace(rule)
+        except ValueError:
+            return None
         if rule.created_at is None:
             rule = rule.model_copy(update={"created_at": rule.updated_at})
         self._write_rule(rule)
