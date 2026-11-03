@@ -32,11 +32,18 @@ class LockHandle:
     acquired_monotonic: float = field(default_factory=time.monotonic)
     renewals: int = 0
     lost: bool = False
+    _redis: Redis | None = field(default=None, repr=False)
 
     def held_seconds(self) -> float:
         return time.monotonic() - self.acquired_monotonic
 
     def ensure_held(self) -> None:
+        if self._redis is not None and hasattr(self._redis, "get"):
+            current = self._redis.get(self.key)
+            if isinstance(current, bytes):
+                current = current.decode("utf-8")
+            if current != self.token:
+                self.lost = True
         if self.lost:
             raise LockLostError(f"lock lost for {self.key}")
 
@@ -60,7 +67,9 @@ def acquire_lock(
     while True:
         acquired = redis_client.set(lock_key, token, ex=ttl_seconds, nx=True)
         if acquired:
-            return LockHandle(key=lock_key, token=token, ttl_seconds=ttl_seconds)
+            return LockHandle(
+                key=lock_key, token=token, ttl_seconds=ttl_seconds, _redis=redis_client
+            )
         if wait_timeout_seconds == 0 or time.monotonic() >= deadline:
             raise LockNotAcquiredError(f"could not acquire lock {lock_key}")
         time.sleep(0.5)

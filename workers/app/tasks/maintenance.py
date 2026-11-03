@@ -51,6 +51,16 @@ def prune_old_raw(days: int = 120) -> dict[str, Any]:
         ("raw_ozon_stocks", "snapshot_ts"),
         ("raw_ozon_ads_daily", "day"),
         ("raw_ozon_finance_ops", "operation_ts"),
+        ("raw_ym_orders", "created_at"),
+        ("raw_ym_order_stats", "created_at"),
+        ("raw_ym_delivered_snapshots", "updated_at"),
+        ("raw_ym_stocks", "snapshot_ts"),
+        ("raw_ym_prices", "snapshot_ts"),
+        ("raw_ym_tariff_quotes", "snapshot_ts"),
+        ("raw_ym_offer_mappings", "ingested_at"),
+        ("raw_ym_funnel", "day"),
+        ("raw_ym_ads", "day"),
+        ("raw_ym_finance", "event_date"),
     ]
     pruned = 0
     unarchived: list[str] = []

@@ -18,6 +18,7 @@ import httpx
 import structlog
 from app.utils.celery_helpers import shared_task
 from app.utils.locking import LockNotAcquiredError, lock_scope
+from app.utils.marketplace_actions import actions_enabled
 from app.utils.runtime import get_ch_client, get_redis_client, log_task_run, new_run_context
 
 from collectors.common.http_client import CircuitOpenError
@@ -150,6 +151,47 @@ def _fill_ozon_names(ch: Any, account_id: str, rows: list[dict[str, Any]]) -> No
         row["offer_id"], row["product_name"] = offer, title
 
 
+def _fill_ym_names(ch: Any, account_id: str, rows: list[dict[str, Any]]) -> None:
+    """Enrich YM feedbacks with missing article or title from dim_product."""
+    ids = sorted(
+        {
+            val
+            for r in rows
+            for val in (str(r.get("product_id") or ""), str(r.get("offer_id") or ""))
+            if val
+        }
+    )
+    if not ids or not hasattr(ch, "query"):
+        return
+    try:
+        found = ch.query(
+            "SELECT product_id, anyLast(offer_id), anyLast(title) FROM dim_product FINAL"
+            " WHERE marketplace = 'ym' AND account_id = {aid:String}"
+            " AND (product_id IN {ids:Array(String)} OR offer_id IN {ids:Array(String)})"
+            " GROUP BY product_id",
+            parameters={"aid": account_id, "ids": ids},
+        ).result_rows
+    except Exception:
+        return
+    by_product = {str(pid): (str(offer or ""), str(title or "")) for pid, offer, title in found}
+    by_offer = {str(offer): (str(pid), str(title or "")) for pid, offer, title in found if offer}
+    for row in rows:
+        pid = str(row.get("product_id") or "")
+        offer = str(row.get("offer_id") or "")
+        if pid in by_product:
+            cat_offer, cat_title = by_product[pid]
+            if not offer and cat_offer:
+                row["offer_id"] = cat_offer
+            if not row.get("product_name") and cat_title:
+                row["product_name"] = cat_title
+        elif offer in by_offer:
+            cat_pid, cat_title = by_offer[offer]
+            if (not pid or pid == offer) and cat_pid:
+                row["product_id"] = cat_pid
+            if not row.get("product_name") and cat_title:
+                row["product_name"] = cat_title
+
+
 def collect_ym(ch: Any, account_id: str, now: datetime) -> tuple[str, str, int]:
     key = os.getenv("YM_API_KEY_REVIEWS", "") or os.getenv("YM_API_KEY", "")
     business = os.getenv("YM_BUSINESS_ID", "")
@@ -159,6 +201,7 @@ def collect_ym(ch: Any, account_id: str, now: datetime) -> tuple[str, str, int]:
         rows = [
             parse_ym_feedback(i, account_id=account_id, synced_at=now) for i in client.feedbacks()
         ]
+    _fill_ym_names(ch, account_id, rows)
     _insert_reviews(ch, rows)
     unanswered = sum(not row["is_answered"] for row in rows)
     return STATUS_OK, f"загружено {len(rows)}, неотвеченных {unanswered}", unanswered
@@ -224,6 +267,9 @@ def pending_auto_reviews(ch: Any, organization_id: str, limit: int) -> list[dict
 
 
 def auto_reply(ch: Any, organization_id: str, budget: int, stats: Counter[str]) -> int:
+    if not _auto_reply_actions_enabled():
+        stats["auto_blocked_actions_disabled"] += 1
+        return 0
     settings = load_settings(ch, organization_id)
     if not settings.auto_enabled or not any(settings.mode_for(r) != "off" for r in settings.modes):
         return 0
@@ -269,6 +315,11 @@ def auto_reply(ch: Any, organization_id: str, budget: int, stats: Counter[str]) 
             if not error:
                 sent += 1
     return sent
+
+
+def _auto_reply_actions_enabled() -> bool:
+    """Keep the write switch check local and easy to assert before any API client call."""
+    return actions_enabled()
 
 
 @shared_task(name=TASK_NAME)

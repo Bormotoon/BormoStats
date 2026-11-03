@@ -93,6 +93,22 @@ def _run_transform(days: int, task_name: str) -> dict[str, int | str]:
             client.command(_load("sync_dim_product_ozon.sql"), parameters={"days": max(days, 30)})
             client.command(_load("sync_dim_product_ym.sql"))
             client.command(_load("sync_dim_product_catalog.sql"))
+            client.command(
+                """
+                ALTER TABLE dim_product DELETE
+                WHERE marketplace = 'ym'
+                  AND offer_id != ''
+                  AND product_id = toString(cityHash64(offer_id))
+                  AND (account_id, offer_id) IN (
+                    SELECT account_id, offer_id
+                    FROM dim_product FINAL
+                    WHERE marketplace = 'ym'
+                      AND offer_id != ''
+                      AND product_id != toString(cityHash64(offer_id))
+                  )
+                """,
+                settings=SYNC_MUTATION,
+            )
         log_task_run(
             client,
             task_name,

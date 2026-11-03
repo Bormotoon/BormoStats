@@ -57,7 +57,9 @@ from app.utils.events import emit_event
 from app.utils.locking import LockNotAcquiredError, lock_scope
 from app.utils.marketplace_actions import (
     STATUS_APPLIED,
+    STATUS_CONFIRMED,
     STATUS_FAILED,
+    STATUS_PENDING,
     PlannedAction,
     execute_action,
     max_actions_per_run,
@@ -232,14 +234,18 @@ def fetch_snapshot(client: Client, rule: PriceRule) -> PriceSnapshot | None:
 
 
 def last_applied_at(client: Client, rule: PriceRule) -> datetime | None:
-    """When this card's price was last changed live by the repricer."""
+    """When this card's price was last changed (or possibly changed) live by the repricer.
+
+    ``pending`` markers are included: a write whose outcome is unknown must also wait for a
+    fresh snapshot instead of being re-planned from stale data.
+    """
     rows = client.query(
         "SELECT max(created_at) AS ts, count() AS n FROM sys_marketplace_actions"
-        " WHERE source = 'repricer' AND status = {applied:String}"
+        " WHERE source = 'repricer' AND status IN {statuses:Array(String)}"
         " AND marketplace = {mp:String} AND account_id = {aid:String}"
         " AND target_id = {offer:String}",
         parameters={
-            "applied": STATUS_APPLIED,
+            "statuses": [STATUS_PENDING, STATUS_APPLIED],
             "mp": rule.marketplace,
             "aid": rule.account_id,
             "offer": rule.product_id,
@@ -248,6 +254,57 @@ def last_applied_at(client: Client, rule: PriceRule) -> datetime | None:
     for row in rows.named_results():
         return _as_utc(row["ts"]) if row["n"] else None
     return None
+
+
+def reconcile_applied_actions(client: Client, rule: PriceRule, snapshot: PriceSnapshot) -> int:
+    """Confirm accepted price writes once a newer snapshot shows the requested value.
+
+    ``applied`` only means the marketplace accepted the request (YM applies prices
+    asynchronously). A ``confirmed`` row with the same idempotency key is added once a
+    snapshot taken after the write observes the value; each write is confirmed once.
+    """
+    rows = client.query(
+        "SELECT action_id, target_type, after_value, created_at FROM sys_marketplace_actions"
+        " WHERE source = 'repricer' AND status = {applied:String}"
+        " AND marketplace = {mp:String} AND account_id = {aid:String}"
+        " AND target_id = {offer:String}"
+        " AND idempotency_key NOT IN (SELECT idempotency_key FROM sys_marketplace_actions"
+        "   WHERE source = 'repricer' AND status = {confirmed:String}"
+        "   AND marketplace = {mp:String} AND account_id = {aid:String}"
+        "   AND target_id = {offer:String})",
+        parameters={
+            "applied": STATUS_APPLIED,
+            "confirmed": STATUS_CONFIRMED,
+            "mp": rule.marketplace,
+            "aid": rule.account_id,
+            "offer": rule.product_id,
+        },
+    ).result_rows
+    confirmed = 0
+    seen_at = _as_utc(snapshot.price_seen_at)
+    for action_id, target_type, after_value, created_at in rows:
+        if created_at is not None and seen_at <= _as_utc(created_at):
+            continue
+        observed = (
+            snapshot.price_limit if target_type == TARGET_PRICE_LIMIT else snapshot.seller_price
+        )
+        if observed is None or abs(float(observed) - float(after_value)) > max(
+            1.0, float(after_value) * 0.005
+        ):
+            continue
+        client.command(
+            "INSERT INTO sys_marketplace_actions"
+            " (action_id, organization_id, source, rule_id, marketplace, account_id, target_type,"
+            " target_id, before_value, after_value, dry_run, status, response_status,"
+            " response_body, idempotency_key, created_at)"
+            " SELECT generateUUIDv4(), organization_id, source, rule_id, marketplace, account_id,"
+            " target_type, target_id, before_value, after_value, dry_run, {confirmed:String},"
+            " response_status, 'snapshot reconciliation', idempotency_key, now()"
+            " FROM sys_marketplace_actions WHERE action_id = {action_id:String} LIMIT 1",
+            parameters={"action_id": str(action_id), "confirmed": STATUS_CONFIRMED},
+        )
+        confirmed += 1
+    return confirmed
 
 
 def discount_usable(marketplace: str, snap: PriceSnapshot) -> bool:
@@ -268,6 +325,8 @@ def discount_usable(marketplace: str, snap: PriceSnapshot) -> bool:
 
 
 def desired_price(rule: PriceRule, snap: PriceSnapshot) -> PriceDecision:
+    if rule.max_price > 0 and rule.min_price > rule.max_price:
+        return PriceDecision(None, "invalid_price_bounds")
     """The seller price the rule asks for, before the step limit."""
     fallback = ""
     index_guard = ""
@@ -298,6 +357,8 @@ def desired_price(rule: PriceRule, snap: PriceSnapshot) -> PriceDecision:
     elif rule.mode == MODE_SELLER_PRICE:
         if rule.target_price <= 0:
             return PriceDecision(None, "no_target")
+        if rule.marketplace == "ym" and snap.breakeven_price is None:
+            return PriceDecision(None, "unknown_cost_auto_price_blocked")
         price = rule.target_price
     elif rule.mode == MODE_MARGIN:
         if not snap.breakeven_price or snap.breakeven_price <= 0:
@@ -306,12 +367,16 @@ def desired_price(rule: PriceRule, snap: PriceSnapshot) -> PriceDecision:
     else:
         return PriceDecision(None, "unknown_mode")
 
+    if not rule.dry_run and snap.breakeven_price is None and price < snap.seller_price:
+        return PriceDecision(None, "unknown_cost_auto_decrease_blocked")
     clamped_to_min = False
     floor = max(rule.min_price, snap.breakeven_price or 0.0)
     if floor > 0 and price < floor:
         price = floor
         clamped_to_min = True
     if rule.max_price > 0 and price > rule.max_price:
+        if rule.max_price < floor:
+            return PriceDecision(None, "max_below_hard_floor")
         price = rule.max_price
     return PriceDecision(round(price), "ok", clamped_to_min, fallback, index_guard)
 
@@ -364,6 +429,11 @@ def _plan(
     if decision.price is None:
         return None, decision.reason, decision
     price = step_limited(snap.seller_price, decision.price, rule.max_step_pct)
+    hard_floor = max(rule.min_price, snap.breakeven_price or 0.0)
+    if price < hard_floor:
+        price = hard_floor
+    if rule.max_price > 0 and price > rule.max_price:
+        return None, "max_below_hard_floor", decision
     tolerance = max(MIN_PRICE_DELTA, snap.seller_price * MIN_PRICE_DELTA_PCT / 100)
     if abs(price - snap.seller_price) <= tolerance:
         if (
@@ -478,6 +548,10 @@ def repricer_evaluate_rules() -> dict[str, object]:
                 stats["checked"] += 1
                 try:
                     snap = fetch_snapshot(client, rule)
+                    if snap is not None:
+                        stats["reconciled_confirmed"] += reconcile_applied_actions(
+                            client, rule, snap
+                        )
                     action, reason, decision = _plan(rule, snap, None)
                     if decision and decision.fallback:
                         stats[f"fallback_{decision.fallback}"] += 1

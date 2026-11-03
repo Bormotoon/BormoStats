@@ -28,7 +28,9 @@ LOGGER = structlog.get_logger(__name__)
 
 STATUS_SIMULATED = "simulated"
 STATUS_BLOCKED = "blocked_kill_switch"
+STATUS_PENDING = "pending"
 STATUS_APPLIED = "applied"
+STATUS_CONFIRMED = "confirmed"
 STATUS_FAILED = "failed"
 STATUS_UNSUPPORTED = "unsupported"
 STATUS_DUPLICATE = "skipped_duplicate"
@@ -96,10 +98,23 @@ def max_actions_per_run() -> int:
 
 
 def _already_recorded(client: clickhouse_connect.driver.Client, key: str) -> bool:
+    """Whether this change was already done, simulated, or may have reached the marketplace.
+
+    Every live attempt writes a ``pending`` marker before the external call and a terminal
+    row after it. A failed attempt (pending + failed) may be retried; a marker without a
+    terminal row means the worker died mid-call (e.g. a network timeout), so the outcome is
+    ambiguous and the change is not repeated blindly.
+    """
     rows = client.query(
-        "SELECT count() FROM sys_marketplace_actions"
-        " WHERE idempotency_key = {key:String} AND status != {failed:String}",
-        parameters={"key": key, "failed": STATUS_FAILED},
+        "SELECT countIf(status IN {done:Array(String)}) > 0"
+        " OR countIf(status = {pending:String}) > countIf(status = {failed:String})"
+        " FROM sys_marketplace_actions WHERE idempotency_key = {key:String}",
+        parameters={
+            "key": key,
+            "done": [STATUS_SIMULATED, STATUS_BLOCKED, STATUS_APPLIED, STATUS_CONFIRMED],
+            "pending": STATUS_PENDING,
+            "failed": STATUS_FAILED,
+        },
     ).result_rows
     return bool(rows and rows[0][0])
 
@@ -158,7 +173,10 @@ def execute_action(
     elif executor is None:
         status = STATUS_UNSUPPORTED
     else:
+        _record(client, action, key=key, status=STATUS_PENDING, result=None)
         result = executor()
+        # ``applied`` means the marketplace accepted the request; callers that can observe
+        # the result later (the repricer) add a ``confirmed`` row once it is visible.
         status = STATUS_APPLIED if result.ok else STATUS_FAILED
 
     _record(client, action, key=key, status=status, result=result)

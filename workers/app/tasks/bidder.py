@@ -119,6 +119,7 @@ def bid_executor(
     wb: WbActionsClient, ym: YmActionsClient, rule: BidRule, action: PlannedAction
 ) -> Callable[[], ActionResult] | None:
     if rule.marketplace == "ym" and ym.configured:
+        # YM uses percentage bids (0.5-99.99%) and SKU/offer as product_id
         return lambda: ym.set_bids([(rule.product_id, action.after_value)])
     if rule.marketplace != "wb" or not wb.can_set_bids:
         return None

@@ -66,9 +66,10 @@ def _collect(
     fetch: Any,
     parse: Any,
     *,
-    account_id: str = YM_ACCOUNT_ID,
+    account_id: str | None = None,
     watermark: bool = False,
 ) -> dict[str, Any]:
+    resolved_account = account_id or YM_ACCOUNT_ID
     task_name = f"tasks.ym_collect.{name}"
     run_id, started = new_run_context()
     client = _client()
@@ -79,12 +80,13 @@ def _collect(
         with lock_scope(
             get_redis_client(),
             source=source,
-            account_id=account_id,
+            account_id=resolved_account,
             ttl_seconds=1800,
             auto_renew=True,
-        ):
+        ) as lock:
             now = datetime.now(UTC)
             records = fetch(client, now)
+            lock.ensure_held()
             if table not in {
                 "raw_ym_campaigns",
                 "dim_ad_campaign",
@@ -92,18 +94,37 @@ def _collect(
                 "raw_ym_tariff_quotes",
             }:
                 records = _with_product_ids(client, records)
-            rows = parse(records, run_id=run_id, account_id=account_id)
+            rows = parse(records, run_id=run_id, account_id=resolved_account)
             if not rows:
                 observe_empty_payload(source)
             inserted = insert_rows(ch, table, columns, rows)
+            lock.ensure_held()
             if watermark:
-                set_watermark(ch, source, account_id, now)
-        log_task_run(ch, task_name, run_id, started, "success", inserted, f"{source} collected")
+                set_watermark(ch, source, resolved_account, now)
+        log_task_run(
+            ch,
+            task_name,
+            run_id,
+            started,
+            "success",
+            inserted,
+            f"{source} collected",
+            meta={"account_id": resolved_account, "published": False, "rows": inserted},
+        )
         return {"status": "success", "rows": inserted, "run_id": run_id}
     except LockNotAcquiredError:
         return {"status": "skipped", "reason": "lock_not_acquired"}
     except Exception as exc:
-        log_task_run(ch, task_name, run_id, started, "failed", 0, str(exc))
+        log_task_run(
+            ch,
+            task_name,
+            run_id,
+            started,
+            "failed",
+            0,
+            str(exc),
+            meta={"account_id": resolved_account, "source": source},
+        )
         raise
     finally:
         client.close()
@@ -267,7 +288,7 @@ def _orders(days: int, *, recent: bool = False) -> dict[str, Any]:
             account_id=YM_ACCOUNT_ID,
             ttl_seconds=1800,
             auto_renew=True,
-        ):
+        ) as lock:
             now = datetime.now(UTC)
             start = (
                 get_watermark(ch, source, YM_ACCOUNT_ID).date()
@@ -278,22 +299,49 @@ def _orders(days: int, *, recent: bool = False) -> dict[str, Any]:
             records = client.orders(
                 YM_BUSINESS_ID, start, now.date(), updated=recent, campaign_id=YM_CAMPAIGN_ID
             )
+            lock.ensure_held()
             records = [
                 r for r in records if str(r.get("campaignId", YM_CAMPAIGN_ID)) == YM_CAMPAIGN_ID
             ]
             records = _with_product_ids(client, records)
             rows = parse_orders(records, run_id=run_id, account_id=YM_ACCOUNT_ID)
             inserted = insert_rows(ch, "raw_ym_orders", ORDER_COLUMNS, rows)
+            lock.ensure_held()
             delivered = [row for row in rows if row["status"] == "DELIVERED"]
             insert_rows(ch, "raw_ym_delivered_snapshots", ORDER_COLUMNS, delivered)
+            lock.ensure_held()
             if recent:
                 set_watermark(ch, source, YM_ACCOUNT_ID, now)
-        log_task_run(ch, task_name, run_id, started, "success", inserted, "ym orders collected")
+        log_task_run(
+            ch,
+            task_name,
+            run_id,
+            started,
+            "success",
+            inserted,
+            "ym orders collected",
+            meta={
+                "account_id": YM_ACCOUNT_ID,
+                "from": start.isoformat(),
+                "to": now.date().isoformat(),
+                "published": False,
+                "rows": inserted,
+            },
+        )
         return {"status": "success", "rows": inserted, "days": safe, "run_id": run_id}
     except LockNotAcquiredError:
         return {"status": "skipped", "reason": "lock_not_acquired"}
     except Exception as exc:
-        log_task_run(ch, task_name, run_id, started, "failed", 0, str(exc))
+        log_task_run(
+            ch,
+            task_name,
+            run_id,
+            started,
+            "failed",
+            0,
+            str(exc),
+            meta={"account_id": YM_ACCOUNT_ID, "source": source},
+        )
         raise
     finally:
         client.close()
@@ -317,7 +365,13 @@ def _order_stats(days: int, *, recent: bool) -> dict[str, Any]:
     def fetch(client: YmClient, now: datetime) -> list[dict[str, Any]]:
         records: list[dict[str, Any]] = []
         start = (
-            get_watermark(get_ch_client(), "ym_order_stats", YM_ACCOUNT_ID) - timedelta(days=2)
+            get_watermark(
+                get_ch_client(),
+                "ym_order_stats",
+                YM_ACCOUNT_ID,
+                initial_days=max(days, 30),
+            )
+            - timedelta(days=2)
             if recent
             else now - timedelta(days=max(1, min(days, 365)))
         )
@@ -478,7 +532,13 @@ def _collect_report(
                     "shows-boost report is business-wide; "
                     "cannot attribute it to one of multiple shops"
                 )
-        start = (now - timedelta(days=safe)).date()
+        source = f"ym_{name.split('_')[1]}"
+        if name.endswith("recent"):
+            wm = get_watermark(get_ch_client(), source, YM_ACCOUNT_ID, initial_days=max(safe, 30))
+            start = (wm - timedelta(days=2)).date()
+        else:
+            start = (now - timedelta(days=safe)).date()
+        start = max(date(2022, 1, 1), min(start, now.date()))
         result: list[dict[str, Any]] = []
         while start <= now.date():
             end = min(start + timedelta(days=29), now.date())
@@ -562,7 +622,16 @@ def _collect_report(
             for row in parsed
         ]
 
-    return _collect(name, f"ym_{name.split('_')[1]}", table, columns, fetch, parse, watermark=True)
+    recent = name.endswith("recent")
+    return _collect(
+        name,
+        f"ym_{name.split('_')[1]}",
+        table,
+        columns,
+        fetch,
+        parse,
+        watermark=recent,
+    )
 
 
 @shared_task(name="tasks.ym_collect.ym_funnel_recent")
@@ -589,6 +658,50 @@ def ym_ads_recent() -> dict[str, Any]:
     return _collect_report(
         "ym_ads_recent", "shows-boost", 3, "raw_ym_ads", ADS_COLUMNS, parse_shows_boost
     )
+
+
+@shared_task(name="tasks.ym_collect.ym_ads_backfill_days")
+def ym_ads_backfill_days(days: int = 30) -> dict[str, Any]:
+    return _collect_report(
+        "ym_ads_backfill_days", "shows-boost", days, "raw_ym_ads", ADS_COLUMNS, parse_shows_boost
+    )
+
+
+@shared_task(name="tasks.ym_collect.ym_backfill_pipeline")
+def ym_backfill_pipeline(dataset: str, days: int = 14) -> dict[str, Any]:
+    """Collect, transform and publish one YM backfill sequentially for the same window."""
+    safe_days = max(1, min(days, 730))
+    collectors = {
+        "sales": lambda: ym_orders_backfill_days(safe_days),
+        "orders": lambda: ym_orders_backfill_days(safe_days),
+        "funnel": lambda: ym_funnel_backfill_days(safe_days),
+        "finance": lambda: ym_finance_backfill_days(safe_days),
+        "ads": lambda: ym_ads_backfill_days(safe_days),
+    }
+    if dataset not in collectors:
+        raise ValueError(f"unsupported Yandex Market backfill dataset: {dataset}")
+    collection = collectors[dataset]()
+    if collection.get("status") != "success":
+        return {"status": "failed", "stage": "collect", "collection": collection}
+    from app.tasks.marts import _run_marts
+    from app.tasks.transforms import _run_transform
+
+    transformed = _run_transform(safe_days, "tasks.transforms.transform_backfill_days")
+    if transformed.get("status") != "success":
+        return {
+            "status": "failed",
+            "stage": "transform",
+            "collection": collection,
+            "transform": transformed,
+        }
+    marts = _run_marts(safe_days, "tasks.marts.build_marts_backfill_days")
+    return {
+        "status": marts.get("status", "failed"),
+        "collection": collection,
+        "transform": transformed,
+        "marts": marts,
+        "days": safe_days,
+    }
 
 
 @shared_task(name="tasks.ym_collect.ym_finance_recent")

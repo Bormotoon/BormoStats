@@ -3,7 +3,7 @@
 STACK_NAME ?= bormostats
 ENV ?= dev
 WORKER_CONCURRENCY ?= 4
-WORKER_QUEUES ?= etl,wb,ozon,competitor,automation,marketplace_actions,webhooks
+WORKER_QUEUES ?= etl,wb,ozon,ym,competitor,automation,marketplace_actions,webhooks
 ENV_FILE ?= .env
 COMPOSE_CMD = docker compose --project-name $(STACK_NAME) --env-file $(ENV_FILE) -f infra/docker/docker-compose.yml
 VENV_BIN := .venv/bin

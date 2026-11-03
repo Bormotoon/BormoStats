@@ -310,10 +310,11 @@ def _report_rows(
                     str(v)
                     for v in (
                         record.get("transactionSource"),
-                        record.get("serviceType") or record.get("offerOrServiceName"),
+                        record.get("serviceType"),
                     )
                     if v
                 ),
+                "product_name": record.get("offerOrServiceName") or record.get("productName"),
                 "order_id": _int(record.get("orderId")) or None,
                 "payout": _float(record.get("payout")),
                 "day": day,

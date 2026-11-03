@@ -228,7 +228,11 @@ class YmClient:
             if token:
                 params["pageToken"] = token
             payload = self._post(path, body, params=params)
-            result = payload.get("result", payload) if isinstance(payload, dict) else {}
+            if not isinstance(payload, dict) or payload.get("status") == "ERROR":
+                raise ValueError(f"Yandex Market {path} returned malformed page response")
+            result = payload.get("result", payload)
+            if not isinstance(result, dict):
+                raise ValueError(f"Yandex Market {path} returned malformed result")
             rows = next(
                 (
                     _items(result, key)
@@ -255,7 +259,7 @@ class YmClient:
                 or (result.get("nextPageToken") if isinstance(result, dict) else "")
                 or ""
             )
-            if not rows or not next_token:
+            if not next_token:
                 return collected
             if next_token in seen_tokens:
                 raise RuntimeError(f"Yandex Market {path} returned the same page token twice")
@@ -275,7 +279,11 @@ class YmClient:
             body,
             params={"format": output_format.upper()},
         )
-        result = payload.get("result", payload) if isinstance(payload, dict) else {}
+        if not isinstance(payload, dict) or payload.get("status") == "ERROR":
+            raise ValueError(f"Yandex Market {report_type} report creation response is malformed")
+        result = payload.get("result", payload)
+        if not isinstance(result, dict):
+            raise ValueError(f"Yandex Market {report_type} report creation result is malformed")
         report_id = str(result.get("reportId") or result.get("id") or "")
         if not report_id:
             raise RuntimeError(f"Yandex Market {report_type} report response has no report id")
@@ -284,14 +292,24 @@ class YmClient:
             info = self.http.get(
                 endpoints.REPORT_INFO_PATH.format(report_id=report_id), headers=self._headers()
             )
-            report = info.get("result", info) if isinstance(info, dict) else {}
+            if not isinstance(info, dict) or info.get("status") == "ERROR":
+                raise ValueError(f"Yandex Market report {report_id} status response is malformed")
+            report = info.get("result", info)
+            if not isinstance(report, dict):
+                raise ValueError(f"Yandex Market report {report_id} status is malformed")
             status = str(report.get("status") or "").upper()
             if status in {"FAILED", "ERROR"}:
                 raise RuntimeError(f"Yandex Market report {report_id} failed: {report}")
             if status == "DONE":
                 url = str(report.get("file") or report.get("url") or "")
                 if not url:
-                    return _items(report, "rows")
+                    rows = report.get("rows")
+                    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+                        raise ValueError(
+                            f"Yandex Market report {report_id} DONE response has no valid rows"
+                            " or file"
+                        )
+                    return rows
                 return self._download_report(url, output_format, report_type=report_type)
             time.sleep(self.report_poll_seconds)
         raise TimeoutError(f"Yandex Market report {report_id} did not finish before timeout")

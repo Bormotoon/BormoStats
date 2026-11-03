@@ -220,7 +220,7 @@ services:
         "worker",
         "--loglevel=INFO",
         "--concurrency=${WORKER_CONCURRENCY:-4}",
-        "--queues=${WORKER_QUEUES:-etl,wb,ozon,competitor,automation,marketplace_actions,webhooks}",
+        "--queues=${WORKER_QUEUES:-etl,wb,ozon,ym,competitor,automation,marketplace_actions,webhooks}",
       ]
     networks:
       - ops

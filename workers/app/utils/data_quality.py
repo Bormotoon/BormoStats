@@ -243,6 +243,17 @@ def _check_impossible_timestamps(
         """,
         f"""
         SELECT
+          'raw_ym_orders' AS table_name,
+          account_id,
+          concat(toString(order_id), ':', offer_id) AS entity_id,
+          created_at AS bad_ts
+        FROM raw_ym_orders
+        WHERE created_at > {utc_now} + {skew}
+           OR updated_at < created_at
+        LIMIT %(limit)s
+        """,
+        f"""
+        SELECT
           'stg_sales' AS table_name,
           account_id,
           order_id AS entity_id,
@@ -351,6 +362,9 @@ class DataQualityMetrics:
     rows_yesterday: dict[str, int]
     null_rate: dict[tuple[str, str], float]
     schema_missing: dict[str, int]
+    ym_unclassified_finance_rows_7d: int = 0
+    ym_incomplete_return_rows_7d: int = 0
+    failed_marketplace_actions_24h: int = 0
 
 
 def collect_data_quality_metrics(
@@ -388,9 +402,26 @@ def collect_data_quality_metrics(
         table: len(expected - present.get(table, set()))
         for table, expected in EXPECTED_SCHEMA.items()
     }
+    ym_other_rows = client.query(
+        "SELECT countIf(other != 0) FROM mrt_finance_daily FINAL "
+        "WHERE marketplace = 'ym' AND day >= today() - 7"
+    ).result_rows
+    ym_incomplete_returns = client.query(
+        "SELECT countIf(position(meta_json, 'return_without_observed_delivery') > 0) "
+        "FROM stg_sales FINAL WHERE marketplace = 'ym' AND day >= today() - 7"
+    ).result_rows
+    failed_actions = client.query(
+        "SELECT countIf(status = 'failed') FROM sys_marketplace_actions "
+        "WHERE created_at >= now() - INTERVAL 24 HOUR"
+    ).result_rows
     return DataQualityMetrics(
         freshness_seconds=freshness,
         rows_yesterday=rows,
         null_rate=null_rate,
         schema_missing=schema_missing,
+        ym_unclassified_finance_rows_7d=int(ym_other_rows[0][0]) if ym_other_rows else 0,
+        ym_incomplete_return_rows_7d=(
+            int(ym_incomplete_returns[0][0]) if ym_incomplete_returns else 0
+        ),
+        failed_marketplace_actions_24h=int(failed_actions[0][0]) if failed_actions else 0,
     )

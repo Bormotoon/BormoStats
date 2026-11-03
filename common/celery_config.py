@@ -10,6 +10,7 @@ TASK_QUEUES: tuple[str, ...] = (
     "etl",
     "wb",
     "ozon",
+    "ym",
     "competitor",
     "automation",
     "marketplace_actions",
@@ -19,6 +20,7 @@ TASK_QUEUES: tuple[str, ...] = (
 TASK_ROUTES: dict[str, dict[str, str]] = {
     "tasks.wb_collect.*": {"queue": "wb"},
     "tasks.ozon_collect.*": {"queue": "ozon"},
+    "tasks.ym_collect.*": {"queue": "ym"},
     "tasks.competitor_collect.*": {"queue": "competitor"},
     "tasks.transforms.*": {"queue": "etl"},
     "tasks.marts.*": {"queue": "etl"},
@@ -32,5 +34,6 @@ TASK_ROUTES: dict[str, dict[str, str]] = {
     "tasks.exports.*": {"queue": "automation"},
     "tasks.history.wb_catalog_snapshot": {"queue": "wb"},
     "tasks.history.ozon_catalog_snapshot": {"queue": "ozon"},
+    "tasks.history.ym_catalog_snapshot": {"queue": "ym"},
     "tasks.history.backfill_raw_archive": {"queue": "etl"},
 }

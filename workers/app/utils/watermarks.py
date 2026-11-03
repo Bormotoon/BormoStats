@@ -20,8 +20,10 @@ def get_watermark(
     client: clickhouse_connect.driver.Client,
     source: str,
     account_id: str,
+    *,
+    initial_days: int = DEFAULT_WATERMARK_LAG_HOURS // 24,
 ) -> datetime:
-    """Return last known watermark or fallback to now-48h (UTC)."""
+    """Return the saved boundary, or a configurable first-sync boundary in UTC."""
     result = client.query(
         """
         SELECT watermark_ts
@@ -34,13 +36,13 @@ def get_watermark(
     )
 
     if not result.result_rows:
-        fallback = datetime.now(UTC) - timedelta(hours=DEFAULT_WATERMARK_LAG_HOURS)
+        fallback = datetime.now(UTC) - timedelta(days=max(1, initial_days))
         observe_watermark(source=source, account_id=account_id, watermark_ts=fallback)
         return fallback
 
     value = result.result_rows[0][0]
     if not isinstance(value, datetime):
-        fallback = datetime.now(UTC) - timedelta(hours=DEFAULT_WATERMARK_LAG_HOURS)
+        fallback = datetime.now(UTC) - timedelta(days=max(1, initial_days))
         observe_watermark(source=source, account_id=account_id, watermark_ts=fallback)
         return fallback
     normalized = _normalize_to_utc(value)

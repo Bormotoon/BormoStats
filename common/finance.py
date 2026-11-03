@@ -40,7 +40,10 @@ YM_FINANCE_RULES: tuple[tuple[str, str], ...] = (
     ("storage", r"storage|хранен"),
     ("acceptance", r"accept|приемк|приёмк"),
     ("penalties", r"penalt|штраф"),
-    ("other", r"boost|буст|продвижение|продвижен"),  # boost/promotion as other, checked before sales
+    (
+        "other",
+        r"boost|буст|продвижение|продвижен",
+    ),  # boost/promotion as other, checked before sales
     ("returns", r"return|возврат"),
     ("sales", r"sale|продаж|платеж покупателя|платёж покупателя"),
 )
