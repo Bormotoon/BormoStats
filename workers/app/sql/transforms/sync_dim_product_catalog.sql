@@ -85,17 +85,62 @@ UNION ALL
 
 SELECT
   'ym' AS marketplace,
-  account_id,
-  toString(JSONExtractUInt(body, 'market', 'marketSku')) AS product_id,
+  c.account_id AS account_id,
+  toString(
+    if(
+      JSONExtractUInt(c.body, 'market', 'marketSku') > 0,
+      JSONExtractUInt(c.body, 'market', 'marketSku'),
+      if(
+        JSONExtractUInt(c.body, 'market', 'id') > 0,
+        JSONExtractUInt(c.body, 'market', 'id'),
+        if(
+          m.market_sku > 0,
+          m.market_sku,
+          cityHash64(JSONExtractString(c.body, 'offer', 'offerId'))
+        )
+      )
+    )
+  ) AS product_id,
   NULL AS nm_id,
   NULL AS chrt_id,
-  JSONExtractString(body, 'offer', 'offerId') AS sku,
-  JSONExtractString(body, 'offer', 'offerId') AS offer_id,
+  JSONExtractString(c.body, 'offer', 'offerId') AS sku,
+  JSONExtractString(c.body, 'offer', 'offerId') AS offer_id,
   NULL AS ozon_product_id,
-  nullIf(JSONExtractString(body, 'offer', 'name'), '') AS title,
-  nullIf(JSONExtractString(body, 'market', 'vendor', 'name'), '') AS brand,
-  nullIf(JSONExtractString(body, 'market', 'marketCategoryName'), '') AS category,
-  nullIf(JSONExtractString(body, 'offer', 'pictures', 1), '') AS image_url,
+  nullIf(
+    if(
+      JSONExtractString(c.body, 'offer', 'name') != '',
+      JSONExtractString(c.body, 'offer', 'name'),
+      if(
+        JSONExtractString(c.body, 'market', 'marketSkuName') != '',
+        JSONExtractString(c.body, 'market', 'marketSkuName'),
+        JSONExtractString(c.body, 'market', 'name')
+      )
+    ),
+    ''
+  ) AS title,
+  nullIf(
+    if(
+      JSONExtractString(c.body, 'offer', 'vendor') != '',
+      JSONExtractString(c.body, 'offer', 'vendor'),
+      JSONExtractString(c.body, 'market', 'vendor', 'name')
+    ),
+    ''
+  ) AS brand,
+  nullIf(JSONExtractString(c.body, 'market', 'marketCategoryName'), '') AS category,
+  nullIf(
+    if(
+      JSONExtractString(c.body, 'offer', 'pictures', 1) != '',
+      JSONExtractString(c.body, 'offer', 'pictures', 1),
+      JSONExtractString(c.body, 'market', 'pictures', 1)
+    ),
+    ''
+  ) AS image_url,
   now() AS updated_at
-FROM cards
-WHERE marketplace = 'ym' AND JSONExtractUInt(body, 'market', 'marketSku') > 0;
+FROM cards AS c
+LEFT JOIN
+(
+  SELECT account_id, offer_id, market_sku
+  FROM raw_ym_offer_mappings FINAL
+  WHERE market_sku > 0
+) AS m ON m.account_id = c.account_id AND m.offer_id = JSONExtractString(c.body, 'offer', 'offerId')
+WHERE c.marketplace = 'ym' AND JSONExtractString(c.body, 'offer', 'offerId') != '';

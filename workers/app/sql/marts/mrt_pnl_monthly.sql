@@ -65,6 +65,25 @@ WITH
     FROM mrt_ads_daily FINAL
     WHERE day >= from_month
     GROUP BY month, marketplace, account_id
+  ),
+  ym_netting_ads AS
+  (
+    SELECT
+      toStartOfMonth(event_date) AS month,
+      'ym' AS marketplace,
+      account_id,
+      sumIf(
+        -amount,
+        amount < 0
+        AND payout = 0
+        AND match(
+          lowerUTF8(trim(concat(service_type, ' ', transaction_type))),
+          'буст.*продаж|продаж.*буст|boost|буст|продвижен'
+        )
+      ) AS deducted_cost
+    FROM raw_ym_finance FINAL
+    WHERE event_date >= from_month
+    GROUP BY month, account_id
   )
 SELECT
   f.month,
@@ -80,7 +99,11 @@ SELECT
   f.net_accrued AS net_accrued_rub,
   ifNull(cg.cogs, 0) AS cogs_rub,
   net_accrued_rub - cogs_rub AS gross_profit_rub,
-  ifNull(ad.cost, 0) AS ad_cost_rub,
+  if(
+    f.marketplace = 'ym',
+    greatest(ifNull(ad.cost, 0) - ifNull(ya.deducted_cost, 0), 0),
+    ifNull(ad.cost, 0)
+  ) AS ad_cost_rub,
   0 AS additional_expenses_rub,
   gross_profit_rub - ad_cost_rub AS operating_profit_rub,
   operating_profit_rub AS ebitda_rub,
@@ -95,4 +118,6 @@ LEFT JOIN cogs AS cg
   ON f.month = cg.month AND f.marketplace = cg.marketplace AND f.account_id = cg.account_id
 LEFT JOIN ads AS ad
   ON f.month = ad.month AND f.marketplace = ad.marketplace AND f.account_id = ad.account_id
+LEFT JOIN ym_netting_ads AS ya
+  ON f.month = ya.month AND f.marketplace = ya.marketplace AND f.account_id = ya.account_id
 SETTINGS join_use_nulls = 1

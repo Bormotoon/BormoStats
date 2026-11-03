@@ -154,11 +154,19 @@ WITH
   ),
   ym_cards AS
   (
-    SELECT account_id, offer_id, toString(product_id) AS product_id,
-      list_price, seller_price, list_price AS discount_base, purchase_price,
-      commission_pct, logistics_rub, acquiring_rub,
-      coalesce(buyer_price, cofinance_price) AS buyer_price, snapshot_ts
-    FROM raw_ym_prices FINAL
+    SELECT p.account_id AS account_id, p.offer_id AS offer_id,
+      toString(if(m.market_sku > 0, m.market_sku, p.product_id)) AS product_id,
+      p.list_price AS list_price, p.seller_price AS seller_price,
+      p.list_price AS discount_base, p.purchase_price AS purchase_price,
+      p.commission_pct AS commission_pct, p.logistics_rub AS logistics_rub,
+      p.acquiring_rub AS acquiring_rub,
+      coalesce(p.buyer_price, p.cofinance_price) AS buyer_price, p.snapshot_ts AS snapshot_ts
+    FROM raw_ym_prices AS p FINAL
+    LEFT JOIN (
+      SELECT account_id, offer_id, market_sku
+      FROM raw_ym_offer_mappings FINAL
+      WHERE market_sku > 0
+    ) AS m ON m.account_id = p.account_id AND m.offer_id = p.offer_id
   ),
   -- Discounts use the seller and buyer prices of the same order, never today's
   -- seller price compared against a historical buyer price. Order-level costs are
