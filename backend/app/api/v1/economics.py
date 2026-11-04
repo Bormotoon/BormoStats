@@ -26,10 +26,6 @@ def economics(
     start = date_from or stop - timedelta(days=29)
     if start > stop or (stop - start).days > 730:
         raise HTTPException(status_code=422, detail="Выберите корректный период не более 730 дней")
-    if marketplace and marketplace != "ozon":
-        return {
-            "items": [],
-            "total": None,
-            "notes": ["Экономика по этому образцу настроена для Ozon."],
-        }
-    return ArticleEconomicsService(ch, auth.organization_id).build(start, stop, account_id)
+    return ArticleEconomicsService(ch, auth.organization_id).build(
+        start, stop, account_id=account_id, marketplace=marketplace
+    )

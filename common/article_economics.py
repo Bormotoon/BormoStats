@@ -30,6 +30,11 @@ EXPENSES = (
     "compensation",
     "other_accruals",
     "marketing",
+    "acquiring",
+    "logistics",
+    "reverse_logistics",
+    "storage",
+    "cross_docking",
 )
 MARKETING = {
     3,
@@ -131,6 +136,7 @@ def metric_row(values: Mapping[str, Any]) -> dict[str, Any]:
     qty = r.get("sales_qty", ZERO) + r.get("returns_qty", ZERO) + cis_q
     r["qty"] = qty
     r["mp_cost"] = sum(r.get(k, ZERO) for k in EXPENSES if k != "marketing")
+    r["net_accrued"] = r.get("revenue", ZERO) - r.get("commission", ZERO) - r["mp_cost"]
     r["operating"] = (
         None
         if r.get("cogs") is None
@@ -145,6 +151,7 @@ def metric_row(values: Mapping[str, Any]) -> dict[str, Any]:
         "revenue",
         "buyer_revenue",
         "commission",
+        "net_accrued",
         "cogs",
         "mp_cost",
         *EXPENSES,
@@ -336,6 +343,103 @@ class AccrualEconomics:
         if abs(self.net() - self.raw_total) > CENT:
             raise ValueError("Performance binding changed the source finance total")
         return linked, len(matched)
+
+    def add_wb_realization_row(self, payload: dict[str, Any]) -> None:
+        """Process one line from raw_wb_finance_report (reportDetailByPeriod) in O(1)."""
+        self.operations += 1
+        nm_id = str(payload.get("nm_id") or payload.get("nmId") or "").strip()
+        sku = nm_id if (nm_id and nm_id != "0") else "unallocated"
+        doc_type = str(payload.get("doc_type_name") or "").strip().lower()
+        oper_name = str(payload.get("supplier_oper_name") or "").strip().lower()
+
+        qty = number(payload.get("quantity") or 0)
+        seller_amount = number(payload.get("retail_price_withdisc_rub") or 0) * (qty or Decimal(1))
+        buyer_amount = number(payload.get("retail_amount") or 0)
+        for_pay = number(payload.get("ppvz_for_pay") or 0)
+        delivery = abs(
+            number(payload.get("delivery_rub") or payload.get("rebill_logistic_cost") or 0)
+        )
+        storage = abs(number(payload.get("storage_fee") or 0))
+        penalty = abs(number(payload.get("penalty") or 0))
+        deduction = abs(number(payload.get("deduction") or 0))
+        acceptance = abs(number(payload.get("acceptance") or 0))
+        additional = number(payload.get("additional_payment") or 0)
+        acquiring = abs(number(payload.get("acquiring_fee") or 0))
+
+        is_return = "возврат" in doc_type or "возврат" in oper_name
+        is_sale = ("продаж" in doc_type or "продаж" in oper_name) and not is_return
+
+        target = self.rows[sku]
+        if is_sale:
+            target["sales_qty"] += qty
+            target["revenue"] += seller_amount
+            target["revenue_rf"] += seller_amount
+            target["buyer_revenue"] += buyer_amount
+            target["buyer_rf"] += buyer_amount
+            comm = max(ZERO, seller_amount - for_pay)
+            target["commission"] += comm
+            target["commission_rf"] += comm
+            self.raw_total += for_pay
+        elif is_return:
+            target["returns_qty"] -= abs(qty)
+            target["revenue"] -= abs(seller_amount)
+            target["revenue_rf"] -= abs(seller_amount)
+            target["buyer_revenue"] -= abs(buyer_amount)
+            target["buyer_rf"] -= abs(buyer_amount)
+            comm = max(ZERO, abs(seller_amount) - abs(for_pay))
+            target["commission"] -= comm
+            target["commission_rf"] -= comm
+            self.raw_total -= abs(for_pay)
+
+        if acquiring:
+            target["acquiring"] += acquiring
+            self.raw_total -= acquiring
+        if delivery:
+            if is_return or "возврат" in oper_name:
+                target["reverse_logistics"] += delivery
+            else:
+                target["logistics"] += delivery
+            self.raw_total -= delivery
+        if storage:
+            target["storage"] += storage
+            self.raw_total -= storage
+        if acceptance:
+            target["cross_docking"] += acceptance
+            self.raw_total -= acceptance
+        if penalty or deduction:
+            target["other_services"] += penalty + deduction
+            self.raw_total -= penalty + deduction
+        if additional:
+            target["other_services"] -= additional
+            self.raw_total += additional
+
+    def add_standardized_sale(
+        self,
+        *,
+        sku: str,
+        qty: Decimal,
+        revenue: Decimal,
+        buyer_revenue: Decimal,
+        commission: Decimal,
+        acquiring: Decimal,
+        logistics: Decimal,
+    ) -> None:
+        """Process a normalized sale/return row in O(1) (used for YM and WB fallback)."""
+        self.operations += 1
+        target = self.rows[sku or "unallocated"]
+        if qty >= ZERO:
+            target["sales_qty"] += qty
+        else:
+            target["returns_qty"] += qty
+        target["revenue"] += revenue
+        target["revenue_rf"] += revenue
+        target["buyer_revenue"] += buyer_revenue
+        target["buyer_rf"] += buyer_revenue
+        target["commission"] += commission
+        target["commission_rf"] += commission
+        target["acquiring"] += acquiring
+        target["logistics"] += logistics
+        self.raw_total += revenue - commission - acquiring - logistics
 
 
 # (account_id, sku_or_product_id)
