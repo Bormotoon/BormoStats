@@ -1651,9 +1651,9 @@ truststore==0.10.5 \
     # via
     #   httpcore2
     #   httpx2
-types-python-dateutil==2.9.0.20260807 \
-    --hash=sha256:54aa3707350ed7a9cc0776fd2f6739679d6967d11b40150985e81edcb86df4db \
-    --hash=sha256:e0b8a90d464c8684c66b7b8e4556d9074afdddcc56ca45323f0987134f9e7034
+types-python-dateutil==2.9.0.20261029 \
+    --hash=sha256:3258b491686c441d8074cfc8712308741900c9ff128a06421baec3767c503511 \
+    --hash=sha256:8fd04c6e1722d2523a74d6670596fc0007077651465b686f144ae1d200dcacf5
     # via -r requirements-dev.in
 types-pyyaml==6.0.12.20260906 \
     --hash=sha256:bca893ff0d51df5c9053137d5d0e6ccd36e939a196356f1d5c16372422f5137b \
