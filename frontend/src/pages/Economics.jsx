@@ -45,7 +45,7 @@ export default function Economics() {
   };
   const sticky=(c)=>c.key==='image_url'?{position:'sticky',left:0,zIndex:2,minWidth:56,width:56}:c.key==='offer_id'?{position:'sticky',left:keys.includes('image_url')?56:0,zIndex:2,minWidth:200,maxWidth:200}:{};
   const cell=(row,col)=>{
-    if(col.type==='image')return row.image_url?<img src={row.image_url} alt="" className="h-12 w-10 object-contain mx-auto" loading="lazy" referrerPolicy="no-referrer"/>:null;
+    if(col.type==='image')return typeof row.image_url === 'string' && /^https?:\/\//i.test(row.image_url)?<img src={row.image_url} alt="" className="h-12 w-10 object-contain mx-auto" loading="lazy" referrerPolicy="no-referrer"/>:null;
     if(row.sku==='unallocated'&&col.key.endsWith('_unit'))return format(row[col.key.slice(0,-5)],{...col,key:col.key.slice(0,-5)});
     if(row.sku==='unallocated'&&col.key==='period')return 'Суммы за период';
     return format(row[col.key],col);

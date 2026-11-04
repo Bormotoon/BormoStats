@@ -72,7 +72,10 @@ class ArticleEconomicsService:
             (r["account_id"], str(r["product_id"])): r for r in catalogue
         }
         # Sku-only fallback for buyouts where account_id may not be present in catalogue
-        sku_cards_fallback: dict[str, dict[str, Any]] = {str(r["product_id"]): r for r in catalogue}
+        sku_cards_fallback: dict[str, dict[str, Any]] = {
+            str(r["product_id"]): r for r in catalogue
+        }
+        all_skus = {str(r["product_id"]) for r in catalogue}
 
         # 2. Costs: offer-level and product-level
         offer_costs: dict[tuple[str, str], Decimal] = {}
@@ -96,13 +99,24 @@ class ArticleEconomicsService:
                     dim_offer_costs[str(r[0])] = number(r[1])
 
         sku_costs: dict[str, Decimal] = {}
-        with contextlib.suppress(Exception):
-            for r in self.ch.query(
-                "SELECT product_id, cost_price_rub FROM dim_product_cost FINAL"
-                " WHERE marketplace='ozon'"
-            ).result_rows:
-                if r[1] is not None:
-                    sku_costs[str(r[0])] = number(r[1])
+        if all_skus:
+            params["skus"] = sorted(all_skus)
+            with contextlib.suppress(Exception):
+                for r in self.ch.query(
+                    "SELECT toString(product_id), cost_price_rub FROM dim_product_cost FINAL"
+                    " WHERE marketplace='ozon' AND toString(product_id) IN {skus:Array(String)}",
+                    parameters=params,
+                ).result_rows:
+                    if r[1] is not None:
+                        sku_costs[str(r[0])] = number(r[1])
+        else:
+            with contextlib.suppress(Exception):
+                for r in self.ch.query(
+                    "SELECT toString(product_id), cost_price_rub FROM dim_product_cost FINAL"
+                    " WHERE marketplace='ozon'"
+                ).result_rows:
+                    if r[1] is not None:
+                        sku_costs[str(r[0])] = number(r[1])
 
         def resolve_cost(acc: str, offer: str, sku: str) -> Decimal | None:
             if (acc, offer) in offer_costs:
@@ -128,33 +142,69 @@ class ArticleEconomicsService:
         # 4. CIS Buyouts (historical deduplication, Copilot #9)
         snapshots: list[tuple[Any, ...]] = []
         cis_sql = (
-            "SELECT account_id, day, payload FROM raw_ozon_cis_buyouts FINAL"
+            "SELECT account_id, day, sku, offer_id, title, price, quantity, amount, payload "
+            "FROM raw_ozon_cis_buyouts FINAL"
             " WHERE account_id IN {accounts:Array(String)}"
             " AND day >= {start:Date} AND day <= {stop:Date}"
         )
         with contextlib.suppress(Exception):
             snapshots = list(self.ch.query(cis_sql, parameters=params).result_rows)
         if not snapshots:
-            daily_sql = (
-                "SELECT account_id, day, payload FROM raw_ozon_buyouts_daily FINAL"
+            cis_fallback_sql = (
+                "SELECT account_id, day, payload FROM raw_ozon_cis_buyouts FINAL"
                 " WHERE account_id IN {accounts:Array(String)}"
                 " AND day >= {start:Date} AND day <= {stop:Date}"
             )
             with contextlib.suppress(Exception):
-                snapshots = list(self.ch.query(daily_sql, parameters=params).result_rows)
+                snapshots = list(self.ch.query(cis_fallback_sql, parameters=params).result_rows)
 
         covered: set[tuple[str, date]] = set()
-        for account, day, raw in snapshots:
-            day_val = date.fromisoformat(str(day)[:10]) if not isinstance(day, date) else day
-            payload = json.loads(raw, parse_float=Decimal)
-            engine.add_buyouts(day_val, payload)
-            covered.add((str(account), day_val))
-            for record in parse_buyouts(payload):
-                sku_str = str(record["sku"])
-                sku_cards_fallback.setdefault(
-                    sku_str,
-                    {"offer_id": record["offer_id"], "title": record["title"]},
+        for row in snapshots:
+            if len(row) >= 9:
+                account, day, sku_col, offer_col, title_col, price_col, qty_col, amt_col, raw = (
+                    row[:9]
                 )
+                day_val = date.fromisoformat(str(day)[:10]) if not isinstance(day, date) else day
+                covered.add((str(account), day_val))
+                if (sku_col or offer_col or qty_col or amt_col) and not (
+                    raw and isinstance(raw, str) and raw.strip().startswith("{")
+                ):
+                    qty = number(qty_col or 1)
+                    price = number(price_col or 0)
+                    amt = number(amt_col or 0)
+                    p_line = {
+                        "products": [
+                            {
+                                "sku": str(sku_col).strip(),
+                                "posting_number": str(offer_col or sku_col).strip(),
+                                "offer_id": str(offer_col or "").strip(),
+                                "name": str(title_col or ""),
+                                "quantity": qty,
+                                "seller_price_per_instance": price,
+                                "amount": amt,
+                            }
+                        ]
+                    }
+                    engine.add_buyouts(day_val, p_line)
+                    sku_cards_fallback.setdefault(
+                        str(sku_col).strip(),
+                        {"offer_id": str(offer_col or ""), "title": str(title_col or "")},
+                    )
+                    continue
+            else:
+                account, day, raw = row[0], row[1], row[2]
+                day_val = date.fromisoformat(str(day)[:10]) if not isinstance(day, date) else day
+                covered.add((str(account), day_val))
+
+            payload = json.loads(raw, parse_float=Decimal) if isinstance(raw, str) else (raw or {})
+            if isinstance(payload, dict):
+                engine.add_buyouts(day_val, payload)
+                for record in parse_buyouts(payload):
+                    sku_str = str(record["sku"])
+                    sku_cards_fallback.setdefault(
+                        sku_str,
+                        {"offer_id": record["offer_id"], "title": record["title"]},
+                    )
 
         requested_days = [
             date_from + timedelta(days=i) for i in range((date_to - date_from).days + 1)
@@ -173,22 +223,12 @@ class ArticleEconomicsService:
         # 5. Ad linking
         sku_ads: list[tuple[Any, ...]] = []
         ad_sql = (
-            "SELECT day, campaign_id, sku, cost FROM raw_ozon_sku_ad_reports FINAL"
+            "SELECT day, campaign_id, toString(sku) AS sku, cost FROM raw_ozon_sku_ad_reports FINAL"
             " WHERE account_id IN {accounts:Array(String)}"
             " AND day >= {start:Date} AND day <= {stop:Date}"
         )
         with contextlib.suppress(Exception):
             sku_ads = list(self.ch.query(ad_sql, parameters=params).result_rows)
-        if not sku_ads:
-            with contextlib.suppress(Exception):
-                sku_ads = list(
-                    self.ch.query(
-                        "SELECT day, campaign_id, sku, cost FROM raw_ozon_ads_sku_daily FINAL"
-                        " WHERE account_id IN {accounts:Array(String)}"
-                        " AND day >= {start:Date} AND day <= {stop:Date}",
-                        parameters=params,
-                    ).result_rows
-                )
         linked_ads, matched_campaigns = engine.bind_ad_costs(sku_ads)
         if linked_ads:
             allocated["marketing"] = allocated.get("marketing", ZERO) - linked_ads
