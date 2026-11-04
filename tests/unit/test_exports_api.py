@@ -113,3 +113,22 @@ def test_stocks_current_export_redacts_costs_for_viewer_and_includes_for_manager
         {"date_from": "2026-01-01", "date_to": "2026-01-31", "include_costs": True},
     )
     assert params_mgr["include_costs"] == 1
+
+
+def test_sanitize_csv_cell_neutralizes_formula_injection() -> None:
+    from workers.app.tasks.exports import sanitize_csv_cell
+
+    # Formulas neutralized with leading quote
+    assert sanitize_csv_cell("=1+1") == "'=1+1"
+    assert sanitize_csv_cell("@SUM(A1:A10)") == "'@SUM(A1:A10)"
+    assert sanitize_csv_cell("-2+3+cmd|' /C calc'!A0") == "'-2+3+cmd|' /C calc'!A0"
+    assert sanitize_csv_cell("+cmd|' /C calc'!A0") == "'+cmd|' /C calc'!A0"
+    assert sanitize_csv_cell("\tTAB") == "'\tTAB"
+    assert sanitize_csv_cell("\rRETURN") == "'\rRETURN"
+
+    # Valid numbers preserved
+    assert sanitize_csv_cell("-123.45") == "-123.45"
+    assert sanitize_csv_cell("+42") == "+42"
+    assert sanitize_csv_cell(100) == 100
+    assert sanitize_csv_cell(-50.5) == -50.5
+    assert sanitize_csv_cell("normal text") == "normal text"

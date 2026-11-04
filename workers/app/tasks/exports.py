@@ -78,6 +78,21 @@ def build_query_parameters(
     return params
 
 
+def sanitize_csv_cell(val: Any) -> Any:
+    """Neutralize formula injection in CSV cells while preserving valid numbers."""
+    if isinstance(val, str) and val:
+        first = val[0]
+        if first in ("=", "+", "-", "@", "\t", "\r"):
+            if first in ("+", "-"):
+                try:
+                    float(val)
+                    return val
+                except ValueError:
+                    pass
+            return f"'{val}"
+    return val
+
+
 def write_csv(
     client: Client, sql: str, parameters: dict[str, Any], target: os.PathLike[str]
 ) -> int:
@@ -90,9 +105,9 @@ def write_csv(
         open(target, "w", encoding="utf-8-sig", newline="") as handle,
     ):
         writer = csv.writer(handle)
-        writer.writerow(header)
+        writer.writerow([sanitize_csv_cell(col) for col in header])
         for row in stream:
-            writer.writerow(row)
+            writer.writerow([sanitize_csv_cell(cell) for cell in row])
             rows_written += 1
     return rows_written
 
