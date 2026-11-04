@@ -430,7 +430,7 @@ curl -k -H "X-API-Key: $BORMOSTATS_KEY" \
 - **Минимальные привилегии БД**: приложение ходит в ClickHouse отдельным пользователем (`analytics_app`), а не бутстрап-администратором.
 - **Эшелонированная защита HTTP и данных**: строгие заголовки `Content-Security-Policy`, `HSTS`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, защита парсера `.xlsx` от zip-бомб и переполнения XML-буфера, нейтрализация формул (CSV injection) при экспорте, проверка границ путей в загрузчике SQL и фильтрация протоколов URL картинок в UI.
 - **RBAC и когерентность сессий**: `scrypt`-хеширование ключей, мгновенный отзыв активных сессий и сброс кэша при смене пароля или прав участника, строгая защита себестоимости (`ManagerAuth`) в API, кэше и выгрузках.
-- **Цепочка поставок**: зависимости зафиксированы с хешами (`requirements*.txt`, `package-lock.json`), базовые образы — по SHA-256 digest, в CI работают `pip-audit`, `npm audit`, Grype и генерация SPDX SBOM. Подробнее — в [security_audit_report.md](security_audit_report.md) и [docs/supply_chain_security.md](docs/supply_chain_security.md).
+- **Цепочка поставок**: зависимости зафиксированы с хешами (`requirements*.txt`, `package-lock.json`), базовые образы — по SHA-256 digest, в CI работают `pip-audit`, `npm audit`, Grype и генерация SPDX SBOM. Подробнее — в [security_audit_report.md](docs/security_audit_report.md) и [docs/supply_chain_security.md](docs/supply_chain_security.md).
 
 Нашли уязвимость? Пожалуйста, **не** создавайте публичный issue — сообщите о ней приватно, как описано
 в [SECURITY.md](SECURITY.md).
@@ -467,7 +467,7 @@ cd frontend && npm run build && npm run screenshots   # → docs/screenshots/{en
 |---|---|
 | Устройство | [Архитектура](docs/architecture.md) · [Каталог данных](docs/data_catalog.md) · [Хранилище истории](docs/history.md) · [Окружения](docs/environments.md) |
 | Яндекс Маркет | [Состояние интеграции](docs/yandex_market_status.md) · [Отчёт о реализации](docs/yandex_market_implementation_report.md) · [Контракт идентификаторов](docs/ym_id_contract.md) · [Матрица сценариев](docs/ym_scenario_matrix.md) · [Заметки по Partner API](docs/ym_partner_api.md) |
-| Безопасность | [Аутентификация и RBAC](docs/authentication.md) · [Ротация секретов](docs/credential_rotation.md) · [Цепочка поставок](docs/supply_chain_security.md) · [Тотальный аудит безопасности (2026-11)](security_audit_report.md) |
+| Безопасность | [Аутентификация и RBAC](docs/authentication.md) · [Ротация секретов](docs/credential_rotation.md) · [Цепочка поставок](docs/supply_chain_security.md) · [Тотальный аудит безопасности (2026-11)](docs/security_audit_report.md) · [Отчёт об аудите (2026-09)](docs/AUDIT_REPORT.md) |
 | Функции | [Действия на маркетплейсах](docs/marketplace_actions.md) · [План по ценам](docs/pricing_plan.md) · [Вебхуки](docs/webhooks.md) · [Metabase](docs/metabase.md) |
 | Эксплуатация | [Ранбуки](docs/runbooks.md) · [Диагностика](docs/troubleshooting.md) · [Аварийное восстановление](docs/disaster_recovery.md) · [Наблюдаемость](docs/observability.md) · [Prometheus](docs/prometheus.md) · [Производительность](docs/performance.md) |
 | Релизы | [Журнал изменений](CHANGELOG.md) · [Чек-лист релиза](docs/release_checklist.md) · [Управление релизами](docs/release_management.md) · [Политика миграций](docs/migration_policy.md) |

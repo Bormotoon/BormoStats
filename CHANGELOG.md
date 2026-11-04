@@ -439,7 +439,7 @@ destructive) and rebuild the stack.
 
 ## [1.1.0] — 2026-09-29
 
-Remediation of the September 2026 audit (`AUDIT_REPORT.md`); details per finding in
+Remediation of the September 2026 audit ([docs/AUDIT_REPORT.md](docs/AUDIT_REPORT.md)); details per finding in
 [docs/audit_remediation.md](docs/audit_remediation.md).
 
 ### Breaking changes

@@ -32,8 +32,9 @@
 ## Audit
 
 - [Project status report](./project_status_report.md)
+- [Total audit report (2026-09)](./AUDIT_REPORT.md)
 - [Audit remediation (2026-09)](./audit_remediation.md)
-- [Total security audit & hardening report (2026-11)](../security_audit_report.md)
+- [Total security audit & hardening report (2026-11)](./security_audit_report.md)
 
 ## Yandex Market & Plans
 
@@ -42,7 +43,13 @@
 - [Yandex Market identifier contract](./ym_id_contract.md)
 - [Yandex Market scenario matrix](./ym_scenario_matrix.md)
 - [Yandex Market Partner API notes](./ym_partner_api.md)
+- [Yandex Market original master plan](./yandex_todo.md)
 - [Pricing plan: customer wishes (2026-10)](./pricing_plan.md)
+- [Feature backlog & TODO](./TODO_features.md)
+
+## Articles
+
+- [Dzen publication article](./articles/dzen/article.md)
 
 ## Archive
 

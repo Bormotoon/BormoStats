@@ -426,7 +426,7 @@ Change the mappings in `.env` if they clash with other services.
 - **Least privilege DB access**: the application uses a dedicated ClickHouse user (`analytics_app`), never the bootstrap admin.
 - **Defensive HTTP & input sanitization**: strict `Content-Security-Policy`, `HSTS`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `.xlsx` zip-bomb and XML buffer-overflow guards, CSV spreadsheet formula-injection neutralization, SQL loader path-traversal bounds verification, and UI image URL protocol whitelisting.
 - **RBAC & session security**: `scrypt`-hashed keys, instant session revocation and auth cache invalidation on credential or membership changes, and strict `ManagerAuth` protection on COGS and financial endpoints.
-- **Supply chain**: dependencies are hash-locked (`requirements*.txt`, `package-lock.json`), base images are pinned by SHA-256 digest, and CI runs `pip-audit`, `npm audit`, Grype, and SPDX SBOM generation on every push. See [security_audit_report.md](security_audit_report.md) and [docs/supply_chain_security.md](docs/supply_chain_security.md).
+- **Supply chain**: dependencies are hash-locked (`requirements*.txt`, `package-lock.json`), base images are pinned by SHA-256 digest, and CI runs `pip-audit`, `npm audit`, Grype, and SPDX SBOM generation on every push. See [security_audit_report.md](docs/security_audit_report.md) and [docs/supply_chain_security.md](docs/supply_chain_security.md).
 
 Found a vulnerability? Please **don't** open a public issue — report it privately as described in
 [SECURITY.md](SECURITY.md).
@@ -463,7 +463,7 @@ cd frontend && npm run build && npm run screenshots   # → docs/screenshots/{en
 |---|---|
 | Design | [Architecture](docs/architecture.md) · [Data catalog](docs/data_catalog.md) · [History store](docs/history.md) · [Environments](docs/environments.md) |
 | Yandex Market | [Integration status](docs/yandex_market_status.md) · [Implementation report](docs/yandex_market_implementation_report.md) · [ID contract](docs/ym_id_contract.md) · [Scenario matrix](docs/ym_scenario_matrix.md) · [Partner API notes](docs/ym_partner_api.md) |
-| Security | [Authentication & RBAC](docs/authentication.md) · [Credential rotation](docs/credential_rotation.md) · [Supply chain](docs/supply_chain_security.md) · [Total security audit (2026-11)](security_audit_report.md) |
+| Security | [Authentication & RBAC](docs/authentication.md) · [Credential rotation](docs/credential_rotation.md) · [Supply chain](docs/supply_chain_security.md) · [Total security audit (2026-11)](docs/security_audit_report.md) · [Audit report (2026-09)](docs/AUDIT_REPORT.md) |
 | Features | [Marketplace actions](docs/marketplace_actions.md) · [Pricing plan](docs/pricing_plan.md) · [Webhooks](docs/webhooks.md) · [Metabase](docs/metabase.md) |
 | Operations | [Runbooks](docs/runbooks.md) · [Troubleshooting](docs/troubleshooting.md) · [Disaster recovery](docs/disaster_recovery.md) · [Observability](docs/observability.md) · [Prometheus](docs/prometheus.md) · [Performance](docs/performance.md) |
 | Releases | [Changelog](CHANGELOG.md) · [Release checklist](docs/release_checklist.md) · [Release management](docs/release_management.md) · [Migration policy](docs/migration_policy.md) |
