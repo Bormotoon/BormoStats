@@ -43,4 +43,3 @@ def parse_buyouts(payload: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
     return result
-

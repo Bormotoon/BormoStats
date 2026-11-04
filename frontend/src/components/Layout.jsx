@@ -14,6 +14,7 @@ import {
 } from "@phosphor-icons/react";
 
 const NAV_ITEMS = [
+  { id: "economics", icon: CurrencyRub },
   { id: "dashboard", icon: ChartLineUp },
   { id: "sales", icon: ShoppingCart },
   { id: "finance", icon: Wallet },

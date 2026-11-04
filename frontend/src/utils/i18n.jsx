@@ -6,6 +6,7 @@ const ru = {
   marketplace: { ym: "Яндекс Маркет", ymApiKey: "Ключ Yandex Market API (YM_API_KEY)", ymBusinessId: "ID кабинета (YM_BUSINESS_ID)", ymCampaignId: "ID магазина (YM_CAMPAIGN_ID)", ymWarehouse: "Склад Яндекс Маркета", ymCofinance: "Софинансирование Маркета" },
   brand: { name: "BormoStats", tagline: "Аналитика маркетплейсов" },
   nav: {
+    economics: "Экономика по артикулам",
     dashboard: "Дашборд", sales: "Продажи", finance: "Финансы", stocks: "Остатки",
     funnel: "Воронка", ads: "Реклама", reviews: "Работа с отзывами", bidder: "Биддер",
     pricing: "Цены", repricer: "Репрайсер", pnl: "P&L", abcXyz: "ABC/XYZ",
@@ -17,6 +18,7 @@ const ru = {
     taskRuns: "Запуски задач", adminActions: "Админ", system: "Система",
   },
   pageTitles: {
+    economics: "Экономика по артикулам",
     dashboard: "Дашборд", sales: "Продажи", finance: "Финансы", stocks: "Остатки",
     funnel: "Воронка", ads: "Реклама", reviews: "Работа с отзывами", bidder: "Биддер",
     pricing: "Цены", repricer: "Репрайсер", pnl: "P&L", abcXyz: "ABC/XYZ",
@@ -28,6 +30,7 @@ const ru = {
     taskRuns: "Запуски задач", adminActions: "Действия админа", system: "Система",
   },
   pageSubtitles: {
+    economics: "Продажи, расходы и прибыль каждого артикула · вид как в Excel",
     history: "История версий данных маркетплейсов",
     bidder: "Управление ставками рекламных кампаний",
     reviews: "Ответы покупателям: ИИ, шаблоны и автоответы на отзывы без текста",
@@ -261,6 +264,7 @@ const en = {
   marketplace: { ym: "Yandex Market", ymApiKey: "Yandex Market API key (YM_API_KEY)", ymBusinessId: "Business ID (YM_BUSINESS_ID)", ymCampaignId: "Campaign ID (YM_CAMPAIGN_ID)", ymWarehouse: "Yandex Market warehouse", ymCofinance: "Yandex Market co-financing" },
   brand: { name: "BormoStats", tagline: "Marketplace Analytics" },
   nav: {
+    economics: "Article Economics",
     dashboard: "Dashboard", sales: "Sales", finance: "Finance", stocks: "Stocks",
     funnel: "Funnel", ads: "Ads", reviews: "Reviews", bidder: "Bidder",
     pricing: "Prices", repricer: "Repricer", pnl: "P&L", abcXyz: "ABC/XYZ",
@@ -272,6 +276,7 @@ const en = {
     taskRuns: "Task Runs", adminActions: "Admin", system: "System",
   },
   pageTitles: {
+    economics: "Article Economics",
     dashboard: "Dashboard", sales: "Sales", finance: "Finance", stocks: "Stocks",
     funnel: "Funnel", ads: "Ads", reviews: "Reviews", bidder: "Bidder",
     pricing: "Prices", repricer: "Repricer", pnl: "P&L", abcXyz: "ABC/XYZ",
@@ -283,6 +288,7 @@ const en = {
     taskRuns: "Task Runs", adminActions: "Admin Actions", system: "System",
   },
   pageSubtitles: {
+    economics: "Sales, costs, and profit per SKU · Excel-style layout",
     history: "Marketplace data version history",
     bidder: "Ad campaign bid management",
     reviews: "Replies to buyers: AI, templates and auto replies to ratings without text",
