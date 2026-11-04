@@ -3,63 +3,150 @@
 All notable changes to this project are documented here. The project follows
 [Semantic Versioning](https://semver.org/); database migrations are listed per release.
 
-## [Unreleased]
+## [1.3.0] — 2026-11-04
+
+Full **Yandex Market (`ym`)** support with complete feature parity alongside Wildberries and Ozon;
+**Article Unit Economics** (`/#/economics`) with a 66-column Excel-style layout powered by an
+$O(N + S)$ streaming engine; **Universal Cohort Funnel & Excel Import** (`/#/funnel`) across all
+three marketplaces; **Daily & Monthly P&L** with dated expenses, Ozon factoring, and realization
+tax accounting (`/#/taxes`); **Historical Stock Valuation** (`as_of`); **Two-Phase Marketplace
+Action Reconciliation** (`pending` → `applied`/`failed` → `confirmed`); smart **Ozon Price Index &
+Limit Price Repricer**; and a **Total Security Audit & Hardening** across backend, workers,
+ClickHouse queries, exports, and UI.
+
+Upgrading: take a ClickHouse backup first (`make backup`), then apply migrations `0035`–`0051`
+(`make migrate`) and rebuild the stack (`make up`). If you connect Yandex Market, add `YM_API_KEY`,
+`YM_BUSINESS_ID`, `YM_CAMPAIGN_ID` and `YM_ACCOUNT_ID` to `.env` and ensure `ym` is included in
+`WORKER_QUEUES`.
 
 ### Added
 
-- **Ozon Analytics Customization (PR #72 Integration)**:
-  - **ClickHouse Migrations**: Added migrations `0044` through `0050` (`raw_ozon_realization_reports`, `raw_ozon_sku_ad_reports`, `raw_ozon_cis_buyouts`, `raw_ozon_campaigns`, `0049_additional_expenses_dates`, `raw_ozon_funnel_import`) with complete mirror rollback scripts and manifest verification.
-  - **Collectors**: Added async queue worker `collectors/ozon/sku_ad_reports.py` with failure recovery and TTL invalidation, EAEU/CIS buyout collector `collectors/ozon/cis_buyouts.py`, realization report collector `collectors/ozon/realization_reports.py`, and campaign metadata collector `collectors/ozon/campaigns.py`.
-  - **Historical Valuation**: Added `as_of` parameter to `/stocks/current` and `mrt_finance_daily` queries, with strict `ManagerAuth` masking of procurement costs (`cost_price_rub`) for viewers and analysts.
-  - **P&L & Taxes**: Added `/pnl/daily` calendar allocation, Ozon factoring financing adjustments, realization tax estimation/actual accounting (`common/pnl_tax.py`), and dated additional expenses.
-  - **Article Unit Economics**: Implemented $O(N + S)$ streaming analytics engine (`common/article_economics.py`) with composite keys `(account_id, sku)`, account-scoped tax allocation, and historical CIS buyout deduplication.
-  - **Ozon Funnel**: Added manual Excel funnel report import (`/funnel/ozon/import`), deterministic pagination, and RBAC-protected related metrics (`/funnel/ozon/related`).
-  - **Frontend**: Added Article Economics page (`Economics.jsx`), Ozon Funnel view (`OzonFunnel.jsx`), DateRangePicker, and safe fallbacks for viewer/analyst roles.
-- Repricer: a "desired price" (`buyer_price`) rule can act while its card has too few sales to
-  measure the marketplace's discount (`no_discount_fallback`): by the account's median discount
-  (`account_median`) or keeping the desired price as the seller's price (`seller_price`) until
-  the discount is measured. Off by default — the rule waits for sales, as before. Chosen per
-  card under the desired price ("без продаж: …"), and in `PUT /pricing/target/{mp}/{offer}`.
+- **Yandex Market (`ym`) Full Integration & Parity (Migrations `0039`–`0043`, `0051`)**:
+  - **Collectors & Celery `ym` Queue**: Added Partner API client (`collectors/ym/`) and dedicated
+    `ym` queue tasks (`tasks.ym_collect.*`, `tasks.history.ym_catalog_snapshot`) for orders,
+    order statistics (`stats/orders`), financial netting reports (`united-netting`), stocks
+    (`grouped` showcase mode and `partner` warehouse mode with ownership checks), funnel/shows,
+    sales boost ads (`shows-boost` with multi-store guard `YM_ALLOW_BUSINESS_WIDE_ADS`), tariff
+    quotes, product-card catalog snapshots, and reviews.
+  - **Warehouse & Financial Semantics**: Added 11 `raw_ym_*` tables (`raw_ym_orders`,
+    `raw_ym_order_stats`, `raw_ym_delivered_snapshots`, `raw_ym_stocks`, `raw_ym_prices`,
+    `raw_ym_tariff_quotes`, `raw_ym_offer_mappings`, `raw_ym_funnel`, `raw_ym_ads`,
+    `raw_ym_finance`, `raw_ym_campaigns`), staging transforms (`sync_dim_product_ym.sql`,
+    `ym_*_to_stg.sql` with `cityHash64(offerId)` fallback for cards without `marketSku`), and
+    marts (`mrt_finance_daily_ym.sql` separating `payouts` from `net_accrued`, and
+    `mrt_pnl_monthly.sql` preventing double deduction of Sales Boost between `united-netting` and
+    `shows-boost`).
+  - **Historical Return Reconciliation**: Observed deliveries are persisted in
+    `raw_ym_delivered_snapshots`; historical returns without a prior delivery snapshot recover the
+    original sale from `raw_ym_finance` (`recovered_from_finance`) or mark
+    `return_without_observed_delivery` without fabricating sales.
+  - **Two-Phase Marketplace Action Ledger**: Repricer and bidder actions across WB, Ozon, and
+    Yandex Market record `pending` before calling the marketplace API, transition to
+    `applied`/`failed` after the response, and reach `confirmed` on read-after-write verification
+    (`reconcile_applied_actions`), preventing blind duplicate retries after network timeouts.
+  - **Cross-Platform Parity**: Pricing breakdown (`1-sale` co-financed discount matching), repricer,
+    bidder (string SKUs, `0.5–99.99%` bid validation), PIM, AI SEO description generator, reviews,
+    stock push (`POST /api/v1/integrations/stock/update`), history store, and the browser extension
+    now support `wb`, `ozon`, and `ym`.
+- **Multi-Marketplace Article Unit Economics (`/#/economics`, `GET /api/v1/economics`)**:
+  - Implemented an $O(N + S)$ streaming analytics engine (`common/article_economics.py`) with
+    composite `(account_id, sku)` keys across Wildberries, Ozon, Yandex Market, and "All
+    marketplaces".
+  - **Excel-Style UI (`Economics.jsx`)**: 66 columns organized into expandable/collapsible groups
+    (Compact 16-column view vs. Full 66-column view, custom column picker persisted in
+    `localStorage`, per-column filters, search, sorting, sticky photo & article columns, and
+    one-click `.xlsx` export of the active view).
+  - Covers per-unit and total revenue (domestic RF vs. EAEU/CIS buyouts), buyer price, commissions,
+    COGS, in-marketplace expenses (delivery, partners, promotion, FBO, penalties, compensations,
+    other accruals), SKU-linked marketing vs. unallocated expenses (`unallocated` row), operating
+    profit, external expenses, realization tax, net profit, profitability, ROI, and ABC class.
+- **Universal Funnel, Cohort Economics & Excel Import (`/#/funnel`, Migrations `0050`–`0051`)**:
+  - Upgraded the Funnel page with marketplace selector pills (`Wildberries`, `Ozon`,
+    `Яндекс Маркет`) and dual views: **Funnel & SKU Cohorts (`OzonFunnel.jsx`)** and **Daily
+    Summary**.
+  - Added manual `.xlsx`/`.csv` funnel report import (`POST /api/v1/funnel/ozon/import`),
+    deterministic pagination, and RBAC-protected cohort and unit-economics forecast metrics
+    (`/funnel/ozon/related`, `/funnel/ozon/finance`) across WB, Ozon, and YM.
+- **Extended P&L, Realization Taxes & Ozon Analytics (Migrations `0044`–`0049`)**:
+  - **Collectors & Migrations**: Added `raw_ozon_realization_reports`, `raw_ozon_sku_ad_reports`,
+    `sys_ozon_report_jobs`, `raw_ozon_cis_buyouts`, `raw_ozon_campaigns`, and dated additional
+    expenses (`0049_additional_expenses_dates`), with complete rollback scripts.
+  - **Daily & Monthly P&L (`/pnl`, `/pnl/daily`)**: Calendar allocation of dated (`expense_date`)
+    and monthly (`month`) indirect expenses, Ozon factoring adjustments, and daily profit charts on
+    the Dashboard.
+  - **Realization Tax Accounting & Taxes Page (`/#/taxes`, `common/pnl_tax.py`)**: Computes tax
+    from official realization reports (`(realized − returns) × tax_rate_pct`) across WB, Ozon, and
+    YM, automatically distinguishing `confirmed` closed monthly reports from `estimated` open
+    periods, plus a USN 6% + 1% over 300k RUB calculator.
+  - **Monthly Sales (`/#/salesMonthly`)**: Month-by-month sales, revenue, and returns summary with
+    Excel export.
+- **Historical Stock Valuation (`as_of`)**: Added `as_of` date parameter to
+  `GET /api/v1/stocks/current` and `GET /api/v1/finance/daily`, with strict `ManagerAuth` masking
+  of procurement costs (`cost_price_rub`, `stock_value_rub`) for `viewer` and `analyst` roles.
+- **WB Safety Documents Check (`GET /api/v1/pricing/wb-documents`)**: Inspects the hourly WB
+  catalog snapshot and warns on the Prices page when any WB card is missing the "Documents
+  confirming safety are not required" tick.
+- **Repricer Fallback (`no_discount_fallback`)**: A "desired price" (`buyer_price`) rule can act
+  while its card has too few sales to measure the marketplace's discount: by the account's median
+  discount (`account_median` on WB) or keeping the desired price as the seller's price
+  (`seller_price`) until the discount is measured (`PUT /pricing/target/{mp}/{offer}`).
 
 ### Changed
 
-- Repricer on Ozon: a desired-price rule follows Ozon's price index. Raising cards to make up
-  for the ~56 % discount measured on past sales turned 55 of 103 raised cards RED (~1.4× the
-  seller's WB price), and Ozon cut its points — one card was sold at 27 % off, 688 ₽ for a
-  desired 411 ₽. While the index is RED the price goes one `max_step_pct` step down per
-  catalogue snapshot, never below the desired price; while it is YELLOW it is not raised.
-  `mrt_price_current.price_index_color` keeps the colour, `GET /pricing/breakdown` returns it and
-  the prices page shows it in the rule's status.
-- Repricer on Ozon: the card's limit price ("предельная цена", `min_price`) is kept at the price
-  the rule sets. Since October 2026 that one limit decides Ozon's promotions: a card takes part
-  while its limit is not above the promotion's price for taking part, and 162 of 270 live rules
-  had it ~43 % under the price, so promotions could sell the cards at about half the rule's
-  price. A price change now sends `min_price` with the price, and a card whose price is right
-  but whose limit is lower gets a `price_limit` action that raises only the limit. The card
-  leaves the promotions that ask for a lower price and stays, at its own price, in the others.
-- Repricer on Ozon: a desired-price rule on a card with fewer than 3 sales keeps the desired
-  price as the seller's price (`seller_price`) instead of waiting for sales; from the 3rd sale
-  it prices on the card's measured discount. New Ozon rules get it (from the file upload, the
-  prices page and `POST /repricer/rules` without `no_discount_fallback`) and migration 0037
-  moves the waiting Ozon rules to it. "ждать продаж" can still be chosen per card; WB rules
-  wait for sales by default, as before.
-- Repricer on Ozon: a desired-price rule prices on the card's own discount from its first
-  sale, not its third. Ozon kept discounting cards with 1–2 sales by ~50 % after their prices
-  were lowered to the desired one, so buyers paid half of it; only cards without sales keep the
-  desired price as the seller's.
+- **Repricer on Ozon — Price Index Awareness (`0038_ozon_price_index`)**: A desired-price rule
+  follows Ozon's price index (`mrt_price_current.price_index_color`). While the index is `RED`, the
+  price steps down by one `max_step_pct` per catalog snapshot (never below the desired price);
+  while `YELLOW`, it is not raised. Shown in `GET /pricing/breakdown` and in the rule status on the
+  Prices page.
+- **Repricer on Ozon — Limit Price (`min_price`) Sync**: Keeps the card's promotion limit price
+  (`min_price`) aligned with the rule's price (and emits a `price_limit` action when only the limit
+  is lower) so Ozon auto-promotions cannot discount the card below the rule's price.
+- **Repricer on Ozon — New Cards & First-Sale Discount (`0036`, `0037`)**: Ozon cards without sales
+  keep the desired price as `seller_price` instead of using `account_median` (which is rejected
+  with 422 on Ozon) or waiting for 3 sales; from the very first sale, Ozon rules price on the
+  card's own measured discount.
+- **Prices & Cost Excel Templates**: "Шаблон Excel" for desired prices and cost prices now contains
+  only the two headers ("Артикул продавца" and price/cost) formatted as text and money, and
+  downloads even before the catalog loads. Uploaded articles are badged "загружено из файла" with a
+  "Показать только загруженные" filter (`updated` list in `POST /pricing/targets/import` and
+  `POST /pricing/costs/import`).
+- **Prices & ABC/XYZ UI**: Marketplace picker before opening the price breakdown (persisted with
+  the selected row in the URL), direct buyer card links on WB/Ozon/YM, marketplace article column,
+  and supplier article + photo + column filters on ABC/XYZ and cost tables.
+- **Local Self-Hosted Fonts**: `Manrope` and `IBM Plex Mono` are served locally without external
+  requests to `fonts.googleapis.com`.
 
 ### Fixed
 
 - Prices: a rule that waits for sales to measure the discount is shown as "не действует: ждёт
-  продаж для замера скидки" instead of "держится на площадке", and the marketplace panel
-  counts such rules.
+  продаж для замера скидки" instead of "держится на площадке", and the marketplace panel counts
+  such rules.
 - Prices and repricer on Ozon: an Ozon card without its own sales no longer gets the account's
-  median discount. Ozon's discount is mostly its "баллы за скидки", which Ozon gives per card
-  — from none to ~55% on one account, next to none on new cards — so the median of ~51% made
-  the repricer double the price of new cards (a desired 399,75 ₽ became 814 ₽ while buyers saw
-  814 ₽). Such a card shows no discount and no buyer price; `account_median` is refused on Ozon
-  (422) and is no longer offered there, and an Ozon rule that had it keeps the desired price
-  as the seller's price.
+  median discount.
+
+### Security
+
+- **HTTP Defensive Headers & Configurable CORS**: Added `X-Content-Type-Options: nosniff`,
+  `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`,
+  `Permissions-Policy`, strict `Content-Security-Policy` on `/api/` responses, `HSTS` in strict
+  environments, and configurable `CORS_ORIGINS` with `Authorization` header support.
+- **Session Revocation & Auth Cache Coherence**: User password changes and admin password resets
+  immediately revoke active sessions (`revoke_other_sessions`, `revoke_all_for_user`) and purge the
+  in-memory principal cache; organization member updates/removals also flush the auth cache.
+- **RBAC Cost & Finance Isolation**: Prevented cost-price leaks in `/stocks/current` CSV exports
+  and Redis query cache keys across roles; enforced `ManagerAuth` on `/funnel/ozon/finance` and
+  `/economics`.
+- **ClickHouse Tenant Scoping & SQL Loader Traversal Guard**: Enforced explicit
+  `marketplace = 'ozon'` / `marketplace = %(marketplace)s` filtering in funnel queries and added
+  canonical path resolution bounds checking (`is_relative_to`) in `sql_loader.py`.
+- **XLSX Zip-Bomb & CSV Formula Injection Protection**: Hardened `common/xlsx.py` against zip bombs
+  and XML buffer overflows; neutralized spreadsheet formula triggers (`=`, `+`, `-`, `@`, `\t`,
+  `\r`) via `sanitize_csv_cell` in CSV export generation.
+- **Frontend Image URL Sanitization**: Added `isSafeImageUrl` scheme validation across
+  `DataTable.jsx`, `Reviews.jsx`, `Pricing.jsx`, and `Economics.jsx` to block `javascript:` and
+  unsafe URI schemes.
+- **Runtime & Supply Chain**: Updated Python images to `3.14.10`, ClickHouse to `26.3.62.3 LTS`,
+  Redis to `8.10.2`, Nginx to `1.31.8-alpine`, and `clickhouse-connect` to `0.15.1`.
 
 ### Migrations
 
@@ -68,18 +155,22 @@ All notable changes to this project are documented here. The project follows
 - `0037_ozon_rules_seller_price_until_sales`: Ozon rules that waited for sales move to
   `seller_price`.
 - `0038_ozon_price_index`: `mrt_price_current.price_index_color`.
-
-### Changed
-
-- Prices, from the customer's wishes of 2026-10-18: the "Шаблон Excel" of desired prices (per
-  marketplace) and of cost prices hold only the two headers — "Артикул продавца" and the price
-  or cost — with no prefilled articles, titles or current prices, so the seller pastes their
-  own two columns under them. The article column is formatted as text and the value column as
-  money. The template of desired prices downloads before the catalogue is loaded too.
-- After an upload the loaded articles are highlighted in the price table (marked "загружено из
-  файла") and in the cost list, with a "Показать только загруженные" filter. The import
-  results of `POST /pricing/targets/import` and `POST /pricing/costs/import` list them in
-  `updated`.
+- `0039_yandex_market`: Yandex Market raw tables (`raw_ym_orders`, `raw_ym_stocks`,
+  `raw_ym_prices`, `raw_ym_offer_mappings`, `raw_ym_funnel`, `raw_ym_ads`, `raw_ym_finance`,
+  `raw_ym_campaigns`).
+- `0040_ym_order_stats`: `raw_ym_order_stats`.
+- `0041_ym_tariffs`: `raw_ym_tariff_quotes`.
+- `0042_ym_pricing_quality`: YM pricing quality columns in `mrt_price_current`.
+- `0043_ym_delivery_history`: `raw_ym_delivered_snapshots`.
+- `0044_ozon_realization`: `raw_ozon_realization_reports`.
+- `0045_ozon_sku_ad_reports`: `raw_ozon_sku_ad_reports`.
+- `0046_ozon_report_jobs`: `sys_ozon_report_jobs`.
+- `0047_ozon_cis_buyouts`: `raw_ozon_cis_buyouts`.
+- `0048_ozon_campaigns`: `raw_ozon_campaigns`.
+- `0049_additional_expenses_dates`: `dim_additional_expense.expense_date` and `description`.
+- `0050_ozon_funnel_import`: `raw_ozon_funnel_import`.
+- `0051_multi_marketplace_funnel`: `raw_ozon_funnel_import.marketplace` for multi-marketplace
+  cohort funnel imports.
 
 ## [1.2.0] — 2026-10-18
 

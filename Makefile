@@ -13,7 +13,7 @@ MYPY_BIN := $(if $(wildcard $(VENV_BIN)/mypy),$(VENV_BIN)/mypy,mypy)
 PYTEST_BIN := $(if $(wildcard $(VENV_BIN)/pytest),$(VENV_BIN)/pytest,pytest)
 
 help:
-	@echo "BormoStats — Marketplace Analytics v1.1.0"
+	@echo "BormoStats — Marketplace Analytics v1.3.0"
 	@echo ""
 	@echo "=== Docker (recommended) ==="
 	@echo "  make init ENV=dev Create .env from .env.<dev|stage|prod>.example with generated secrets"

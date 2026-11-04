@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bormostats"
-version = "1.2.0"
-description = "Marketplace analytics for WB and Ozon"
+version = "1.3.0"
+description = "Self-hosted analytics, unit economics, pricing and automation for Wildberries, Ozon and Yandex Market"
 requires-python = ">=3.14"
 
 [tool.ruff]

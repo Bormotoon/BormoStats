@@ -33,11 +33,16 @@
 
 - [Project status report](./project_status_report.md)
 - [Audit remediation (2026-09)](./audit_remediation.md)
+- [Total security audit & hardening report (2026-11)](../security_audit_report.md)
 
-## Plans
+## Yandex Market & Plans
 
-- [Pricing plan: customer wishes (2026-10)](./pricing_plan.md)
+- [Yandex Market integration status](./yandex_market_status.md)
+- [Yandex Market implementation report](./yandex_market_implementation_report.md)
+- [Yandex Market identifier contract](./ym_id_contract.md)
+- [Yandex Market scenario matrix](./ym_scenario_matrix.md)
 - [Yandex Market Partner API notes](./ym_partner_api.md)
+- [Pricing plan: customer wishes (2026-10)](./pricing_plan.md)
 
 ## Archive
 
