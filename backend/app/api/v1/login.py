@@ -14,7 +14,11 @@ from app.core.auth import (
     invalidate_auth_cache,
 )
 from app.core.deps import ChClientDependency
-from app.services.session_service import MIN_PASSWORD_LENGTH, SessionService
+from app.services.session_service import (
+    MIN_PASSWORD_LENGTH,
+    SessionService,
+    parse_session_token,
+)
 from app.services.user_service import UserService
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
@@ -77,7 +81,10 @@ def logout(
 
 @router.post("/password")
 def change_password(
-    body: PasswordChange, auth: AuthContextDependency, ch: ChClientDependency
+    body: PasswordChange,
+    auth: AuthContextDependency,
+    ch: ChClientDependency,
+    x_api_key: ApiKeyHeader = "",
 ) -> dict[str, bool]:
     """Change the caller's own password (the current one is required once it is set)."""
     if auth.auth_method not in (AuthMethod.session, AuthMethod.user_key):
@@ -92,6 +99,15 @@ def change_password(
             status_code=status.HTTP_400_BAD_REQUEST, detail="current password is wrong"
         )
     service.set_password(auth.principal_id, body.new_password)
+    if auth.auth_method == AuthMethod.session:
+        parsed = parse_session_token(x_api_key)
+        if parsed is not None:
+            service.revoke_other_sessions(auth.principal_id, parsed.session_id)
+        else:
+            service.revoke_all_for_user(auth.principal_id)
+    else:
+        service.revoke_all_for_user(auth.principal_id)
+    invalidate_auth_cache()
     return {"changed": True}
 
 
@@ -102,5 +118,8 @@ def set_user_password(
     """An owner/admin (or the platform key) sets a user's password."""
     if UserService(ch).get_user(user_id, auth.platform_organization_filter) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")
-    SessionService(ch).set_password(user_id, body.password)
+    session_service = SessionService(ch)
+    session_service.set_password(user_id, body.password)
+    session_service.revoke_all_for_user(user_id)
+    invalidate_auth_cache()
     return {"changed": True}

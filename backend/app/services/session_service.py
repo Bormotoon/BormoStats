@@ -159,3 +159,56 @@ class SessionService:
             ],
         )
         return True
+
+    def revoke_all_for_user(self, user_id: str) -> int:
+        """Revoke every active session belonging to this user."""
+        rows = self._ch.query(
+            "SELECT session_id, user_id, token_hash, created_at, expires_at"
+            " FROM sys_user_session FINAL WHERE user_id = {uid:String} AND revoked_at IS NULL",
+            parameters={"uid": user_id},
+        ).result_rows
+        if not rows:
+            return 0
+        now = utc_now()
+        inserts = [[row[0], row[1], row[2], row[3], row[4], now, now] for row in rows]
+        self._ch.insert(
+            "sys_user_session",
+            inserts,
+            column_names=[
+                "session_id",
+                "user_id",
+                "token_hash",
+                "created_at",
+                "expires_at",
+                "revoked_at",
+                "updated_at",
+            ],
+        )
+        return len(inserts)
+
+    def revoke_other_sessions(self, user_id: str, keep_session_id: str) -> int:
+        """Revoke all active sessions belonging to this user except the current one."""
+        rows = self._ch.query(
+            "SELECT session_id, user_id, token_hash, created_at, expires_at"
+            " FROM sys_user_session FINAL WHERE user_id = {uid:String}"
+            " AND session_id != {keep_sid:String} AND revoked_at IS NULL",
+            parameters={"uid": user_id, "keep_sid": keep_session_id},
+        ).result_rows
+        if not rows:
+            return 0
+        now = utc_now()
+        inserts = [[row[0], row[1], row[2], row[3], row[4], now, now] for row in rows]
+        self._ch.insert(
+            "sys_user_session",
+            inserts,
+            column_names=[
+                "session_id",
+                "user_id",
+                "token_hash",
+                "created_at",
+                "expires_at",
+                "revoked_at",
+                "updated_at",
+            ],
+        )
+        return len(inserts)

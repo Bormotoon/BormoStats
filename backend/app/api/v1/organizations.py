@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.api.errors import API_ERROR_RESPONSES
-from app.core.auth import require_platform_admin
+from app.core.auth import invalidate_auth_cache, require_platform_admin
 from app.core.deps import ChClientDependency, QueryCacheDependency
 from app.models.organization import (
     Organization,
@@ -91,6 +91,7 @@ def delete_organization(
     if not ok:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="organization not found")
     _invalidate_analytics(cache)
+    invalidate_auth_cache()
     return {"deleted": True}
 
 
@@ -109,7 +110,9 @@ def add_member(
     body: OrganizationMemberCreate,
     ch: ChClientDependency,
 ) -> OrganizationMember:
-    return _svc(ch).add_member(org_id, body)
+    member = _svc(ch).add_member(org_id, body)
+    invalidate_auth_cache()
+    return member
 
 
 @router.patch("/{org_id}/members/{user_id}")
@@ -122,6 +125,7 @@ def update_member(
     member = _svc(ch).update_member(org_id, user_id, body)
     if member is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="member not found")
+    invalidate_auth_cache()
     return member
 
 
@@ -134,6 +138,7 @@ def remove_member(
     ok = _svc(ch).remove_member(org_id, user_id)
     if not ok:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="member not found")
+    invalidate_auth_cache()
     return {"deleted": True}
 
 
