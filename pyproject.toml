@@ -35,5 +35,5 @@ namespace_packages = true
 mypy_path = ["backend", "workers"]
 
 [[tool.mypy.overrides]]
-module = ["celery", "celery.*", "kombu", "kombu.*"]
+module = ["celery", "celery.*", "kombu", "kombu.*", "clickhouse_connect", "clickhouse_connect.*"]
 ignore_missing_imports = true

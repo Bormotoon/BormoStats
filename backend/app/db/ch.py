@@ -53,7 +53,7 @@ def build_raw_client(
     # The pool above belongs to this client alone, but clickhouse-connect treats a passed-in
     # pool as shared: close() would leave its sockets open and the manager registered
     # forever, leaking descriptors for every short-lived client (e.g. the metrics refresher).
-    client._owns_pool_manager = True  # type: ignore[attr-defined]
+    client._owns_pool_manager = True  # type: ignore[attr-defined,unused-ignore]
     return client
 
 

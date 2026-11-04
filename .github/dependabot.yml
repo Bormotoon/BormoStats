@@ -46,6 +46,10 @@ updates:
       - "/workers"
     schedule:
       interval: "weekly"
+    ignore:
+      # Keep Python on 3.14 patch releases until a planned project upgrade to 3.15
+      - dependency-name: "python"
+        versions: [">= 3.15"]
 
   - package-ecosystem: "docker-compose"
     directory: "/infra/docker"
