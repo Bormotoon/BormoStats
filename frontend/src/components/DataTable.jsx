@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "../utils/i18n.jsx";
-import { isMoneyColumn, isPercentColumn, marketplaceName, ruDate } from "../utils/formats.js";
+import { isMoneyColumn, isPercentColumn, isSafeImageUrl, marketplaceName, ruDate } from "../utils/formats.js";
 import { downloadXlsx } from "../utils/xlsx.js";
 import { CaretDown, CaretUp, FileXls, X } from "@phosphor-icons/react";
 
@@ -323,6 +323,9 @@ export function CellValue({ type, value }) {
     return <span className="text-[var(--color-on-surface-variant)]">&mdash;</span>;
   }
   if (type === "image") {
+    if (!isSafeImageUrl(value)) {
+      return <span className="text-[var(--color-on-surface-variant)]">&mdash;</span>;
+    }
     return <img src={value} alt="" loading="lazy" referrerPolicy="no-referrer" className="inline-block h-12 w-9 rounded object-cover" />;
   }
   if (type === "date") return <span className="whitespace-nowrap font-mono">{ruDate(value)}</span>;

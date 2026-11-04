@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { request, safeCall } from "../utils/api.js";
-import { formatAsOf, marketplaceName, numberFmt } from "../utils/formats.js";
+import { formatAsOf, isSafeImageUrl, marketplaceName, numberFmt } from "../utils/formats.js";
 import { Spinner } from "../components/StatusChip.jsx";
 import {
   ArrowClockwise, Camera, ChatCircleText, Check, MagicWand, Note, PaperPlaneRight, PencilSimple, Plus, Star, Trash, Warning, X,
@@ -93,7 +93,7 @@ function ReviewCard({ review, onReplied }) {
   return (
     <article className="md3-card-elevated p-4 space-y-3">
       <header className="flex items-start gap-3">
-        {review.image_url ? (
+        {isSafeImageUrl(review.image_url) ? (
           <img src={review.image_url} alt="" loading="lazy" referrerPolicy="no-referrer" className="h-16 w-12 rounded object-cover shrink-0" />
         ) : (
           <div className="h-16 w-12 rounded bg-[var(--color-surface-container)] shrink-0" aria-hidden="true" />

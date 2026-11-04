@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { request, safeCall } from "../utils/api.js";
-import { moneyFmt, numberFmt, formatAsOf } from "../utils/formats.js";
+import { moneyFmt, numberFmt, formatAsOf, isSafeImageUrl } from "../utils/formats.js";
 import { downloadXlsx, readTableFile } from "../utils/xlsx.js";
 import { Spinner } from "../components/StatusChip.jsx";
 import DataTable from "../components/DataTable.jsx";
@@ -893,7 +893,7 @@ function Costs({ onImported }) {
                 {shown.map((c) => (
                   <tr key={c.offer_id} className={loaded.has(c.offer_id) ? "bg-[var(--color-primary-container)]/50" : ""}>
                     <td className={`${tdClass} w-12`}>
-                      {c.image_url && (
+                      {isSafeImageUrl(c.image_url) && (
                         <img src={c.image_url} alt="" loading="lazy" referrerPolicy="no-referrer" className="h-10 w-8 rounded object-cover" />
                       )}
                     </td>

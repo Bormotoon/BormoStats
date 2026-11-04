@@ -96,6 +96,13 @@ export function buyerCardUrl(marketplace, productId) {
   return null;
 }
 
+/** Validate that an image URL uses http(s) or a data:image URI to prevent javascript: or malformed URLs. */
+export function isSafeImageUrl(url) {
+  if (typeof url !== "string") return false;
+  const trimmed = url.trim();
+  return /^https?:\/\//i.test(trimmed) || trimmed.startsWith("data:image/");
+}
+
 export function formatCell(key, value) {
   if (value === null || value === undefined || value === "") return "-";
   const keyLower = key.toLowerCase();
