@@ -62,6 +62,7 @@ TRUNCATE_TABLES = (
     "raw_ozon_sku_ad_reports",
     "raw_ozon_cis_buyouts",
     "raw_ozon_campaigns",
+    "raw_ozon_funnel_import",
     "sys_ozon_report_jobs",
     "stg_sales",
     "dim_user_credential",
