@@ -179,3 +179,15 @@ test("price templates hold only the headers and an upload marks the loaded artic
   expect(costs.match(/<c /g)).toHaveLength(2);
   expect(costs).toContain("Себестоимость");
 });
+
+test("viewer role loads dashboard safely even when daily pnl returns 403", async ({ page }) => {
+  await mockApi(page);
+  await page.route("**/api/v1/pnl/daily**", (route) =>
+    json(route, 403, { detail: "manager role required", error: { code: "forbidden", message: "manager role required" } })
+  );
+  await signInWithKey(page);
+  await page.goto("#/dashboard");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.locator("h2, h3").first()).toBeVisible();
+});
+

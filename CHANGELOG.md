@@ -7,6 +7,14 @@ All notable changes to this project are documented here. The project follows
 
 ### Added
 
+- **Ozon Analytics Customization (PR #72 Integration)**:
+  - **ClickHouse Migrations**: Added migrations `0044` through `0050` (`raw_ozon_realization_reports`, `raw_ozon_sku_ad_reports`, `raw_ozon_cis_buyouts`, `raw_ozon_campaigns`, `0049_additional_expenses_dates`, `raw_ozon_funnel_import`) with complete mirror rollback scripts and manifest verification.
+  - **Collectors**: Added async queue worker `collectors/ozon/sku_ad_reports.py` with failure recovery and TTL invalidation, EAEU/CIS buyout collector `collectors/ozon/cis_buyouts.py`, realization report collector `collectors/ozon/realization_reports.py`, and campaign metadata collector `collectors/ozon/campaigns.py`.
+  - **Historical Valuation**: Added `as_of` parameter to `/stocks/current` and `mrt_finance_daily` queries, with strict `ManagerAuth` masking of procurement costs (`cost_price_rub`) for viewers and analysts.
+  - **P&L & Taxes**: Added `/pnl/daily` calendar allocation, Ozon factoring financing adjustments, realization tax estimation/actual accounting (`common/pnl_tax.py`), and dated additional expenses.
+  - **Article Unit Economics**: Implemented $O(N + S)$ streaming analytics engine (`common/article_economics.py`) with composite keys `(account_id, sku)`, account-scoped tax allocation, and historical CIS buyout deduplication.
+  - **Ozon Funnel**: Added manual Excel funnel report import (`/funnel/ozon/import`), deterministic pagination, and RBAC-protected related metrics (`/funnel/ozon/related`).
+  - **Frontend**: Added Article Economics page (`Economics.jsx`), Ozon Funnel view (`OzonFunnel.jsx`), DateRangePicker, and safe fallbacks for viewer/analyst roles.
 - Repricer: a "desired price" (`buyer_price`) rule can act while its card has too few sales to
   measure the marketplace's discount (`no_discount_fallback`): by the account's median discount
   (`account_median`) or keeping the desired price as the seller's price (`seller_price`) until

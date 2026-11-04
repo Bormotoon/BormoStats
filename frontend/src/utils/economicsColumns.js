@@ -34,3 +34,4 @@ export function loadEconomicsColumns(storage) {
   } catch { /* unavailable local storage: use the compact view */ }
   return COMPACT_ECONOMICS_KEYS;
 }
+

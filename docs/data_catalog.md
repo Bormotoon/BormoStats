@@ -19,7 +19,20 @@ reports; see [Time](#time) for how timestamps are stored.
 | `mrt_finance_daily` | day × account | Ozon `/v1/finance/balance` per day; WB realization report lines (`/api/finance/v1/sales-reports/detailed`, daily reports) + balance widget snapshots | every 30 min; collectors hourly | Ozon ≤ 1 h; WB report of a day arrives the next day |
 | `mrt_price_current` | account × card (supplier article) | latest catalogue snapshot (prices, Ozon tariffs) + marketplace discount measured on recent sales (WB orders `finishedPrice / priceWithDisc`, Ozon accruals `sale_price / seller_price`) + fees from the WB realization report / Ozon accruals + `dim_offer_cost` | every 30 min, rebuilt whole | catalogue snapshot hourly |
 | `mrt_breakeven_daily` | — | superseded by `mrt_price_current`; nothing reads or writes it, to be dropped | — | — |
-| `mrt_pnl_monthly` | month × organization × account | `mrt_finance_daily` + cost of goods + Ozon ads; `dim_additional_expense` as rows with an empty marketplace | every 30 min (months the window touches) | ≤ 2 h |
+| `mrt_pnl_monthly` | month × organization × account | `mrt_finance_daily` (including advertising charges) + cost of goods; Performance spend is not deducted again; `dim_additional_expense` as rows with an empty marketplace | every 30 min (months the window touches) | ≤ 2 h |
+
+### Ozon Extended Analytics & Unit Economics
+
+| Table | Grain | Description |
+|---|---|---|
+| `raw_ozon_realization_reports` | month × account × row | Detailed monthly realization reports (`/v1/finance/realization`) with per-item sales, commissions, and returns for official tax base reconciliation. |
+| `raw_ozon_sku_ad_reports` | day × account × campaign × sku | SKU-attributed advertising statistics from Ozon Performance API (`/v1/statistics/daily/products`). |
+| `raw_ozon_cis_buyouts` | day × account × posting × sku | EAEU/CIS buyouts (`/v1/finance/products/buyout`) deduplicated against domestic postings. |
+| `raw_ozon_campaigns` | account × campaign | Ozon advertising campaign metadata (payment type, bidding strategy, placement, effective date). |
+| `raw_ozon_funnel_import` | day × account × sku × scheme | Manually imported Ozon Excel funnel reports with impressions, search impressions, visits, and carts. |
+| `sys_ozon_report_jobs` | job_id | Internal state machine for async Ozon report generation, status polling, and download TTL management. |
+
+Article-level unit economics (`/api/v1/economics`) computes per-SKU profitability and P&L breakdown using an $O(N + S)$ streaming accumulator with composite `(account_id, sku)` keys, preserving account-scoped taxes and unbounded historical CIS buyout deduplication.
 
 ### Product dictionary
 

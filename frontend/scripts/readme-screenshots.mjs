@@ -422,6 +422,11 @@ function build(path, url) {
     "/api/v1/reviews": () => ({ items: filterMp(REVIEWS, url), total: filterMp(REVIEWS, url).length }),
     "/api/v1/reviews/settings": () => ({ auto_enabled: false, modes: {} }),
     "/api/v1/reviews/templates": () => [],
+    "/api/v1/pnl/daily": () => ({ items: [], totals: { sales_rub: 0, returns_rub: 0, net_revenue_rub: 0, net_accrued_rub: 0, cogs_rub: 0, ad_cost_rub: 0, indirect_expenses_rub: 0, tax_rub: 0, net_profit_rub: 0 } }),
+    "/api/v1/economics": () => ({ items: [], total: null }),
+    "/api/v1/funnel/ozon": () => ({ items: [] }),
+    "/api/v1/funnel/ozon/related": () => ({ items: [] }),
+    "/api/v1/funnel/ozon/finance": () => ({ daily: [], stocks: [], advertising: [] }),
   };
   const handler = routes[path];
   return handler ? { status: 200, body: handler() } : { status: 200, body: [] };
