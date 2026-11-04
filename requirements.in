@@ -16,4 +16,4 @@ structlog==26.1.0
 tzdata==2026.6
 uvicorn[standard]==0.54.0
 
-clickhouse-cityhash==1.0.2.5
+clickhouse-cityhash==1.0.2.6
