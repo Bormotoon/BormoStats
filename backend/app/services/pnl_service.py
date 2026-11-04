@@ -21,7 +21,7 @@ from clickhouse_connect.driver import Client
 from fastapi import HTTPException
 
 from common.article_economics import AccrualEconomics
-from common.pnl_tax import tax_amount
+from common.pnl_tax import is_tax_applicable, tax_amount
 
 _EXP_COLUMNS: tuple[tuple[str, str], ...] = (
     ("expense_id", "String"),
@@ -236,64 +236,206 @@ class PnlService:
             )
 
     def _apply_realization_tax(self, rows: list[PnlRow]) -> None:
-        account_id = os.getenv("PNL_TAX_ACCOUNT_ID", "default")
+        applicable_rows = [
+            row for row in rows if is_tax_applicable(self._org, row.marketplace, row.account_id)
+        ]
+        if not applicable_rows:
+            return
+
         rate = Decimal(os.getenv("PNL_TAX_RATE_PCT", "8"))
-        reports = self._ch.query(
-            "SELECT month, sum(sale_amount) - sum(return_amount) AS tax_base,"
-            " max(ingested_at) AS fetched_at"
-            " FROM raw_ozon_realization_reports FINAL WHERE account_id = {aid:String}"
-            " GROUP BY month",
-            parameters={"aid": account_id},
-        )
-        by_month = {str(r["month"])[:7]: r for r in reports.named_results()}
-        coverage = self._ch.query(
-            "SELECT toStartOfMonth(day) AS month, uniqExact(day) AS days"
-            " FROM raw_ozon_finance_balance FINAL WHERE account_id = {aid:String} GROUP BY month",
-            parameters={"aid": account_id},
-        )
-        days = {str(r["month"])[:7]: int(r["days"]) for r in coverage.named_results()}
-        for row in rows:
-            if row.marketplace != "ozon" or row.account_id != account_id:
-                continue
-            receipts = getattr(self, "_cis_receipts", {}).get(
-                (row.month[:7], account_id), Decimal(0)
+        today = date.today()
+
+        ozon_rows = [r for r in applicable_rows if r.marketplace == "ozon"]
+        ozon_reports: dict[tuple[str, str], dict[str, Any]] = {}
+        ozon_days: dict[tuple[str, str], int] = {}
+        if ozon_rows:
+            ozon_aids = sorted({r.account_id for r in ozon_rows})
+            for aid in ozon_aids:
+                reports = self._ch.query(
+                    "SELECT month, sum(sale_amount) - sum(return_amount) AS tax_base,"
+                    " max(ingested_at) AS fetched_at"
+                    " FROM raw_ozon_realization_reports FINAL WHERE account_id = {aid:String}"
+                    " GROUP BY month",
+                    parameters={"aid": aid},
+                )
+                for r in reports.named_results():
+                    ozon_reports[(aid, str(r["month"])[:7])] = r
+                coverage = self._ch.query(
+                    "SELECT toStartOfMonth(day) AS month, uniqExact(day) AS days"
+                    " FROM raw_ozon_finance_balance FINAL"
+                    " WHERE account_id = {aid:String} GROUP BY month",
+                    parameters={"aid": aid},
+                )
+                for r in coverage.named_results():
+                    ozon_days[(aid, str(r["month"])[:7])] = int(r["days"])
+
+        wb_rows = [r for r in applicable_rows if r.marketplace == "wb"]
+        wb_reports: dict[tuple[str, str], dict[str, Any]] = {}
+        wb_fallback: dict[tuple[str, str], Decimal] = {}
+        if wb_rows:
+            wb_aids = sorted({r.account_id for r in wb_rows})
+            wb_months = sorted({f"{r.month[:7]}-01" for r in wb_rows})
+            wb_query = (
+                "SELECT account_id, toStartOfMonth(day) AS month, count() AS rows_cnt, "
+                "sum(multiIf("
+                "lowerUTF8(JSONExtractString(payload, 'doc_type_name')) LIKE 'продаж%', "
+                "toDecimal64OrZero(toString(JSONExtractRaw(payload, 'retail_amount')), 2), "
+                "lowerUTF8(JSONExtractString(payload, 'doc_type_name')) LIKE 'возврат%', "
+                "-abs(toDecimal64OrZero(toString(JSONExtractRaw(payload, 'retail_amount')), 2)), "
+                "toDecimal64(0, 2)"
+                ")) AS retail_base, "
+                "max(ingested_at) AS fetched_at "
+                "FROM raw_wb_finance_report FINAL "
+                "WHERE account_id IN {aids:Array(String)} "
+                "AND toStartOfMonth(day) IN {months:Array(Date)} "
+                "GROUP BY account_id, month"
             )
+            for r in self._ch.query(
+                wb_query, parameters={"aids": wb_aids, "months": wb_months}
+            ).named_results():
+                wb_reports[(r["account_id"], str(r["month"])[:7])] = r
+
+            needs_fallback_aids = [
+                r.account_id
+                for r in wb_rows
+                if (r.account_id, r.month[:7]) not in wb_reports
+                or wb_reports[(r.account_id, r.month[:7])]["rows_cnt"] <= 0
+            ]
+            if needs_fallback_aids:
+                wb_finance_query = (
+                    "SELECT account_id, toStartOfMonth(day) AS month, "
+                    "sum(sales + returns) AS revenue_base "
+                    "FROM mrt_finance_daily FINAL "
+                    "WHERE marketplace = 'wb' AND account_id IN {aids:Array(String)} "
+                    "AND toStartOfMonth(day) IN {months:Array(Date)} "
+                    "GROUP BY account_id, month"
+                )
+                for r in self._ch.query(
+                    wb_finance_query,
+                    parameters={"aids": sorted(set(needs_fallback_aids)), "months": wb_months},
+                ).named_results():
+                    wb_fallback[(r["account_id"], str(r["month"])[:7])] = Decimal(
+                        str(r["revenue_base"])
+                    )
+
+        ym_rows = [r for r in applicable_rows if r.marketplace == "ym"]
+        ym_finance: dict[tuple[str, str], dict[str, Any]] = {}
+        if ym_rows:
+            ym_aids = sorted({r.account_id for r in ym_rows})
+            ym_months = sorted({f"{r.month[:7]}-01" for r in ym_rows})
+            ym_query = (
+                "SELECT account_id, toStartOfMonth(day) AS month, "
+                "sum(sales + returns) AS revenue_base, "
+                "countIf(sales != 0 OR returns != 0 OR net_accrued != 0) AS tx_cnt "
+                "FROM mrt_finance_daily FINAL "
+                "WHERE marketplace = 'ym' AND account_id IN {aids:Array(String)} "
+                "AND toStartOfMonth(day) IN {months:Array(Date)} "
+                "GROUP BY account_id, month"
+            )
+            for r in self._ch.query(
+                ym_query, parameters={"aids": ym_aids, "months": ym_months}
+            ).named_results():
+                ym_finance[(r["account_id"], str(r["month"])[:7])] = r
+
+        for row in rows:
+            if not is_tax_applicable(self._org, row.marketplace, row.account_id):
+                continue
+
             row.tax_enabled = True
             row.tax_rate_pct = float(rate)
             row.profit_before_tax_rub = row.net_profit_rub
             month = row.month[:7]
-            report = by_month.get(month)
-            if report is None:
-                # Preliminary base uses sales net of returns, before marketplace deductions.
-                base = self._buyer_tax_base(account_id, month)
-                tax = tax_amount(base, rate)
-                row.tax_base_rub = float(base)
-                row.tax_rub = float(tax)
-                row.tax_status = "estimated"
-                row.net_profit_rub = float(
-                    (Decimal(str(row.profit_before_tax_rub)) - tax).quantize(Decimal("0.01"))
-                )
-                continue
-            base = Decimal(str(report["tax_base"])) + receipts
-            tax = tax_amount(base, rate)
-            row.tax_base_rub = float(base)
-            row.tax_rub = float(tax)
-            row.realization_fetched_at = str(report["fetched_at"])
             year, month_number = map(int, month.split("-"))
-            if days.get(month, 0) != calendar.monthrange(year, month_number)[1]:
-                base = self._buyer_tax_base(account_id, month)
+            last_day_of_month = date(year, month_number, calendar.monthrange(year, month_number)[1])
+            is_month_closed = last_day_of_month < today
+
+            if row.marketplace == "ozon":
+                receipts = getattr(self, "_cis_receipts", {}).get(
+                    (row.month[:7], row.account_id), Decimal(0)
+                )
+                report = ozon_reports.get((row.account_id, month))
+                if report is None:
+                    base = self._buyer_tax_base(row.account_id, month)
+                    tax = tax_amount(base, rate)
+                    row.tax_base_rub = float(base)
+                    row.tax_rub = float(tax)
+                    row.tax_status = "estimated"
+                    row.net_profit_rub = float(
+                        (Decimal(str(row.profit_before_tax_rub)) - tax).quantize(Decimal("0.01"))
+                    )
+                else:
+                    base = Decimal(str(report["tax_base"])) + receipts
+                    tax = tax_amount(base, rate)
+                    row.tax_base_rub = float(base)
+                    row.tax_rub = float(tax)
+                    row.realization_fetched_at = str(report["fetched_at"])
+                    if (
+                        ozon_days.get((row.account_id, month), 0)
+                        != calendar.monthrange(year, month_number)[1]
+                    ):
+                        base = self._buyer_tax_base(row.account_id, month)
+                        tax = tax_amount(base, rate)
+                        row.tax_base_rub = float(base)
+                        row.tax_rub = float(tax)
+                        row.tax_status = "estimated"
+                        row.net_profit_rub = float(
+                            (Decimal(str(row.profit_before_tax_rub)) - tax).quantize(
+                                Decimal("0.01")
+                            )
+                        )
+                    else:
+                        row.tax_status = "confirmed"
+                        row.net_profit_rub = float(
+                            (Decimal(str(row.profit_before_tax_rub)) - tax).quantize(
+                                Decimal("0.01")
+                            )
+                        )
+
+            elif row.marketplace == "wb":
+                wb_rep = wb_reports.get((row.account_id, month))
+                if wb_rep is not None and wb_rep["rows_cnt"] > 0:
+                    base = Decimal(str(wb_rep["retail_base"]))
+                    tax = tax_amount(base, rate)
+                    row.tax_base_rub = float(base)
+                    row.tax_rub = float(tax)
+                    if wb_rep.get("fetched_at"):
+                        row.realization_fetched_at = str(wb_rep["fetched_at"])
+                    row.tax_status = "confirmed" if is_month_closed else "estimated"
+                else:
+                    base = wb_fallback.get(
+                        (row.account_id, month),
+                        Decimal(str(row.revenue_rub)) - Decimal(str(row.returns_cost_rub)),
+                    )
+                    tax = tax_amount(base, rate)
+                    row.tax_base_rub = float(base)
+                    row.tax_rub = float(tax)
+                    row.tax_status = "estimated"
+                row.net_profit_rub = float(
+                    (Decimal(str(row.profit_before_tax_rub)) - tax).quantize(Decimal("0.01"))
+                )
+
+            elif row.marketplace == "ym":
+                ym_data = ym_finance.get((row.account_id, month))
+                if ym_data is not None:
+                    base = Decimal(str(ym_data["revenue_base"]))
+                    has_tx = ym_data["tx_cnt"] > 0
+                else:
+                    base = Decimal(str(row.revenue_rub)) - Decimal(str(row.returns_cost_rub))
+                    has_tx = row.revenue_rub != 0 or row.net_accrued_rub != 0
+
                 tax = tax_amount(base, rate)
                 row.tax_base_rub = float(base)
                 row.tax_rub = float(tax)
-                row.tax_status = "estimated"
+                row.tax_status = "confirmed" if (is_month_closed and has_tx) else "estimated"
                 row.net_profit_rub = float(
                     (Decimal(str(row.profit_before_tax_rub)) - tax).quantize(Decimal("0.01"))
                 )
-            else:
-                row.tax_status = "confirmed"
-                row.net_profit_rub = float(
-                    (Decimal(str(row.profit_before_tax_rub)) - tax).quantize(Decimal("0.01"))
-                )
+
+            net_rev = row.revenue_rub - row.returns_cost_rub
+            base_rev = net_rev if net_rev > 0 else row.revenue_rub
+            row.margin_pct = (
+                round((row.gross_profit_rub / base_rev) * 100.0, 2) if base_rev > 0 else 0.0
+            )
 
     def _buyer_tax_base(self, account_id: str, month: str) -> Decimal:
         """Buyer receipts net of returns, using the same sources as article economics."""

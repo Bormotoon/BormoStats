@@ -14,7 +14,7 @@ from typing import Any
 from app.services.pnl_service import PnlService
 
 from common.article_economics import AccrualEconomics
-from common.pnl_tax import tax_amount
+from common.pnl_tax import is_tax_applicable, tax_amount
 
 CENT = Decimal("0.01")
 
@@ -88,6 +88,28 @@ class DailyPnlService:
                 target[k] += Decimal(str(r[k]))
             target["ads"] += Decimal(str(r.get("ads") or 0))
             target["net_accrued"] += Decimal(str(r.get("financing") or 0))
+
+        wb_ym_accounts = [(mp, aid) for mp, aid in accounts if mp in ("wb", "ym")]
+        if wb_ym_accounts:
+            ads_sql = (
+                "SELECT day, marketplace, account_id, sum(cost) AS ads_cost "
+                "FROM mrt_ads_daily FINAL "
+                "WHERE day BETWEEN {start:Date} AND {stop:Date} "
+                "AND marketplace IN ('wb', 'ym') "
+                "AND (marketplace, account_id) IN {wb_ym_accounts:Array(Tuple(String, String))} "
+                "GROUP BY day, marketplace, account_id"
+            )
+            with contextlib.suppress(Exception):
+                for r in self.ch.query(
+                    ads_sql,
+                    parameters={
+                        "start": first,
+                        "stop": last,
+                        "wb_ym_accounts": wb_ym_accounts,
+                    },
+                ).named_results():
+                    target = rows[(str(r["day"]), r["marketplace"], r["account_id"])]
+                    target["ads"] += Decimal(str(r["ads_cost"]))
 
         # Same COGS fallback as monthly P&L; never silently hide missing costs.
         sql = """SELECT s.day AS day,s.marketplace AS marketplace,s.account_id AS account_id,
@@ -201,6 +223,37 @@ class DailyPnlService:
                     (v["buyer_revenue"] for v in engine.rows.values()), Decimal(0)
                 )
 
+        # Buyer prices and signed returns for WB and YM
+        for mp, aid in accounts:
+            if mp in ("wb", "ym"):
+                for i in range((last - first).days + 1):
+                    d_str = (first + timedelta(days=i)).isoformat()
+                    rows[(d_str, mp, aid)]["buyer"] = rows[(d_str, mp, aid)]["revenue"]
+
+        wb_accounts = [aid for mp, aid in accounts if mp == "wb"]
+        if wb_accounts:
+            wb_report_sql = (
+                "SELECT day, account_id, sum(multiIf("
+                "lowerUTF8(JSONExtractString(payload, 'doc_type_name')) LIKE 'продаж%', "
+                "toDecimal64OrZero(toString(JSONExtractRaw(payload, 'retail_amount')), 2), "
+                "lowerUTF8(JSONExtractString(payload, 'doc_type_name')) LIKE 'возврат%', "
+                "-abs(toDecimal64OrZero(toString(JSONExtractRaw(payload, 'retail_amount')), 2)), "
+                "toDecimal64(0, 2)"
+                ")) AS retail_base "
+                "FROM raw_wb_finance_report FINAL "
+                "WHERE account_id IN {wb_aids:Array(String)} "
+                "AND day BETWEEN {start:Date} AND {stop:Date} "
+                "GROUP BY day, account_id"
+            )
+            with contextlib.suppress(Exception):
+                for r in self.ch.query(
+                    wb_report_sql,
+                    parameters={"wb_aids": wb_accounts, "start": first, "stop": last},
+                ).named_results():
+                    rows[(str(r["day"]), "wb", r["account_id"])]["buyer"] = Decimal(
+                        str(r["retail_base"])
+                    )
+
         monthly = {
             (r.month[:7], r.marketplace, r.account_id): r
             for r in PnlService(self.ch, self.org).get_pnl(first, last, marketplace, account_id)
@@ -224,13 +277,7 @@ class DailyPnlService:
             for mp, aid in accounts:
                 keys = [(d.isoformat(), mp, aid) for d in days]
                 monthly_row = monthly.get((month.isoformat()[:7], mp, aid))
-                tax_acc = os.getenv("PNL_TAX_ACCOUNT_ID", "default")
-                enabled = (
-                    os.getenv("PNL_REALIZATION_TAX_ENABLED", "false").lower() == "true"
-                    and self.org == os.getenv("PNL_TAX_ORGANIZATION_ID", "default")
-                    and mp == "ozon"
-                    and aid == tax_acc
-                )
+                enabled = is_tax_applicable(self.org, mp, aid)
                 if enabled:
                     weights = [rows[k]["buyer"] for k in keys]
                     confirmed = monthly_row is not None and monthly_row.tax_status == "confirmed"

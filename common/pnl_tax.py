@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import calendar
+import os
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
@@ -62,3 +63,29 @@ def tax_amount(base: Decimal, rate: Decimal) -> Decimal:
     if not rate.is_finite() or not Decimal(0) <= rate <= Decimal(100):
         raise ValueError("Tax rate must be between 0 and 100 percent")
     return (max(base, Decimal(0)) * rate / Decimal(100)).quantize(CENT, rounding=ROUND_HALF_UP)
+
+
+def is_tax_applicable(organization_id: str, marketplace: str, account_id: str) -> bool:
+    """Return True if tax overlay is applicable to the given org, marketplace, and account."""
+    if os.getenv("PNL_REALIZATION_TAX_ENABLED", "false").strip().lower() != "true":
+        return False
+    if organization_id.strip() != os.getenv("PNL_TAX_ORGANIZATION_ID", "default").strip():
+        return False
+
+    allowed_marketplaces = {
+        m.strip().lower()
+        for m in os.getenv("PNL_TAX_MARKETPLACES", "ozon,wb,ym").split(",")
+        if m.strip()
+    }
+    mp = marketplace.strip().lower()
+    if not mp or mp not in allowed_marketplaces:
+        return False
+
+    account_rule = os.getenv("PNL_TAX_ACCOUNT_ID", "default").strip()
+    if account_rule.lower() in ("*", "all"):
+        return True
+
+    allowed_accounts = {a.strip() for a in account_rule.split(",") if a.strip()}
+    aid = account_id.strip()
+    pair = f"{mp}:{aid}"
+    return aid in allowed_accounts or pair in allowed_accounts

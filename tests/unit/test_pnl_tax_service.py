@@ -167,6 +167,162 @@ class TaxServiceTests(unittest.TestCase):
             "Realization tax table must not be queried for other organizations",
         )
 
+    def test_wb_tax_confirmed_and_estimated(self):
+        base_amounts = dict.fromkeys(
+            [
+                "commission_rub",
+                "logistics_rub",
+                "storage_rub",
+                "other_costs_rub",
+                "net_accrued_rub",
+                "cogs_rub",
+                "ad_cost_rub",
+                "additional_expenses_rub",
+                "operating_profit_rub",
+                "ebitda_rub",
+            ],
+            0,
+        )
+        pnl_row_closed = {
+            **base_amounts,
+            "month": date(2026, 9, 1),
+            "organization_id": "default",
+            "marketplace": "wb",
+            "account_id": "default",
+            "net_profit_rub": 50000.0,
+            "gross_profit_rub": 50000.0,
+            "revenue_rub": 100000.0,
+            "returns_cost_rub": 0.0,
+            "margin_pct": 50.0,
+        }
+        wb_rep = [
+            {
+                "account_id": "default",
+                "month": date(2026, 9, 1),
+                "rows_cnt": 10,
+                "retail_base": Decimal("100000.00"),
+                "fetched_at": datetime(2026, 10, 5),
+            }
+        ]
+
+        class WBDatabase:
+            def __init__(self, rep=wb_rep):
+                self.rep = rep
+                self.queries = []
+
+            def query(self, sql, **kwargs):
+                self.queries.append(sql)
+                if "FROM mrt_pnl_monthly" in sql:
+                    return Result([pnl_row_closed])
+                if "FROM raw_wb_finance_report" in sql:
+                    return Result(self.rep)
+                if "FROM mrt_finance_daily" in sql:
+                    return Result(
+                        [
+                            {
+                                "account_id": "default",
+                                "month": date(2026, 9, 1),
+                                "revenue_base": Decimal("90000.00"),
+                            }
+                        ]
+                    )
+                raise AssertionError(sql)
+
+        # Closed month with report -> confirmed
+        row = PnlService(WBDatabase(), "default").get_pnl()[0]
+        self.assertTrue(row.tax_enabled)
+        self.assertEqual(row.tax_status, "confirmed")
+        self.assertEqual(row.tax_base_rub, 100000.0)
+        self.assertEqual(row.tax_rub, 8000.0)
+        self.assertEqual(row.net_profit_rub, 42000.0)
+
+        # Without report -> estimated fallback to mrt_finance_daily
+        row_no_rep = PnlService(WBDatabase(rep=[]), "default").get_pnl()[0]
+        self.assertEqual(row_no_rep.tax_status, "estimated")
+        self.assertEqual(row_no_rep.tax_base_rub, 90000.0)
+        self.assertEqual(row_no_rep.tax_rub, 7200.0)
+        self.assertEqual(row_no_rep.net_profit_rub, 42800.0)
+
+    def test_ym_tax_confirmed_and_estimated(self):
+        base_amounts = dict.fromkeys(
+            [
+                "commission_rub",
+                "logistics_rub",
+                "storage_rub",
+                "other_costs_rub",
+                "net_accrued_rub",
+                "cogs_rub",
+                "ad_cost_rub",
+                "additional_expenses_rub",
+                "operating_profit_rub",
+                "ebitda_rub",
+            ],
+            0,
+        )
+        pnl_closed = {
+            **base_amounts,
+            "month": date(2026, 9, 1),
+            "organization_id": "default",
+            "marketplace": "ym",
+            "account_id": "default",
+            "net_profit_rub": 80000.0,
+            "gross_profit_rub": 80000.0,
+            "revenue_rub": 200000.0,
+            "returns_cost_rub": 0.0,
+            "margin_pct": 40.0,
+        }
+        pnl_open = {
+            **base_amounts,
+            "month": date(2026, 11, 1),
+            "organization_id": "default",
+            "marketplace": "ym",
+            "account_id": "default",
+            "net_profit_rub": 40000.0,
+            "gross_profit_rub": 40000.0,
+            "revenue_rub": 100000.0,
+            "returns_cost_rub": 0.0,
+            "margin_pct": 40.0,
+        }
+
+        class YMDatabase:
+            def __init__(self, pnl_row, tx_cnt=5):
+                self.pnl_row = pnl_row
+                self.tx_cnt = tx_cnt
+                self.queries = []
+
+            def query(self, sql, **kwargs):
+                self.queries.append(sql)
+                if "FROM mrt_pnl_monthly" in sql:
+                    return Result([self.pnl_row])
+                if "FROM mrt_finance_daily" in sql:
+                    return Result(
+                        [
+                            {
+                                "account_id": "default",
+                                "month": self.pnl_row["month"],
+                                "revenue_base": Decimal(str(self.pnl_row["revenue_rub"])),
+                                "tx_cnt": self.tx_cnt,
+                            }
+                        ]
+                    )
+                raise AssertionError(sql)
+
+        # Closed month -> confirmed
+        row_closed = PnlService(YMDatabase(pnl_closed), "default").get_pnl()[0]
+        self.assertTrue(row_closed.tax_enabled)
+        self.assertEqual(row_closed.tax_status, "confirmed")
+        self.assertEqual(row_closed.tax_base_rub, 200000.0)
+        self.assertEqual(row_closed.tax_rub, 16000.0)
+        self.assertEqual(row_closed.net_profit_rub, 64000.0)
+
+        # Current/open month -> estimated
+        row_open = PnlService(YMDatabase(pnl_open), "default").get_pnl()[0]
+        self.assertTrue(row_open.tax_enabled)
+        self.assertEqual(row_open.tax_status, "estimated")
+        self.assertEqual(row_open.tax_base_rub, 100000.0)
+        self.assertEqual(row_open.tax_rub, 8000.0)
+        self.assertEqual(row_open.net_profit_rub, 32000.0)
+
 
 if __name__ == "__main__":
     unittest.main()
