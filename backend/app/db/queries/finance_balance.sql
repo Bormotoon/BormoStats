@@ -13,10 +13,11 @@ FROM raw_marketplace_balance AS b FINAL
 LEFT JOIN (
   SELECT marketplace, account_id, max(day) AS last_payout_day
   FROM mrt_finance_daily FINAL
-  WHERE ifNull(payouts, 0) != 0
+  WHERE ifNull(payouts, 0) != 0 AND day <= %(as_of)s
   GROUP BY marketplace, account_id
 ) AS p ON p.marketplace = b.marketplace AND p.account_id = b.account_id
 WHERE (%(marketplace)s = '' OR b.marketplace = %(marketplace)s)
+  AND toDate(b.snapshot_ts, 'Europe/Moscow') <= %(as_of)s
   AND (%(account_id)s = '' OR b.account_id = %(account_id)s)
   AND (b.marketplace, b.account_id) IN (
     SELECT marketplace, account_id FROM dim_account FINAL WHERE organization_id = %(organization_id)s
