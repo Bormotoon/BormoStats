@@ -63,7 +63,7 @@ services:
   clickhouse:
     # 26.3 LTS: newer ClickHouse builds need AVX2 (x86-64-v3), which the production host
     # (Intel i7-3770) lacks; 26.8 dies with "Illegal instruction". See .github/dependabot.yml.
-    image: clickhouse/clickhouse-server:26.3.55.2@sha256:003f61d1adff8e119dbed052d19f48a19e26a97a707aee5ca55c7145cade01a4
+    image: clickhouse/clickhouse-server:26.3.62.3@sha256:de3e47c64078aa196dae2349e048fc98ba81947f651f5c20e06e46baea8ae40a
     restart: unless-stopped
     logging: *default-logging
     ports:
