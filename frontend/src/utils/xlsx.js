@@ -215,41 +215,102 @@ export function downloadXlsx(fileName, sheetName, columns, rows) {
 
 // -- reading --
 
-async function inflateRaw(bytes) {
-  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
+const MAX_XLSX_FILE_BYTES = 15 * 1024 * 1024; // 15 MB compressed file limit
+const MAX_UNCOMPRESSED_XML_BYTES = 50 * 1024 * 1024; // 50 MB total uncompressed limit
+
+async function inflateRaw(bytes, maxBytes = MAX_UNCOMPRESSED_XML_BYTES) {
+  const ds = new DecompressionStream("deflate-raw");
+  const writer = ds.writable.getWriter();
+  writer.write(bytes);
+  writer.close();
+  const reader = ds.readable.getReader();
+  const chunks = [];
+  let total = 0;
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      throw new Error("XLSX распакованный размер превышает допустимый лимит (50 МБ)");
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
 }
 
 /** The entries of a zip archive as { name: Uint8Array }, read from its central directory. */
 async function unzip(buffer, wanted) {
+  if (buffer.byteLength > MAX_XLSX_FILE_BYTES) {
+    throw new Error("XLSX файл слишком большой (максимум 15 МБ)");
+  }
   const view = new DataView(buffer);
+  const bytes = new Uint8Array(buffer);
   let end = -1;
-  for (let i = buffer.byteLength - 22; i >= Math.max(0, buffer.byteLength - 65_557); i -= 1) {
+  for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 65_557); i -= 1) {
     if (view.getUint32(i, true) === 0x06054b50) {
       end = i;
       break;
     }
   }
-  if (end < 0) throw new Error("not_a_zip");
+  if (end < 0) throw new Error("Некорректный XLSX (архив ZIP не распознан)");
   const count = view.getUint16(end + 10, true);
+  if (count > 2048) {
+    throw new Error("XLSX содержит слишком много файлов в архиве");
+  }
   let ptr = view.getUint32(end + 16, true);
-  const decoder = new TextDecoder();
+  const decoder = new TextDecoder("utf-8");
   const files = {};
+  let totalUncompressed = 0;
   for (let n = 0; n < count; n += 1) {
-    if (view.getUint32(ptr, true) !== 0x02014b50) throw new Error("bad_zip");
+    if (ptr + 46 > buffer.byteLength || view.getUint32(ptr, true) !== 0x02014b50) {
+      break;
+    }
     const method = view.getUint16(ptr + 10, true);
     const compressedSize = view.getUint32(ptr + 20, true);
+    const uncompressedSize = view.getUint32(ptr + 24, true);
     const nameLength = view.getUint16(ptr + 28, true);
     const extraLength = view.getUint16(ptr + 30, true);
     const commentLength = view.getUint16(ptr + 32, true);
     const localOffset = view.getUint32(ptr + 42, true);
-    const name = decoder.decode(new Uint8Array(buffer, ptr + 46, nameLength));
+    if (ptr + 46 + nameLength > buffer.byteLength) {
+      throw new Error("Повреждённый заголовок центрального каталога ZIP");
+    }
+    const name = decoder.decode(bytes.subarray(ptr + 46, ptr + 46 + nameLength));
     ptr += 46 + nameLength + extraLength + commentLength;
     if (!wanted(name)) continue;
+    if (localOffset + 30 > buffer.byteLength || view.getUint32(localOffset, true) !== 0x04034b50) {
+      throw new Error("Повреждённый локальный заголовок ZIP");
+    }
     const localName = view.getUint16(localOffset + 26, true);
     const localExtra = view.getUint16(localOffset + 28, true);
-    const data = new Uint8Array(buffer, localOffset + 30 + localName + localExtra, compressedSize);
-    files[name] = method === 0 ? data : await inflateRaw(data);
+    const dataStart = localOffset + 30 + localName + localExtra;
+    const dataEnd = dataStart + compressedSize;
+    if (dataStart < 0 || dataEnd > buffer.byteLength || uncompressedSize > MAX_UNCOMPRESSED_XML_BYTES) {
+      throw new Error("Некорректный размер сжатого блока в XLSX");
+    }
+    const slice = bytes.subarray(dataStart, dataEnd);
+    const remainingBudget = MAX_UNCOMPRESSED_XML_BYTES - totalUncompressed;
+    if (remainingBudget <= 0) {
+      throw new Error("Превышен общий лимит распакованных данных XLSX");
+    }
+    if (method === 0) {
+      if (slice.byteLength > remainingBudget) {
+        throw new Error("Превышен общий лимит распакованных данных XLSX");
+      }
+      totalUncompressed += slice.byteLength;
+      files[name] = slice;
+    } else if (method === 8) {
+      const inflated = await inflateRaw(slice, remainingBudget);
+      totalUncompressed += inflated.byteLength;
+      files[name] = inflated;
+    }
   }
   return files;
 }
@@ -266,6 +327,9 @@ function cellIndex(ref) {
  * value ("120.5"), so a decimal comma or a currency format does not reach the parser.
  */
 export async function readXlsxRows(file) {
+  if (file && typeof file.size === "number" && file.size > MAX_XLSX_FILE_BYTES) {
+    throw new Error("XLSX файл слишком большой (максимум 15 МБ)");
+  }
   const buffer = await file.arrayBuffer();
   const files = await unzip(buffer, (name) =>
     name === "xl/sharedStrings.xml" || name === "xl/workbook.xml" || name === "xl/_rels/workbook.xml.rels" || /^xl\/worksheets\/sheet\d+\.xml$/.test(name)
