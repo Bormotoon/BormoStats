@@ -35,9 +35,7 @@ def download_sku_report(client: Any, uuid: str) -> dict[str, Any]:
     return res if isinstance(res, dict) else {}
 
 
-def group_campaigns_into_batches(
-    campaign_ids: list[str], batch_size: int = 10
-) -> list[list[str]]:
+def group_campaigns_into_batches(campaign_ids: list[str], batch_size: int = 10) -> list[list[str]]:
     return [campaign_ids[i : i + batch_size] for i in range(0, len(campaign_ids), batch_size)]
 
 

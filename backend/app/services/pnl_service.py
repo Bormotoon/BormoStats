@@ -325,9 +325,7 @@ class PnlService:
         for record in buyouts:
             raw = record.get("payload")
             if raw and isinstance(raw, str) and raw.strip().startswith("{"):
-                engine.add_buyouts(
-                    record["day"], json.loads(raw, parse_float=Decimal)
-                )
+                engine.add_buyouts(record["day"], json.loads(raw, parse_float=Decimal))
             elif record.get("sku"):
                 posting = str(record.get("offer_id") or record.get("sku"))
                 sku = str(record["sku"])

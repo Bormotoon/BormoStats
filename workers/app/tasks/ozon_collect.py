@@ -687,7 +687,8 @@ def ozon_campaigns_snapshot(account_id: str = OZON_ACCOUNT_ID) -> dict[str, Any]
             records = performance.campaigns()
         from common.funnel_economics import campaign_metadata_rows
 
-        rows = campaign_metadata_rows(records, run_id=run_id, account_id=account_id)
+        tuples = campaign_metadata_rows(records, run_id=run_id, account_id=account_id)
+        rows = [dict(zip(RAW_OZON_CAMPAIGNS_COLUMNS, t, strict=False)) for t in tuples]
         inserted = insert_rows(ch_client, "raw_ozon_campaigns", RAW_OZON_CAMPAIGNS_COLUMNS, rows)
         log_task_run(
             ch_client, task_name, run_id, started_at, "success", inserted, "ozon campaigns snapshot"
@@ -722,15 +723,16 @@ def ozon_realization_monthly(
         raw_rows = payload.get("rows") if isinstance(payload, dict) else []
         if not raw_rows and isinstance(payload.get("result"), dict):
             raw_rows = payload["result"].get("rows") or []
+        items_list = raw_rows if isinstance(raw_rows, list) else []
         rows = []
-        for idx, item in enumerate(raw_rows):
+        for idx, item in enumerate(items_list):
+            if not isinstance(item, dict):
+                continue
             ozon_product_id = int(item.get("ozon_product_id") or item.get("sku") or 0)
             offer_id = str(item.get("offer_id") or "")
             seller_price = float(item.get("seller_price") or item.get("price") or 0.0)
             sale_qty = int(
-                item.get("sale_qty")
-                or item.get("delivery_commission", {}).get("quantity")
-                or 0
+                item.get("sale_qty") or item.get("delivery_commission", {}).get("quantity") or 0
             )
             sale_amount = float(item.get("sale_amount") or item.get("price_with_vat") or 0.0)
             sale_commission = float(
@@ -741,23 +743,23 @@ def ozon_realization_monthly(
             return_commission = float(item.get("return_commission") or 0.0)
             net_accrued = float(item.get("net_accrued") or (sale_amount - return_amount))
             rows.append(
-                (
-                    run_id,
-                    account_id,
-                    month_date,
-                    idx + 1,
-                    ozon_product_id,
-                    offer_id,
-                    seller_price,
-                    sale_qty,
-                    sale_amount,
-                    sale_commission,
-                    return_qty,
-                    return_amount,
-                    return_commission,
-                    net_accrued,
-                    json.dumps(item, ensure_ascii=False),
-                )
+                {
+                    "run_id": run_id,
+                    "account_id": account_id,
+                    "month": month_date,
+                    "row_number": idx + 1,
+                    "ozon_product_id": ozon_product_id,
+                    "offer_id": offer_id,
+                    "seller_price": seller_price,
+                    "sale_qty": sale_qty,
+                    "sale_amount": sale_amount,
+                    "sale_commission": sale_commission,
+                    "return_qty": return_qty,
+                    "return_amount": return_amount,
+                    "return_commission": return_commission,
+                    "net_accrued": net_accrued,
+                    "payload": json.dumps(item, ensure_ascii=False),
+                }
             )
         inserted = insert_rows(
             ch_client,
@@ -799,9 +801,11 @@ def ozon_cis_buyouts_daily(
     try:
         with ozon:
             payload = ozon.finance_buyouts(from_day, to_day)
-        items = payload.get("products") or []
+        items = payload.get("products") or [] if isinstance(payload, dict) else []
         rows = []
         for item in items:
+            if not isinstance(item, dict):
+                continue
             posting_number = str(item.get("posting_number") or "")
             sku = int(item.get("sku") or 0)
             day_str = str(item.get("day") or item.get("date") or to_day.isoformat())[:10]
@@ -816,21 +820,21 @@ def ozon_cis_buyouts_daily(
             commission = float(item.get("commission") or 0.0)
             payout = float(item.get("payout") or (amount - commission))
             rows.append(
-                (
-                    run_id,
-                    account_id,
-                    d,
-                    posting_number,
-                    sku,
-                    offer_id,
-                    name,
-                    quantity,
-                    seller_price,
-                    amount,
-                    commission,
-                    payout,
-                    json.dumps(item, ensure_ascii=False),
-                )
+                {
+                    "run_id": run_id,
+                    "account_id": account_id,
+                    "day": d,
+                    "posting_number": posting_number,
+                    "sku": sku,
+                    "offer_id": offer_id,
+                    "product_name": name,
+                    "quantity": quantity,
+                    "seller_price": seller_price,
+                    "amount": amount,
+                    "commission": commission,
+                    "payout": payout,
+                    "payload": json.dumps(item, ensure_ascii=False),
+                }
             )
         inserted = insert_rows(
             ch_client, "raw_ozon_cis_buyouts", RAW_OZON_CIS_BUYOUTS_COLUMNS, rows
@@ -883,8 +887,9 @@ def ozon_sku_ad_reports_daily(
                 )
                 parsed = parse_sku_report_payload(data)
                 tuples = rows_to_clickhouse_tuples(parsed, run_id=run_id, account_id=account_id)
+                rows = [dict(zip(RAW_OZON_SKU_AD_REPORTS_COLUMNS, t, strict=False)) for t in tuples]
                 total_inserted = insert_rows(
-                    ch_client, "raw_ozon_sku_ad_reports", RAW_OZON_SKU_AD_REPORTS_COLUMNS, tuples
+                    ch_client, "raw_ozon_sku_ad_reports", RAW_OZON_SKU_AD_REPORTS_COLUMNS, rows
                 )
         log_task_run(
             ch_client,

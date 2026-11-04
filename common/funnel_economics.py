@@ -37,7 +37,7 @@ def campaign_metadata_rows(
             continue
         try:
             daily_budget = float(item.get("dailyBudget") or item.get("budget") or 0.0)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             daily_budget = 0.0
         rows.append(
             (

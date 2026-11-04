@@ -72,9 +72,7 @@ class ArticleEconomicsService:
             (r["account_id"], str(r["product_id"])): r for r in catalogue
         }
         # Sku-only fallback for buyouts where account_id may not be present in catalogue
-        sku_cards_fallback: dict[str, dict[str, Any]] = {
-            str(r["product_id"]): r for r in catalogue
-        }
+        sku_cards_fallback: dict[str, dict[str, Any]] = {str(r["product_id"]): r for r in catalogue}
         all_skus = {str(r["product_id"]) for r in catalogue}
 
         # 2. Costs: offer-level and product-level
@@ -161,9 +159,9 @@ class ArticleEconomicsService:
         covered: set[tuple[str, date]] = set()
         for row in snapshots:
             if len(row) >= 9:
-                account, day, sku_col, offer_col, title_col, price_col, qty_col, amt_col, raw = (
-                    row[:9]
-                )
+                account, day, sku_col, offer_col, title_col, price_col, qty_col, amt_col, raw = row[
+                    :9
+                ]
                 day_val = date.fromisoformat(str(day)[:10]) if not isinstance(day, date) else day
                 covered.add((str(account), day_val))
                 if (sku_col or offer_col or qty_col or amt_col) and not (
