@@ -175,7 +175,8 @@ def _query_funnel_analytics(
           SELECT day, account_id, sku, scheme, offer_id, title, position,
                  impressions, search_impressions, clicks, carts
           FROM raw_ozon_funnel_import FINAL
-          WHERE day BETWEEN %(date_from)s AND %(date_to)s
+          WHERE marketplace = 'ozon'
+          AND day BETWEEN %(date_from)s AND %(date_to)s
           AND (%(account_id)s = '' OR account_id = %(account_id)s)
           AND account_id IN (
             SELECT account_id FROM dim_account FINAL

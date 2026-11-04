@@ -56,3 +56,8 @@ def test_sql_loader_keeps_hot_reload_behavior_in_dev(
     query_path.write_text("SELECT 2", encoding="utf-8")
 
     assert sql_loader.load_sql(tmp_path, "query.sql") == "SELECT 2"
+
+
+def test_sql_loader_rejects_path_traversal(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="Path traversal detected"):
+        sql_loader.load_sql(tmp_path, "../outside.sql")
