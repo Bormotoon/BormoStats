@@ -76,6 +76,7 @@ class MetricsService:
         as_of: date | None = None,
         limit: int,
         offset: int,
+        include_costs: bool = False,
     ) -> list[dict[str, Any]]:
         resolved_as_of = as_of or datetime.now(ZoneInfo("Europe/Moscow")).date()
         return self._run(
@@ -86,6 +87,7 @@ class MetricsService:
             as_of=resolved_as_of,
             limit=limit,
             offset=offset,
+            include_costs=1 if include_costs else 0,
         )
 
     def funnel_daily(

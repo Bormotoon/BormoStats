@@ -67,9 +67,9 @@ SELECT
   any(n.article) AS offer_id,
   any(n.image) AS image_url,
   sum(s.stock_end) AS stock_end,
-  if(any(c.cost_price_rub) > 0, any(c.cost_price_rub),
-     if(any(lc.cost_price_rub) > 0, any(lc.cost_price_rub), NULL)) AS cost_price_rub,
-  if(cost_price_rub IS NOT NULL, round(sum(s.stock_end) * cost_price_rub, 2), NULL) AS stock_value_rub
+  if(%(include_costs)s = 1 AND any(c.cost_price_rub) > 0, any(c.cost_price_rub),
+     if(%(include_costs)s = 1 AND any(lc.cost_price_rub) > 0, any(lc.cost_price_rub), NULL)) AS cost_price_rub,
+  if(%(include_costs)s = 1 AND cost_price_rub IS NOT NULL, round(sum(s.stock_end) * cost_price_rub, 2), NULL) AS stock_value_rub
 FROM scoped AS s
 INNER JOIN latest AS l
   ON s.marketplace = l.marketplace

@@ -74,6 +74,7 @@ def build_query_parameters(
         params.update(date_from=date_from, date_to=date_to)
     if dataset == "stocks_current":
         params["as_of"] = date.fromisoformat(raw["as_of"]) if raw.get("as_of") else date.today()
+        params["include_costs"] = 1 if raw.get("include_costs") is True else 0
     return params
 
 

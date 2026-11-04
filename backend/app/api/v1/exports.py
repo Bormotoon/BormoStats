@@ -4,6 +4,7 @@ from app.api.errors import API_ERROR_RESPONSES
 from app.core.auth import AnalyticsReadAuth, ViewerAuth
 from app.core.deps import ChClientDependency, SettingsDependency
 from app.models.exports import ExportJob, ExportRequest
+from app.models.organization import OrgMemberRole
 from app.services.export_service import ExportService
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import FileResponse
@@ -19,7 +20,11 @@ def create_export(
     auth: AnalyticsReadAuth,
 ) -> ExportJob:
     """Queue a CSV export of an analytics dataset for the caller's organization."""
-    return ExportService(ch, settings, auth.organization_id).create(body, auth.principal_id)
+    return ExportService(ch, settings, auth.organization_id).create(
+        body,
+        auth.principal_id,
+        include_costs=auth.allows(OrgMemberRole.manager),
+    )
 
 
 @router.get("")

@@ -27,6 +27,7 @@ def stocks_current(
 ) -> dict[str, object]:
     resolved_as_of = as_of or datetime.now(ZoneInfo("Europe/Moscow")).date()
     service = MetricsService(client, cache)
+    can_view_costs = auth.allows(OrgMemberRole.manager)
     items = service.stocks_current(
         organization_id=auth.organization_id,
         marketplace=filters.marketplace,
@@ -34,8 +35,9 @@ def stocks_current(
         as_of=resolved_as_of,
         limit=filters.query_limit,
         offset=filters.offset,
+        include_costs=can_view_costs,
     )
-    if not auth.allows(OrgMemberRole.manager):
+    if not can_view_costs:
         items = [{**row, "cost_price_rub": None, "stock_value_rub": None} for row in items]
     return build_paginated_response(
         items=items,

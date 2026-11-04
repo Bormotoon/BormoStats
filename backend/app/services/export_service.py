@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from pathlib import Path
 from typing import Any
@@ -21,7 +22,13 @@ class ExportService:
         self._settings = settings
         self._org = organization_id
 
-    def create(self, request: ExportRequest, requested_by: str) -> ExportJob:
+    def create(
+        self,
+        request: ExportRequest,
+        requested_by: str,
+        *,
+        include_costs: bool = False,
+    ) -> ExportJob:
         now = utc_now()
         job = ExportJob(
             export_id=str(uuid.uuid4()),
@@ -32,11 +39,13 @@ class ExportService:
             created_at=now,
             updated_at=now,
         )
+        params = request.model_dump(mode="json", exclude={"dataset"})
+        params["include_costs"] = bool(include_costs)
         self._ch.command(
             JOB_INSERT,
             parameters={
                 **job.model_dump(),
-                "params_json": request.model_dump_json(exclude={"dataset"}),
+                "params_json": json.dumps(params, ensure_ascii=False),
                 "file_name": "",
             },
         )
