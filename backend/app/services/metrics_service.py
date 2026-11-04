@@ -6,9 +6,10 @@ Every query is scoped to one organization: rows are limited to the accounts that
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import clickhouse_connect
 from app.db.ch import PARTITION_LOCAL_FINAL, query_dicts
@@ -70,14 +71,17 @@ class MetricsService:
         organization_id: str,
         marketplace: str,
         account_id: str,
+        as_of: date | None = None,
         limit: int,
         offset: int,
     ) -> list[dict[str, Any]]:
+        resolved_as_of = as_of or datetime.now(ZoneInfo("Europe/Moscow")).date()
         return self._run(
             "stocks.sql",
             organization_id=organization_id,
             marketplace=marketplace,
             account_id=account_id,
+            as_of=resolved_as_of,
             limit=limit,
             offset=offset,
         )

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterator
+from datetime import date
 from typing import Any
 
 import pytest
@@ -228,3 +229,58 @@ def test_request_id_is_echoed(client: TestClient) -> None:
 def test_settings_dependency_is_real_settings() -> None:
     assert get_app_settings() is get_settings()
     assert require_role(OrgMemberRole.viewer) is not None
+
+
+def test_stocks_current_redacts_cost_for_non_managers(client: TestClient, as_role: Any) -> None:
+    ch = FakeClickHouse()
+    ch.on(
+        "FROM scoped",
+        [
+            {
+                "day": "2026-11-04",
+                "marketplace": "ozon",
+                "account_id": "acc-1",
+                "product_id": "100",
+                "warehouse_id": "1",
+                "warehouse_name": "Main",
+                "title": "Item 1",
+                "offer_id": "art-1",
+                "image_url": "",
+                "stock_end": 10,
+                "cost_price_rub": 150.0,
+                "stock_value_rub": 1500.0,
+            }
+        ],
+    )
+    app.dependency_overrides[get_ch_client] = lambda: ch
+
+    # Viewer cannot see cost_price_rub or stock_value_rub
+    as_role(OrgMemberRole.viewer)
+    res_viewer = client.get("/api/v1/stocks/current", headers={"X-API-Key": "user-key"})
+    assert res_viewer.status_code == 200
+    item_viewer = res_viewer.json()["items"][0]
+    assert item_viewer["cost_price_rub"] is None
+    assert item_viewer["stock_value_rub"] is None
+
+    # Manager can see cost_price_rub and stock_value_rub
+    as_role(OrgMemberRole.manager)
+    res_manager = client.get("/api/v1/stocks/current", headers={"X-API-Key": "user-key"})
+    assert res_manager.status_code == 200
+    item_manager = res_manager.json()["items"][0]
+    assert item_manager["cost_price_rub"] == 150.0
+    assert item_manager["stock_value_rub"] == 1500.0
+
+
+def test_stocks_current_accepts_as_of_param(client: TestClient, as_role: Any) -> None:
+    ch = FakeClickHouse()
+    app.dependency_overrides[get_ch_client] = lambda: ch
+    as_role(OrgMemberRole.viewer)
+    res = client.get(
+        "/api/v1/stocks/current",
+        headers={"X-API-Key": "user-key"},
+        params={"as_of": "2026-10-15"},
+    )
+    assert res.status_code == 200
+    assert res.json()["as_of"] == "2026-10-15"
+    _sql, params = ch.queries[-1]
+    assert params["as_of"] == date(2026, 10, 15)

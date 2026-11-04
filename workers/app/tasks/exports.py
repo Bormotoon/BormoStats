@@ -72,6 +72,8 @@ def build_query_parameters(
             else date_to - timedelta(days=DEFAULT_WINDOW_DAYS)
         )
         params.update(date_from=date_from, date_to=date_to)
+    if dataset == "stocks_current":
+        params["as_of"] = date.fromisoformat(raw["as_of"]) if raw.get("as_of") else date.today()
     return params
 
 
