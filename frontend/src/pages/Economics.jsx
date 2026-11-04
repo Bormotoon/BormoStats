@@ -4,6 +4,7 @@ import { usePageFilters } from '../utils/usePageFilters.js';
 import { downloadXlsx } from '../utils/xlsx.js';
 import { Spinner } from '../components/StatusChip.jsx';
 import { makeMatcher } from '../components/DataTable.jsx';
+import BuyerCardLink from '../components/BuyerCardLink.jsx';
 import { ECONOMICS_GROUPS, ALL_ECONOMICS_COLUMNS, COMPACT_ECONOMICS_KEYS, loadEconomicsColumns } from '../utils/economicsColumns.js';
 
 const button = 'rounded-lg border border-[var(--color-outline-variant)] px-3 py-2 text-sm hover:bg-[var(--color-surface-container)]';
@@ -14,7 +15,7 @@ function format(value,col) {
   return Number(value).toLocaleString('ru-RU',{maximumFractionDigits:col.key.endsWith('_unit')?0:2});
 }
 export default function Economics() {
-  const {query,dateFrom,dateTo,searchParams}=usePageFilters();
+  const {query,dateFrom,dateTo,searchParams,marketplace}=usePageFilters();
   const [data,setData]=useState(null), [error,setError]=useState(''),[loading,setLoading]=useState(true);
   const [keys,setKeys]=useState(()=>loadEconomicsColumns(localStorage));
   const [picker,setPicker]=useState(false),[filtersOpen,setFiltersOpen]=useState(false),[filters,setFilters]=useState({});
@@ -48,6 +49,14 @@ export default function Economics() {
     if(col.type==='image')return typeof row.image_url === 'string' && /^https?:\/\//i.test(row.image_url)?<img src={row.image_url} alt="" className="h-12 w-10 object-contain mx-auto" loading="lazy" referrerPolicy="no-referrer"/>:null;
     if(row.sku==='unallocated'&&col.key.endsWith('_unit'))return format(row[col.key.slice(0,-5)],{...col,key:col.key.slice(0,-5)});
     if(row.sku==='unallocated'&&col.key==='period')return 'Суммы за период';
+    if(col.key==='offer_id'&&row.sku!=='unallocated'&&row.sku!=='total'){
+      const rowMp=row.marketplace||marketplace||'ozon';
+      const badgeText=row.marketplace?(row.marketplace==='wb'?'WB':row.marketplace==='ym'?'YM':'Ozon'):'';
+      return <span className="inline-flex items-center gap-1.5">
+        {!marketplace&&badgeText&&<span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[var(--color-surface-container-high)] text-[var(--color-on-surface-variant)] uppercase tracking-wider">{badgeText}</span>}
+        <BuyerCardLink marketplace={rowMp} productId={row.sku}>{row.offer_id||row.sku}</BuyerCardLink>
+      </span>;
+    }
     return format(row[col.key],col);
   };
   if(loading)return <Spinner/>;
@@ -102,7 +111,7 @@ export default function Economics() {
     <p className="text-xs text-[var(--color-on-surface-variant)]">В строке «Расходы без привязки» показаны общие суммы за период. Они не распределяются между SKU. Разница между начислением рекламы и расходом Performance API остаётся в этой строке.</p>
     <details className="md3-card-elevated p-3 text-xs"><summary className="cursor-pointer font-semibold">Источники и правила расчёта</summary>
       <div className="space-y-1 mt-2">{data.notes?.map(n=><p key={n}>{n}</p>)}
-        <p>Обработано операций Ozon: {data.operations?.toLocaleString('ru-RU')}. Начислено по исходным операциям: {data.source_net_accrued?.toLocaleString('ru-RU',{maximumFractionDigits:2})} ₽.</p>
+        <p>Обработано операций: {data.operations?.toLocaleString('ru-RU')}. Начислено по исходным операциям: {data.source_net_accrued?.toLocaleString('ru-RU',{maximumFractionDigits:2})} ₽.</p>
         <p>Расходы без привязки: {Object.entries(data.unattributed_costs||{}).map(([k,v])=>`${k}: ${v.toLocaleString('ru-RU',{maximumFractionDigits:2})} ₽`).join('; ')||'нет'}.</p>
       </div>
     </details>

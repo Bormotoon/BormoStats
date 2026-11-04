@@ -80,12 +80,18 @@ export function marketplaceName(value) {
   return { wb: "WB", ozon: "Ozon", ym: "Яндекс Маркет" }[key] || String(value ?? "");
 }
 
-/** The card's page as a buyer sees it: WB by its nmID, Ozon by its SKU; null when unknown. */
+/** The card's page as a buyer sees it: WB by its nmID, Ozon by its SKU, YM by query; null when unknown. */
 export function buyerCardUrl(marketplace, productId) {
   const id = String(productId ?? "").trim();
-  if (!/^\d+$/.test(id)) return null;
-  if (marketplace === "wb") return `https://www.wildberries.ru/catalog/${id}/detail.aspx`;
-  if (marketplace === "ozon") return `https://www.ozon.ru/product/${id}/`;
+  if (!id) return null;
+  if (marketplace === "wb") {
+    if (!/^\d+$/.test(id)) return null;
+    return `https://www.wildberries.ru/catalog/${id}/detail.aspx`;
+  }
+  if (marketplace === "ozon") {
+    if (!/^\d+$/.test(id)) return null;
+    return `https://www.ozon.ru/product/${id}/`;
+  }
   if (marketplace === "ym") return `https://market.yandex.ru/search?text=${encodeURIComponent(id)}`;
   return null;
 }

@@ -13,6 +13,7 @@ import { Spinner, EmptyState } from "../components/StatusChip.jsx";
 export default function Funnel() {
   const { marketplace, accountId, query, period } = usePageFilters();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [viewTab, setViewTab] = useState("cohorts");
   const selected = marketplace === "ozon" ? "ozon" : (marketplace === "ym" ? "ym" : "wb");
 
   function selectMarketplace(nextMarketplace) {
@@ -22,40 +23,72 @@ export default function Funnel() {
     setSearchParams(next);
   }
 
+  const activeQuery = { ...query, marketplace: selected };
+
   return (
     <div className="space-y-4">
-      <div role="group" aria-label="Площадка воронки" className="flex flex-wrap gap-2">
-        {[
-          ["wb", "Wildberries"],
-          ["ozon", "Ozon"],
-        ].map(([id, label]) => (
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div role="group" aria-label="Площадка воронки" className="flex flex-wrap gap-2">
+          {[
+            ["wb", "Wildberries"],
+            ["ozon", "Ozon"],
+            ["ym", "Яндекс Маркет"],
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              aria-pressed={selected === id}
+              onClick={() => selectMarketplace(id)}
+              className={`px-4 py-2 rounded-full border text-sm font-semibold transition-colors ${
+                selected === id
+                  ? "bg-[var(--color-primary)] border-[var(--color-primary)] text-white"
+                  : "border-[var(--color-outline-variant)] hover:bg-[var(--color-surface-container)]"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-1 border border-[var(--color-outline-variant)] rounded-lg p-0.5 text-xs">
           <button
-            key={id}
             type="button"
-            aria-pressed={selected === id}
-            onClick={() => selectMarketplace(id)}
-            className={`px-4 py-2 rounded-full border text-sm font-semibold transition-colors ${
-              selected === id
-                ? "bg-[var(--color-primary)] border-[var(--color-primary)] text-white"
-                : "border-[var(--color-outline-variant)] hover:bg-[var(--color-surface-container)]"
+            className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+              viewTab === "cohorts"
+                ? "bg-[var(--color-primary)] text-white"
+                : "hover:bg-[var(--color-surface-container)]"
             }`}
+            onClick={() => setViewTab("cohorts")}
           >
-            {label}
+            Воронка и когорты SKU
           </button>
-        ))}
+          <button
+            type="button"
+            className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+              viewTab === "daily"
+                ? "bg-[var(--color-primary)] text-white"
+                : "hover:bg-[var(--color-surface-container)]"
+            }`}
+            onClick={() => setViewTab("daily")}
+          >
+            Сводная по дням
+          </button>
+        </div>
       </div>
-      {selected === "ozon" ? (
-        <OzonFunnel query={query} accountId={accountId} period={period} />
+
+      {viewTab === "cohorts" ? (
+        <OzonFunnel query={activeQuery} accountId={accountId} period={period} />
       ) : (
-        <WbFunnel />
+        <WbFunnel query={activeQuery} />
       )}
     </div>
   );
 }
 
-function WbFunnel() {
+function WbFunnel({ query: propQuery }) {
   const { t } = useI18n();
-  const { searchParams, query, period } = usePageFilters();
+  const { searchParams, query: pageQuery, period } = usePageFilters();
+  const activeQuery = propQuery || pageQuery;
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -64,7 +97,7 @@ function WbFunnel() {
     let cancelled = false;
     setLoading(true);
     setError("");
-    requestAll("/api/v1/funnel/daily", { query })
+    requestAll("/api/v1/funnel/daily", { query: activeQuery })
       .then((res) => {
         if (!cancelled) {
           setData(res);
@@ -80,7 +113,7 @@ function WbFunnel() {
     return () => {
       cancelled = true;
     };
-  }, [searchParams]);
+  }, [searchParams, activeQuery.marketplace]);
 
   if (loading) return <Spinner />;
   if (error)
