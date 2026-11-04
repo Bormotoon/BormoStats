@@ -129,12 +129,21 @@ app = FastAPI(
 )
 setup_rate_limiter(app, settings)
 app.add_middleware(ObservabilityMiddleware)
+cors_origins_list = [
+    origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[],
-    allow_credentials=False,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allow_headers=["X-API-Key", "X-Organization-Id", "X-Request-ID", "Content-Type"],
+    allow_origins=cors_origins_list,
+    allow_credentials=bool(cors_origins_list) and "*" not in cors_origins_list,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=[
+        "Authorization",
+        "X-API-Key",
+        "X-Organization-Id",
+        "X-Request-ID",
+        "Content-Type",
+    ],
 )
 
 for module in API_ROUTERS:

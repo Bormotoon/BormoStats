@@ -67,6 +67,11 @@ class Settings(BaseSettings):
         description="Allow webhook URLs resolving to private/loopback IPs (dev only)",
     )
     openapi_enabled: bool = Field(default=True, alias="OPENAPI_ENABLED")
+    cors_origins: str = Field(
+        default="",
+        alias="CORS_ORIGINS",
+        description="Comma-separated allowed origins for CORS",
+    )
 
     ai_api_url: str = Field(default="", alias="AI_API_URL")
     ai_api_key: str = Field(default="", alias="AI_API_KEY")

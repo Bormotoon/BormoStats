@@ -9,6 +9,7 @@ import uuid
 from typing import Any
 
 import structlog
+from app.core.config import get_settings
 from fastapi import FastAPI, Request, Response
 from prometheus_client import Histogram
 from starlette.concurrency import run_in_threadpool
@@ -77,6 +78,20 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
             status_code = response.status_code
             response.headers[REQUEST_ID_HEADER] = request_id
             response.headers["X-API-Version"] = "1"
+            response.headers["X-Content-Type-Options"] = "nosniff"
+            response.headers["X-Frame-Options"] = "SAMEORIGIN"
+            response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+            response.headers["Permissions-Policy"] = (
+                "geolocation=(), camera=(), microphone=(), payment=()"
+            )
+            if request.url.path.startswith("/api/"):
+                response.headers["Content-Security-Policy"] = (
+                    "default-src 'none'; frame-ancestors 'none'"
+                )
+            if get_settings().is_strict_env:
+                response.headers["Strict-Transport-Security"] = (
+                    "max-age=31536000; includeSubDomains"
+                )
             return response
         finally:
             route = _route_template(request)
