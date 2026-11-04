@@ -9,11 +9,11 @@ prometheus_client==0.26.0
 pydantic==2.14.2
 pydantic-settings==2.16.2
 python-dotenv==1.2.4
-python-dateutil==2.9.0.post0
+python-dateutil==4.0.0
 PyYAML==6.0.3
 redis==8.1.0
 structlog==26.1.0
 tzdata==2026.6
 uvicorn[standard]==0.54.0
 
-clickhouse-cityhash==1.0.2.5
+clickhouse-cityhash==1.0.2.6
