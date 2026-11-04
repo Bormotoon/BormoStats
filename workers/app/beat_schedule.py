@@ -112,6 +112,22 @@ beat_schedule = {
         "task": "tasks.ozon_collect.ozon_ads_daily",
         "schedule": crontab(minute="40", hour="*/6"),
     },
+    "ozon_campaigns_snapshot": {
+        "task": "tasks.ozon_collect.ozon_campaigns_snapshot",
+        "schedule": crontab(minute="25", hour="*/6"),
+    },
+    "ozon_sku_ad_reports_daily": {
+        "task": "tasks.ozon_collect.ozon_sku_ad_reports_daily",
+        "schedule": crontab(minute="45", hour="*/6"),
+    },
+    "ozon_cis_buyouts_daily": {
+        "task": "tasks.ozon_collect.ozon_cis_buyouts_daily",
+        "schedule": crontab(minute="15", hour="4"),
+    },
+    "ozon_realization_monthly": {
+        "task": "tasks.ozon_collect.ozon_realization_monthly",
+        "schedule": crontab(minute="30", hour="5"),
+    },
     "transform_raw_to_stg": {
         "task": "tasks.transforms.transform_all_recent",
         "schedule": crontab(minute="5,35"),

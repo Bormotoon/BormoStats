@@ -133,23 +133,26 @@ class DailyPnlService:
                 payload = json.loads(r["payload"], parse_float=Decimal)
                 engines[str(payload["date"])[:10]].add(payload)
 
-            # Query buyouts from raw_ozon_cis_buyouts with fallback to raw_ozon_buyouts_daily
+            # Query buyouts from raw_ozon_cis_buyouts
             buyout_records: list[dict[str, Any]] = []
             cis_sql = (
-                "SELECT day, payload FROM raw_ozon_cis_buyouts FINAL"
+                "SELECT day, sku, offer_id, title, price, quantity, amount, payload "
+                "FROM raw_ozon_cis_buyouts FINAL"
                 " WHERE account_id={account:String}"
                 " AND day BETWEEN {start:Date} AND {stop:Date} ORDER BY day"
             )
             with contextlib.suppress(Exception):
                 buyout_records = list(self.ch.query(cis_sql, parameters=p).named_results())
             if not buyout_records:
-                daily_sql = (
-                    "SELECT day, payload FROM raw_ozon_buyouts_daily FINAL"
+                cis_fallback_sql = (
+                    "SELECT day, payload FROM raw_ozon_cis_buyouts FINAL"
                     " WHERE account_id={account:String}"
                     " AND day BETWEEN {start:Date} AND {stop:Date} ORDER BY day"
                 )
                 with contextlib.suppress(Exception):
-                    buyout_records = list(self.ch.query(daily_sql, parameters=p).named_results())
+                    buyout_records = list(
+                        self.ch.query(cis_fallback_sql, parameters=p).named_results()
+                    )
 
             domestic = {
                 k: v for engine in engines.values() for k, v in engine.domestic_sales.items()
@@ -172,6 +175,27 @@ class DailyPnlService:
                         if (str(v.get("posting_number")), str(v.get("sku"))) not in domestic
                     ]
                     engine.add_buyouts(r["day"], payload)
+                elif r.get("sku"):
+                    posting = str(r.get("offer_id") or r.get("sku"))
+                    sku = str(r["sku"])
+                    if (posting, sku) not in domestic:
+                        qty = Decimal(str(r.get("quantity") or 1))
+                        price = Decimal(str(r.get("price") or 0))
+                        amt = Decimal(str(r.get("amount") or 0))
+                        p_obj = {
+                            "products": [
+                                {
+                                    "sku": sku,
+                                    "posting_number": posting,
+                                    "offer_id": str(r.get("offer_id") or ""),
+                                    "name": str(r.get("title") or ""),
+                                    "quantity": qty,
+                                    "seller_price_per_instance": price,
+                                    "amount": amt,
+                                }
+                            ]
+                        }
+                        engine.add_buyouts(r["day"], p_obj)
             for day, engine in engines.items():
                 rows[(day, mp, aid)]["buyer"] = sum(
                     (v["buyer_revenue"] for v in engine.rows.values()), Decimal(0)

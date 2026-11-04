@@ -238,20 +238,13 @@ class PnlService:
     def _apply_realization_tax(self, rows: list[PnlRow]) -> None:
         account_id = os.getenv("PNL_TAX_ACCOUNT_ID", "default")
         rate = Decimal(os.getenv("PNL_TAX_RATE_PCT", "8"))
-        try:
-            reports = self._ch.query(
-                "SELECT month, sales_amount - returns_amount AS tax_base, fetched_at"
-                " FROM raw_ozon_realization_monthly FINAL WHERE account_id = {aid:String}",
-                parameters={"aid": account_id},
-            )
-        except Exception:
-            reports = self._ch.query(
-                "SELECT month, sum(sale_amount) - sum(return_amount) AS tax_base,"
-                " max(ingested_at) AS fetched_at"
-                " FROM raw_ozon_realization_reports FINAL WHERE account_id = {aid:String}"
-                " GROUP BY month",
-                parameters={"aid": account_id},
-            )
+        reports = self._ch.query(
+            "SELECT month, sum(sale_amount) - sum(return_amount) AS tax_base,"
+            " max(ingested_at) AS fetched_at"
+            " FROM raw_ozon_realization_reports FINAL WHERE account_id = {aid:String}"
+            " GROUP BY month",
+            parameters={"aid": account_id},
+        )
         by_month = {str(r["month"])[:7]: r for r in reports.named_results()}
         coverage = self._ch.query(
             "SELECT toStartOfMonth(day) AS month, uniqExact(day) AS days"
@@ -316,20 +309,45 @@ class PnlService:
             engine.add(json.loads(record["payload"], parse_float=Decimal))
         try:
             buyouts = self._ch.query(
-                "SELECT day, payload FROM raw_ozon_cis_buyouts FINAL"
-                " WHERE account_id={aid:String} AND day>={month:Date}"
-                " AND day<addMonths({month:Date},1)",
+                "SELECT day, sku, offer_id, title, price, quantity, amount, payload "
+                "FROM raw_ozon_cis_buyouts FINAL "
+                "WHERE account_id={aid:String} AND day>={month:Date} "
+                "AND day<addMonths({month:Date},1)",
                 parameters=params,
             ).named_results()
         except Exception:
             buyouts = self._ch.query(
-                "SELECT day, payload FROM raw_ozon_buyouts_daily FINAL"
-                " WHERE account_id={aid:String} AND day>={month:Date}"
-                " AND day<addMonths({month:Date},1)",
+                "SELECT day, payload FROM raw_ozon_cis_buyouts FINAL "
+                "WHERE account_id={aid:String} AND day>={month:Date} "
+                "AND day<addMonths({month:Date},1)",
                 parameters=params,
             ).named_results()
         for record in buyouts:
-            engine.add_buyouts(record["day"], json.loads(record["payload"], parse_float=Decimal))
+            raw = record.get("payload")
+            if raw and isinstance(raw, str) and raw.strip().startswith("{"):
+                engine.add_buyouts(
+                    record["day"], json.loads(raw, parse_float=Decimal)
+                )
+            elif record.get("sku"):
+                posting = str(record.get("offer_id") or record.get("sku"))
+                sku = str(record["sku"])
+                qty = Decimal(str(record.get("quantity") or 1))
+                price = Decimal(str(record.get("price") or 0))
+                amt = Decimal(str(record.get("amount") or 0))
+                p_obj = {
+                    "products": [
+                        {
+                            "sku": sku,
+                            "posting_number": posting,
+                            "offer_id": str(record.get("offer_id") or ""),
+                            "name": str(record.get("title") or ""),
+                            "quantity": qty,
+                            "seller_price_per_instance": price,
+                            "amount": amt,
+                        }
+                    ]
+                }
+                engine.add_buyouts(record["day"], p_obj)
         return sum((r["buyer_revenue"] for r in engine.rows.values()), Decimal(0))
 
     def _write(self, expense: AdditionalExpense) -> None:

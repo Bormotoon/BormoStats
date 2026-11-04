@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 from datetime import UTC, date, datetime, timedelta
@@ -606,3 +607,295 @@ def ozon_ads_daily(
                 performance.close()
     except LockNotAcquiredError:
         return {"status": "skipped", "reason": "lock_not_acquired"}
+
+
+# -- PR #72 collection tasks (migrations 0044-0048) --
+
+RAW_OZON_REALIZATION_REPORTS_COLUMNS = [
+    "run_id",
+    "account_id",
+    "month",
+    "row_number",
+    "ozon_product_id",
+    "offer_id",
+    "seller_price",
+    "sale_qty",
+    "sale_amount",
+    "sale_commission",
+    "return_qty",
+    "return_amount",
+    "return_commission",
+    "net_accrued",
+    "payload",
+]
+
+RAW_OZON_CIS_BUYOUTS_COLUMNS = [
+    "run_id",
+    "account_id",
+    "day",
+    "posting_number",
+    "sku",
+    "offer_id",
+    "product_name",
+    "quantity",
+    "seller_price",
+    "amount",
+    "commission",
+    "payout",
+    "payload",
+]
+
+RAW_OZON_CAMPAIGNS_COLUMNS = [
+    "run_id",
+    "account_id",
+    "campaign_id",
+    "title",
+    "state",
+    "adv_object_type",
+    "daily_budget",
+    "payload",
+]
+
+RAW_OZON_SKU_AD_REPORTS_COLUMNS = [
+    "run_id",
+    "account_id",
+    "day",
+    "campaign_id",
+    "sku",
+    "offer_id",
+    "title",
+    "impressions",
+    "clicks",
+    "cost",
+    "orders",
+    "revenue",
+    "payload",
+]
+
+
+@shared_task(name="tasks.ozon_collect.ozon_campaigns_snapshot")
+def ozon_campaigns_snapshot(account_id: str = OZON_ACCOUNT_ID) -> dict[str, Any]:
+    task_name = "tasks.ozon_collect.ozon_campaigns_snapshot"
+    run_id, started_at = new_run_context()
+    performance = _ozon_performance_client()
+    ch_client = get_ch_client()
+    if performance is None:
+        log_task_run(ch_client, task_name, run_id, started_at, "skipped", 0, "missing credentials")
+        return {"status": "skipped", "reason": "missing_performance_credentials"}
+    try:
+        with performance:
+            records = performance.campaigns()
+        from common.funnel_economics import campaign_metadata_rows
+
+        rows = campaign_metadata_rows(records, run_id=run_id, account_id=account_id)
+        inserted = insert_rows(ch_client, "raw_ozon_campaigns", RAW_OZON_CAMPAIGNS_COLUMNS, rows)
+        log_task_run(
+            ch_client, task_name, run_id, started_at, "success", inserted, "ozon campaigns snapshot"
+        )
+        return {"status": "success", "rows": inserted}
+    except Exception as exc:
+        log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
+        raise
+
+
+@shared_task(name="tasks.ozon_collect.ozon_realization_monthly")
+def ozon_realization_monthly(
+    year_month: str | None = None, account_id: str = OZON_ACCOUNT_ID
+) -> dict[str, Any]:
+    task_name = "tasks.ozon_collect.ozon_realization_monthly"
+    run_id, started_at = new_run_context()
+    ozon = _ozon_client()
+    ch_client = get_ch_client()
+    if ozon is None:
+        log_task_run(ch_client, task_name, run_id, started_at, "skipped", 0, "missing credentials")
+        return {"status": "skipped", "reason": "missing_credentials"}
+    if year_month:
+        parts = year_month.split("-")[:2]
+        y, m = int(parts[0]), int(parts[1])
+    else:
+        prev = date.today().replace(day=1) - timedelta(days=1)
+        y, m = prev.year, prev.month
+    month_date = date(y, m, 1)
+    try:
+        with ozon:
+            payload = ozon.finance_realization(y, m)
+        raw_rows = payload.get("rows") if isinstance(payload, dict) else []
+        if not raw_rows and isinstance(payload.get("result"), dict):
+            raw_rows = payload["result"].get("rows") or []
+        rows = []
+        for idx, item in enumerate(raw_rows):
+            ozon_product_id = int(item.get("ozon_product_id") or item.get("sku") or 0)
+            offer_id = str(item.get("offer_id") or "")
+            seller_price = float(item.get("seller_price") or item.get("price") or 0.0)
+            sale_qty = int(
+                item.get("sale_qty")
+                or item.get("delivery_commission", {}).get("quantity")
+                or 0
+            )
+            sale_amount = float(item.get("sale_amount") or item.get("price_with_vat") or 0.0)
+            sale_commission = float(
+                item.get("sale_commission") or item.get("commission_ratio") or 0.0
+            )
+            return_qty = int(item.get("return_qty") or 0)
+            return_amount = float(item.get("return_amount") or 0.0)
+            return_commission = float(item.get("return_commission") or 0.0)
+            net_accrued = float(item.get("net_accrued") or (sale_amount - return_amount))
+            rows.append(
+                (
+                    run_id,
+                    account_id,
+                    month_date,
+                    idx + 1,
+                    ozon_product_id,
+                    offer_id,
+                    seller_price,
+                    sale_qty,
+                    sale_amount,
+                    sale_commission,
+                    return_qty,
+                    return_amount,
+                    return_commission,
+                    net_accrued,
+                    json.dumps(item, ensure_ascii=False),
+                )
+            )
+        inserted = insert_rows(
+            ch_client,
+            "raw_ozon_realization_reports",
+            RAW_OZON_REALIZATION_REPORTS_COLUMNS,
+            rows,
+        )
+        log_task_run(
+            ch_client,
+            task_name,
+            run_id,
+            started_at,
+            "success",
+            inserted,
+            f"realization {y}-{m:02d}",
+        )
+        return {"status": "success", "rows": inserted, "year_month": f"{y}-{m:02d}"}
+    except Exception as exc:
+        log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
+        raise
+
+
+@shared_task(name="tasks.ozon_collect.ozon_cis_buyouts_daily")
+def ozon_cis_buyouts_daily(
+    target_day: str | None = None, account_id: str = OZON_ACCOUNT_ID
+) -> dict[str, Any]:
+    task_name = "tasks.ozon_collect.ozon_cis_buyouts_daily"
+    run_id, started_at = new_run_context()
+    ozon = _ozon_client()
+    ch_client = get_ch_client()
+    if ozon is None:
+        log_task_run(ch_client, task_name, run_id, started_at, "skipped", 0, "missing credentials")
+        return {"status": "skipped", "reason": "missing_credentials"}
+    if target_day:
+        from_day = to_day = date.fromisoformat(target_day)
+    else:
+        to_day = _ozon_today() - timedelta(days=1)
+        from_day = to_day - timedelta(days=14)
+    try:
+        with ozon:
+            payload = ozon.finance_buyouts(from_day, to_day)
+        items = payload.get("products") or []
+        rows = []
+        for item in items:
+            posting_number = str(item.get("posting_number") or "")
+            sku = int(item.get("sku") or 0)
+            day_str = str(item.get("day") or item.get("date") or to_day.isoformat())[:10]
+            d = date.fromisoformat(day_str)
+            offer_id = str(item.get("offer_id") or "")
+            name = str(item.get("name") or item.get("title") or "")
+            quantity = int(item.get("quantity") or 1)
+            seller_price = float(
+                item.get("seller_price_per_instance") or item.get("seller_price") or 0.0
+            )
+            amount = float(item.get("amount") or 0.0)
+            commission = float(item.get("commission") or 0.0)
+            payout = float(item.get("payout") or (amount - commission))
+            rows.append(
+                (
+                    run_id,
+                    account_id,
+                    d,
+                    posting_number,
+                    sku,
+                    offer_id,
+                    name,
+                    quantity,
+                    seller_price,
+                    amount,
+                    commission,
+                    payout,
+                    json.dumps(item, ensure_ascii=False),
+                )
+            )
+        inserted = insert_rows(
+            ch_client, "raw_ozon_cis_buyouts", RAW_OZON_CIS_BUYOUTS_COLUMNS, rows
+        )
+        log_task_run(
+            ch_client, task_name, run_id, started_at, "success", inserted, "ozon cis buyouts"
+        )
+        return {"status": "success", "rows": inserted}
+    except Exception as exc:
+        log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
+        raise
+
+
+@shared_task(name="tasks.ozon_collect.ozon_sku_ad_reports_daily")
+def ozon_sku_ad_reports_daily(
+    target_day: str | None = None, account_id: str = OZON_ACCOUNT_ID
+) -> dict[str, Any]:
+    task_name = "tasks.ozon_collect.ozon_sku_ad_reports_daily"
+    run_id, started_at = new_run_context()
+    performance = _ozon_performance_client()
+    ch_client = get_ch_client()
+    if performance is None:
+        log_task_run(ch_client, task_name, run_id, started_at, "skipped", 0, "missing credentials")
+        return {"status": "skipped", "reason": "missing_performance_credentials"}
+    if target_day:
+        from_day = to_day = date.fromisoformat(target_day)
+    else:
+        to_day = _ozon_today() - timedelta(days=1)
+        from_day = to_day - timedelta(days=ADS_LOOKBACK_DAYS - 1)
+    try:
+        total_inserted = 0
+        with performance:
+            c_list = performance.campaigns()
+            c_ids = [str(c["id"]) for c in c_list if c.get("id")]
+            if c_ids:
+                from collectors.ozon.sku_ad_reports import (
+                    fetch_report,
+                    parse_sku_report_payload,
+                    rows_to_clickhouse_tuples,
+                )
+
+                _, _job_uuid, data = fetch_report(
+                    performance,
+                    c_ids,
+                    from_day,
+                    to_day,
+                    ch=ch_client,
+                    account_id=account_id,
+                    timeout=180.0,
+                )
+                parsed = parse_sku_report_payload(data)
+                tuples = rows_to_clickhouse_tuples(parsed, run_id=run_id, account_id=account_id)
+                total_inserted = insert_rows(
+                    ch_client, "raw_ozon_sku_ad_reports", RAW_OZON_SKU_AD_REPORTS_COLUMNS, tuples
+                )
+        log_task_run(
+            ch_client,
+            task_name,
+            run_id,
+            started_at,
+            "success",
+            total_inserted,
+            "ozon sku ad reports",
+        )
+        return {"status": "success", "rows": total_inserted}
+    except Exception as exc:
+        log_task_run(ch_client, task_name, run_id, started_at, "failed", 0, str(exc))
+        raise

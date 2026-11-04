@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import re
 import time
 from collections.abc import Callable
 from datetime import UTC, date, datetime
@@ -11,6 +13,116 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 TERMINAL_FAILURE_STATES = frozenset({"FAILED", "ERROR", "CANCELLED", "NOT_FOUND"})
+_UUID_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+
+
+def _validate_report_uuid(uuid: str) -> str:
+    cleaned = str(uuid).strip()
+    if not _UUID_RE.match(cleaned):
+        raise ValueError(f"Invalid Ozon Performance report UUID: {uuid!r}")
+    return cleaned
+
+
+def check_sku_report_status(client: Any, uuid: str) -> dict[str, Any]:
+    safe_uuid = _validate_report_uuid(uuid)
+    res = client._get("/api/client/statistics/" + safe_uuid, {})
+    return res if isinstance(res, dict) else {}
+
+
+def download_sku_report(client: Any, uuid: str) -> dict[str, Any]:
+    safe_uuid = _validate_report_uuid(uuid)
+    res = client._get("/api/client/statistics/report", {"UUID": safe_uuid})
+    return res if isinstance(res, dict) else {}
+
+
+def group_campaigns_into_batches(
+    campaign_ids: list[str], batch_size: int = 10
+) -> list[list[str]]:
+    return [campaign_ids[i : i + batch_size] for i in range(0, len(campaign_ids), batch_size)]
+
+
+def request_sku_report(client: Any, campaigns: list[str], start: date, stop: date) -> str:
+    headers = {"Authorization": "Bearer " + client._access_token(), "Accept": "application/json"}
+    job = client.http.post(
+        "/api/client/statistics/json",
+        headers=headers,
+        json={
+            "campaigns": campaigns,
+            "dateFrom": start.isoformat(),
+            "dateTo": stop.isoformat(),
+            "groupBy": "DATE",
+        },
+    )
+    uuid = job.get("UUID") if isinstance(job, dict) else None
+    if not uuid:
+        raise ValueError("Performance did not return a report UUID")
+    return _validate_report_uuid(uuid)
+
+
+def parse_sku_report_payload(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Flatten Ozon Performance report structure into row dictionaries."""
+    rows: list[dict[str, Any]] = []
+    for campaign_id, block in data.items():
+        if not isinstance(block, dict):
+            continue
+        report = block.get("report")
+        if not isinstance(report, dict):
+            continue
+        for row in report.get("rows") or []:
+            if not isinstance(row, dict):
+                continue
+            sku_raw = str(row.get("sku") or "")
+            if not sku_raw.isdigit() or int(sku_raw) <= 0:
+                continue
+            rows.append({**row, "campaign_id": str(campaign_id), "sku": int(sku_raw)})
+    return rows
+
+
+def rows_to_clickhouse_tuples(
+    rows: list[dict[str, Any]],
+    *,
+    run_id: str,
+    account_id: str,
+) -> list[tuple[Any, ...]]:
+    """Convert parsed rows to tuples matching raw_ozon_sku_ad_reports schema."""
+    tuples: list[tuple[Any, ...]] = []
+    for r in rows:
+        day_raw = r.get("date")
+        if isinstance(day_raw, str):
+            try:
+                day = datetime.strptime(day_raw, "%d.%m.%Y").date()
+            except ValueError:
+                day = date.fromisoformat(day_raw[:10])
+        elif isinstance(day_raw, (date, datetime)):
+            day = day_raw if isinstance(day_raw, date) else day_raw.date()
+        else:
+            continue
+        sku = int(r.get("sku") or 0)
+        if sku <= 0:
+            continue
+        cost = float(decimal_value(r.get("moneySpent") or r.get("cost") or 0))
+        impressions = int(r.get("views") or r.get("impressions") or 0)
+        clicks = int(r.get("clicks") or 0)
+        orders = int(r.get("orders") or 0)
+        revenue = float(decimal_value(r.get("orders_money") or r.get("revenue") or 0))
+        tuples.append(
+            (
+                run_id,
+                account_id,
+                day,
+                str(r.get("campaign_id") or ""),
+                sku,
+                str(r.get("offer_id") or ""),
+                str(r.get("title") or ""),
+                impressions,
+                clicks,
+                cost,
+                orders,
+                revenue,
+                json.dumps(r, ensure_ascii=False),
+            )
+        )
+    return tuples
 
 
 def report_is_fresh(updated_at: datetime, today: date) -> bool:
@@ -138,6 +250,7 @@ def fetch_report(
         uuid = job.get("UUID") if isinstance(job, dict) else None
     if not uuid:
         raise ValueError("Performance did not return a report UUID")
+    uuid = _validate_report_uuid(uuid)
     if ch is not None:
         save_job_state(
             ch,
@@ -151,11 +264,11 @@ def fetch_report(
         on_created(uuid)
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        state_response = client._get("/api/client/statistics/" + uuid, {})
+        state_response = check_sku_report_status(client, uuid)
         state_val = state_response.get("state") if isinstance(state_response, dict) else ""
         state_upper = str(state_val or "").upper()
         if state_upper == "OK":
-            data = client._get("/api/client/statistics/report", {"UUID": uuid})
+            data = download_sku_report(client, uuid)
             if ch is not None:
                 save_job_state(
                     ch,

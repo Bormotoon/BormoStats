@@ -29,13 +29,13 @@ def cis_adjustments(ch: Any, account_id: str, start: date, stop: date) -> dict[s
         snapshots = list(ch.query(cis_sql, parameters=params).named_results())
 
     if not snapshots:
-        daily_sql = (
-            "SELECT day, payload FROM raw_ozon_buyouts_daily FINAL"
+        cis_fallback_sql = (
+            "SELECT day, payload FROM raw_ozon_cis_buyouts FINAL"
             " WHERE account_id={aid:String}"
             " AND day BETWEEN {start:Date} AND {stop:Date} ORDER BY day"
         )
         with contextlib.suppress(Exception):
-            snapshots = list(ch.query(daily_sql, parameters=params).named_results())
+            snapshots = list(ch.query(cis_fallback_sql, parameters=params).named_results())
 
     if not snapshots:
         return {}
