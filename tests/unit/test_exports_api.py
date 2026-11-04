@@ -97,3 +97,19 @@ def test_download_before_completion_is_conflict(ch: FakeClickHouse) -> None:
 def test_export_path_rejects_traversal() -> None:
     with pytest.raises(ValueError):
         export_path("org-a", "../../etc/passwd")
+
+
+def test_stocks_current_export_redacts_costs_for_viewer_and_includes_for_manager() -> None:
+    from workers.app.tasks.exports import build_query_parameters
+
+    params_viewer = build_query_parameters(
+        "stocks_current", "org-a", {"date_from": "2026-01-01", "date_to": "2026-01-31"}
+    )
+    assert params_viewer["include_costs"] == 0
+
+    params_mgr = build_query_parameters(
+        "stocks_current",
+        "org-a",
+        {"date_from": "2026-01-01", "date_to": "2026-01-31", "include_costs": True},
+    )
+    assert params_mgr["include_costs"] == 1

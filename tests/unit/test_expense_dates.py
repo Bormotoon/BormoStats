@@ -103,6 +103,18 @@ class ExpenseDatesTests(unittest.TestCase):
         single = svc.build(date(2026, 9, 15), date(2026, 9, 15))["items"][0]
         self.assertEqual(single, month[14])
 
+    def test_expense_validation_limits(self):
+        with self.assertRaises(ValidationError):
+            AdditionalExpenseUpdate(month="2026-00")
+        with self.assertRaises(ValidationError):
+            AdditionalExpenseUpdate(month="2026-13")
+        with self.assertRaises(ValidationError):
+            AdditionalExpenseUpdate(category="")
+        with self.assertRaises(ValidationError):
+            AdditionalExpenseCreate(month="2026-03", category="Аренда", amount_rub=float("inf"))
+        with self.assertRaises(ValidationError):
+            AdditionalExpenseCreate(month="2026-03", category="Аренда", amount_rub=1e20)
+
 
 if __name__ == "__main__":
     unittest.main()

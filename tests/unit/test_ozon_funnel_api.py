@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from datetime import date
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -8,11 +10,13 @@ from app.api.v1.funnel import (
     OzonFunnelImport,
     OzonFunnelRow,
     ozon_funnel,
+    ozon_funnel_finance,
     ozon_funnel_related,
 )
 from app.core.auth import ROLE_SCOPES, AuthContext, AuthMethod
 from app.models.api import DateRangeQueryParams
 from app.models.organization import OrgMemberRole
+from pydantic import ValidationError
 
 
 def test_ozon_funnel_pagination_order_deterministic() -> None:
@@ -103,3 +107,148 @@ def test_ozon_funnel_import_uniqueness_validation() -> None:
     )
     with pytest.raises(ValueError, match="Повторяются строки"):
         OzonFunnelImport(account_id="acc1", rows=[row1, row2])
+
+
+def _sample_finance_payload() -> str:
+    return json.dumps(
+        {
+            "date": "2026-10-05T00:00:00",
+            "posting": {
+                "products": [
+                    {
+                        "sku": 100,
+                        "quantity": 1,
+                        "commission": {
+                            "sale_amount": {"amount": "1000"},
+                            "sale_price": {"amount": "800"},
+                            "commission": {"amount": "-150"},
+                        },
+                    }
+                ]
+            },
+        }
+    )
+
+
+def test_ozon_funnel_finance_redacts_sensitive_fields_for_viewer() -> None:
+    client = MagicMock()
+
+    def mock_query(sql: str, parameters: dict[str, Any] | None = None) -> Any:
+        res = MagicMock()
+        if "raw_ozon_finance_ops" in sql:
+            res.result_rows = [("acc1", _sample_finance_payload())]
+        elif "dim_additional_expense" in sql:
+            res.result_rows = [(1,)]
+        else:
+            res.result_rows = []
+        return res
+
+    client.query.side_effect = mock_query
+    auth = AuthContext(
+        principal_id="viewer1",
+        organization_id="org1",
+        role=OrgMemberRole.viewer,
+        auth_method=AuthMethod.user_key,
+        scopes=ROLE_SCOPES[OrgMemberRole.viewer],
+    )
+    filters = DateRangeQueryParams(
+        date_from=date(2026, 10, 1),
+        date_to=date(2026, 10, 7),
+        marketplace="ozon",
+        account_id="acc1",
+        limit=10,
+        offset=0,
+    )
+    out = ozon_funnel_finance(auth=auth, client=client, filters=filters)
+    assert out["external"] is None
+    assert out["tax_rate"] is None
+    assert len(out["daily"]) > 0
+    for r in out["daily"]:
+        assert r["revenue"] == 0.0
+        assert r["buyer"] == 0.0
+        assert r["mp_cost"] == 0.0
+        assert r["sold"] >= 1
+
+
+def test_ozon_funnel_finance_shows_sensitive_fields_for_manager(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PNL_TAX_RATE_PCT", "8")
+    monkeypatch.setenv("PNL_TAX_ACCOUNT_ID", "acc1")
+    client = MagicMock()
+
+    def mock_query(sql: str, parameters: dict[str, Any] | None = None) -> Any:
+        res = MagicMock()
+        if "raw_ozon_finance_ops" in sql:
+            res.result_rows = [("acc1", _sample_finance_payload())]
+        elif "dim_additional_expense" in sql:
+            res.result_rows = [(1,)]
+        else:
+            res.result_rows = []
+        return res
+
+    client.query.side_effect = mock_query
+    auth = AuthContext(
+        principal_id="mgr1",
+        organization_id="org1",
+        role=OrgMemberRole.manager,
+        auth_method=AuthMethod.user_key,
+        scopes=ROLE_SCOPES[OrgMemberRole.manager],
+    )
+    filters = DateRangeQueryParams(
+        date_from=date(2026, 10, 1),
+        date_to=date(2026, 10, 7),
+        marketplace="ozon",
+        account_id="acc1",
+        limit=10,
+        offset=0,
+    )
+    out = ozon_funnel_finance(auth=auth, client=client, filters=filters)
+    assert out["external"] is not None and out["external"] > 0
+    assert out["tax_rate"] is not None and out["tax_rate"] > 0
+    assert len(out["daily"]) > 0
+    for r in out["daily"]:
+        assert r["revenue"] > 0.0
+        assert r["buyer"] > 0.0
+        assert r["mp_cost"] != 0.0
+
+
+def test_ozon_funnel_import_rejects_too_many_partitions() -> None:
+    rows = [
+        OzonFunnelRow(
+            day=date(2020 + i // 12, (i % 12) + 1, 1),
+            sku=f"100{i}",
+            scheme="fbo",
+            position=1.0,
+            impressions=10,
+            search_impressions=5,
+            clicks=2,
+            carts=1,
+        )
+        for i in range(25)
+    ]
+    with pytest.raises(ValidationError, match="monthly partitions"):
+        OzonFunnelImport(account_id="acc1", rows=rows)
+
+
+def test_ozon_funnel_import_rejects_out_of_range_date() -> None:
+    with pytest.raises(ValidationError):
+        OzonFunnelRow(
+            day=date(1999, 1, 1),
+            sku="123",
+            position=1.0,
+            impressions=10,
+            search_impressions=5,
+            clicks=2,
+            carts=1,
+        )
+    with pytest.raises(ValidationError):
+        OzonFunnelRow(
+            day=date(2101, 1, 1),
+            sku="123",
+            position=1.0,
+            impressions=10,
+            search_impressions=5,
+            clicks=2,
+            carts=1,
+        )
