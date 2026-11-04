@@ -25,3 +25,4 @@ test("buyerCardUrl validates IDs and encodes parameters", () => {
   assert.equal(buyerCardUrl("ozon", "bad_sku"), null);
   assert.equal(buyerCardUrl("ym", "SKU-100"), "https://market.yandex.ru/search?text=SKU-100");
 });
+
