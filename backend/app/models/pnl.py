@@ -19,7 +19,7 @@ class AdditionalExpense(BaseModel):
 
 class AdditionalExpenseCreate(BaseModel):
     category: str = Field(min_length=1, max_length=100)
-    amount_rub: float = Field(ge=0)
+    amount_rub: float = Field(ge=0, le=1_000_000_000_000, allow_inf_nan=False)
     month: str | None = Field(default=None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
     expense_date: date | None = Field(default=None, ge=date(1970, 1, 1), le=date(2149, 6, 6))
     description: str = Field(default="", max_length=500)
@@ -37,9 +37,9 @@ class AdditionalExpenseCreate(BaseModel):
 
 
 class AdditionalExpenseUpdate(BaseModel):
-    category: str | None = Field(default=None, max_length=100)
-    amount_rub: float | None = Field(default=None, ge=0)
-    month: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}$")
+    category: str | None = Field(default=None, min_length=1, max_length=100)
+    amount_rub: float | None = Field(default=None, ge=0, le=1_000_000_000_000, allow_inf_nan=False)
+    month: str | None = Field(default=None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
     expense_date: date | None = Field(default=None, ge=date(1970, 1, 1), le=date(2149, 6, 6))
     description: str | None = Field(default=None, max_length=500)
 
