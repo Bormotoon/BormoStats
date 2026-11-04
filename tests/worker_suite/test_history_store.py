@@ -393,7 +393,7 @@ def test_prune_is_unchanged_when_history_is_disabled(monkeypatch: pytest.MonkeyP
 
     report = maintenance.prune_old_raw(120)
 
-    assert len(ch.commands) == report["tables"] == 19
+    assert len(ch.commands) == report["tables"] == 23
 
 
 def test_retired_entities_get_one_deletion_commit_with_the_reason() -> None:

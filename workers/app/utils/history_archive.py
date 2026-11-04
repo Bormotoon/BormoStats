@@ -110,6 +110,22 @@ STAT_SPECS: dict[str, StatSpec] = {
         marketplace_column="marketplace",
         true_instants=True,
     ),
+    "raw_ozon_realization_reports": StatSpec("ozon", ("month", "row_number", "offer_id"), "month"),
+    "raw_ozon_sku_ad_reports": StatSpec("ozon", ("day", "campaign_id", "sku"), "day"),
+    "raw_ozon_cis_buyouts": StatSpec("ozon", ("day", "posting_number", "sku"), "day"),
+    "raw_ozon_campaigns": StatSpec("ozon", ("campaign_id",), "ingested_at"),
+    "raw_ozon_realization_reports": StatSpec(
+        "ozon", ("month", "row_number", "offer_id"), "month"
+    ),
+    "raw_ozon_sku_ad_reports": StatSpec(
+        "ozon", ("day", "campaign_id", "sku"), "day"
+    ),
+    "raw_ozon_cis_buyouts": StatSpec(
+        "ozon", ("day", "posting_number", "sku"), "day"
+    ),
+    "raw_ozon_campaigns": StatSpec(
+        "ozon", ("campaign_id",), "ingested_at"
+    ),
 }
 
 # Entities whose table changed its key: the old keys stay in the archive as history and are

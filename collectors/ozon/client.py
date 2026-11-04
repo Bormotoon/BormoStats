@@ -23,6 +23,16 @@ def _ozon_ts(value: datetime) -> str:
     return value.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+class _BuyoutHttpClient(JsonHttpClient):
+    def _retry_delay(self, response: httpx.Response, attempt: int) -> float | None:
+        if response.status_code == 429:
+            try:
+                return max(5.0, min(60.0, float(response.headers.get("Retry-After", "60"))))
+            except ValueError:
+                return 60.0
+        return super()._retry_delay(response, attempt)
+
+
 class OzonApiClient:
     def __init__(self, client_id: str, api_key: str) -> None:
         self.client_id = client_id
@@ -289,6 +299,31 @@ class OzonApiClient:
 
     # -- Finance --
 
+    def finance_buyouts(self, from_day: date, to_day: date) -> dict[str, Any]:
+        if not 0 <= (to_day - from_day).days < 31:
+            raise ValueError("Buyout report requires a period of at most 31 days")
+        # This report has a much stricter quota than ordinary finance methods.
+        with _BuyoutHttpClient(endpoints.BASE_URL, marketplace="ozon", max_attempts=12) as http:
+            payload = http.post(
+                "/v1/finance/products/buyout",
+                headers=self._headers(),
+                json={"date_from": from_day.isoformat(), "date_to": to_day.isoformat()},
+            )
+        if not isinstance(payload, dict) or not isinstance(payload.get("products"), list):
+            raise ValueError("Buyout report is unavailable")
+        return payload
+
+    def finance_realization(self, year: int, month: int) -> dict[str, Any]:
+        """Monthly closed realization report (one response, no pagination)."""
+        payload = self.http.post(
+            endpoints.FINANCE_REALIZATION_PATH,
+            headers=self._headers(),
+            json={"year": year, "month": month},
+        )
+        if not isinstance(payload, dict):
+            raise ValueError("Invalid realization response")
+        return payload
+
     def finance_accrual_types(self) -> dict[int, str]:
         """Accrual type dictionary ``{type_id: name}``."""
         payload = self.http.post(
@@ -417,3 +452,15 @@ class OzonPerformanceClient:
         if isinstance(payload, dict):
             return _dict_items(payload.get("rows"))
         return _dict_items(payload)
+
+    def campaigns(self) -> list[dict[str, Any]]:
+        """Campaign type, placement and bid strategy from Performance metadata."""
+        payload = self._get(endpoints.PERFORMANCE_CAMPAIGNS_PATH, {})
+        if not isinstance(payload, dict) or not isinstance(payload.get("list"), list):
+            raise ValueError("Performance campaign metadata response has no list")
+        records = _dict_items(payload["list"])
+        total_raw = payload.get("total")
+        total = int(total_raw) if total_raw is not None else len(records)
+        if total > len(records):
+            raise ValueError("Performance returned an incomplete campaign list")
+        return records

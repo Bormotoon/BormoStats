@@ -35,11 +35,13 @@ FINANCE_ACCRUAL_MAX_PAGES_PER_DAY = 500
 # the seller's balance for a period: opening/closing balance, accrued, payouts and the
 # sales/returns/services breakdown the seller cabinet shows (the day is a Moscow day)
 FINANCE_BALANCE_PATH = "/v1/finance/balance"
+FINANCE_REALIZATION_PATH = "/v2/finance/realization"
 
 # Performance API (ads): separate host with OAuth client-credentials tokens
 PERFORMANCE_BASE_URL = "https://api-performance.ozon.ru"
 PERFORMANCE_TOKEN_PATH = "/api/client/token"
 PERFORMANCE_DAILY_STATS_PATH = "/api/client/statistics/daily/json"
+PERFORMANCE_CAMPAIGNS_PATH = "/api/client/campaign"
 
 # Catalogue (history store)
 PRODUCT_LIST_PATH = "/v3/product/list"  # last_id pagination
