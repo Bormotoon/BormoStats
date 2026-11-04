@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 from datetime import date, timedelta
 from typing import Any
@@ -56,8 +57,12 @@ def funnel_daily(
     )
 
 
+MAX_IMPORT_PARTITIONS = 24
+IMPORT_BATCH_SIZE = 5000
+
+
 class OzonFunnelRow(BaseModel):
-    day: date
+    day: date = Field(ge=date(2015, 1, 1), le=date(2100, 1, 1))
     sku: str = Field(min_length=1, max_length=40, pattern=r"^[0-9]+$")
     scheme: str = Field(default="", max_length=40)
     offer_id: str = Field(default="", max_length=300)
@@ -71,13 +76,18 @@ class OzonFunnelRow(BaseModel):
 
 class OzonFunnelImport(BaseModel):
     account_id: str = Field(min_length=1, max_length=64)
-    rows: list[OzonFunnelRow] = Field(min_length=1, max_length=200000)
+    rows: list[OzonFunnelRow] = Field(min_length=1, max_length=25000)
 
     @model_validator(mode="after")
     def unique_rows(self) -> OzonFunnelImport:
         keys = [(r.day, r.sku, r.scheme) for r in self.rows]
         if len(keys) != len(set(keys)):
             raise ValueError("Повторяются строки с одинаковыми датой, SKU и схемой работы")
+        partitions = {(r.day.year, r.day.month) for r in self.rows}
+        if len(partitions) > MAX_IMPORT_PARTITIONS:
+            n_part = len(partitions)
+            msg = f"import batch spans {n_part} monthly partitions (max {MAX_IMPORT_PARTITIONS})"
+            raise ValueError(msg)
         return self
 
 
@@ -104,26 +114,28 @@ def import_ozon_funnel(
         "clicks",
         "carts",
     ]
-    client.insert(
-        "raw_ozon_funnel_import",
+    data = [
         [
-            [
-                payload.account_id,
-                r.day,
-                r.sku,
-                r.scheme,
-                r.offer_id,
-                r.title,
-                r.position,
-                r.impressions,
-                r.search_impressions,
-                r.clicks,
-                r.carts,
-            ]
-            for r in payload.rows
-        ],
-        column_names=cols,
-    )
+            payload.account_id,
+            r.day,
+            r.sku,
+            r.scheme,
+            r.offer_id,
+            r.title,
+            r.position,
+            r.impressions,
+            r.search_impressions,
+            r.clicks,
+            r.carts,
+        ]
+        for r in payload.rows
+    ]
+    for idx in range(0, len(data), IMPORT_BATCH_SIZE):
+        client.insert(
+            "raw_ozon_funnel_import",
+            data[idx : idx + IMPORT_BATCH_SIZE],
+            column_names=cols,
+        )
     return {"imported": len(payload.rows)}
 
 
@@ -261,7 +273,8 @@ def ozon_funnel_related(
             toDate(%(date_from)s)
       {cost_union}
       UNION ALL
-      SELECT 'ads' AS kind, day, account_id, sku, 0. AS qty, toFloat64(cost) AS amount
+      SELECT 'ads' AS kind, day, account_id, toString(sku) AS sku,
+             0. AS qty, toFloat64(cost) AS amount
       FROM raw_ozon_sku_ad_reports FINAL
       WHERE account_id IN scoped AND day BETWEEN %(date_from)s AND %(date_to)s
       UNION ALL
@@ -289,6 +302,22 @@ def ozon_funnel_related(
     )
 
 
+def _safe_tax_rate(auth: AnalyticsReadAuth, filters: DateRangeQueryParams) -> float | None:
+    tax_account = os.getenv("PNL_TAX_ACCOUNT_ID", "default").strip() or "default"
+    if filters.account_id and filters.account_id != tax_account:
+        return None
+    raw = os.getenv("PNL_TAX_RATE_PCT", "").strip()
+    if not raw:
+        return None
+    try:
+        rate = float(raw)
+    except ValueError:
+        return None
+    if not math.isfinite(rate) or rate < 0.0 or rate > 100.0:
+        return None
+    return rate / 100.0 if rate > 1.0 else rate
+
+
 @router.get("/ozon/finance")
 def ozon_funnel_finance(
     auth: AnalyticsReadAuth,
@@ -296,6 +325,7 @@ def ozon_funnel_finance(
     filters: DateRangeQueryParams = Depends(get_date_range_query_params),
 ) -> dict[str, object]:
     """Finance events by realization day, never by the posting's order day."""
+    can_view_finance = auth.allows(OrgMemberRole.manager)
     params: dict[str, Any] = {
         "org": auth.organization_id,
         "account": filters.account_id,
@@ -319,18 +349,34 @@ def ozon_funnel_finance(
     )
     buyouts = client.query(buyouts_sql, parameters=params).result_rows
     daily = finance_days(finance, buyouts)
+    if not can_view_finance:
+        filtered_daily = []
+        for r in daily:
+            if str(r.get("day", "")) >= str(filters.date_from):
+                r_copy = dict(r)
+                r_copy["revenue"] = 0.0
+                r_copy["buyer"] = 0.0
+                r_copy["mp_cost"] = 0.0
+                filtered_daily.append(r_copy)
+        daily = filtered_daily
+
     params["start"] = filters.date_from
     metadata_sql = (
-        f"SELECT account_id, campaign_id, effective_from, payload FROM raw_ozon_campaigns FINAL "
-        f"WHERE account_id IN ({scoped}) ORDER BY effective_from"
+        f"SELECT account_id, campaign_id, ingested_at, payload FROM raw_ozon_campaigns FINAL "
+        f"WHERE account_id IN ({scoped}) ORDER BY ingested_at"
     )
     metadata = client.query(metadata_sql, parameters=params).result_rows
     campaign_types: dict[tuple[str, str], list[tuple[str, dict[str, Any]]]] = {}
-    for account, campaign, effective, raw in metadata:
+    for account, campaign, ingested_at, raw in metadata:
+        info = json.loads(raw) if raw else {}
+        eff_raw = str(
+            info.get("effectiveFrom") or info.get("fromDate") or info.get("createdAt") or ""
+        )[:10]
+        eff_day = eff_raw if len(eff_raw) == 10 else str(ingested_at)[:10]
         campaign_types.setdefault((account, campaign), []).append(
             (
-                effective.date().isoformat(),
-                json.loads(raw),
+                eff_day,
+                info,
             )
         )
     ad_rows = client.query(
@@ -348,7 +394,7 @@ def ozon_funnel_finance(
             dict(
                 account_id=a,
                 day=str(d),
-                sku=s,
+                sku=str(s),
                 campaign_id=c,
                 amount=float(cost),
                 kind=campaign_kind(record),
@@ -379,25 +425,26 @@ def ozon_funnel_finance(
         parameters=params,
     ).result_rows
     stock_start = stock_start_res[0][0] if stock_start_res else None
-    external_res = client.query(
-        "SELECT count() FROM dim_additional_expense FINAL WHERE organization_id=%(org)s "
-        "AND month BETWEEN toStartOfMonth(toDate(%(start)s)) AND toStartOfMonth(toDate(%(stop)s)) "
-        "AND amount_rub!=0",
-        parameters=params,
-    ).result_rows
-    external = external_res[0][0] if external_res else 0
-    tax_rate = (
-        float(os.getenv("PNL_TAX_RATE_PCT", "8")) / 100
-        if os.getenv("PNL_REALIZATION_TAX_ENABLED", "false").lower() == "true"
-        and auth.organization_id == os.getenv("PNL_TAX_ORGANIZATION_ID", "default")
-        else None
-    )
+
+    external: int | None = None
+    tax_rate: float | None = None
+    if can_view_finance:
+        ext_sql = (
+            "SELECT count() FROM dim_additional_expense FINAL WHERE organization_id=%(org)s "
+            "AND month BETWEEN toStartOfMonth(toDate(%(start)s)) "
+            "AND toStartOfMonth(toDate(%(stop)s)) "
+            "AND amount_rub!=0"
+        )
+        external_res = client.query(ext_sql, parameters=params).result_rows
+        external = int(external_res[0][0]) if external_res else 0
+        tax_rate = _safe_tax_rate(auth, filters)
+
     return {
         "daily": daily,
         "stocks": stock_rows,
         "stock_start": str(stock_start) if stock_start else None,
         "advertising": advertising,
-        "external": None if external else 0,
+        "external": external,
         "tax_rate": tax_rate,
         "notes": [
             "Выкупы и возвраты — по дате финансового события; отчёт СНГ учитывается без повторов.",

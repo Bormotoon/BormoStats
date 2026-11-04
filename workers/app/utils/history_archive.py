@@ -114,7 +114,14 @@ STAT_SPECS: dict[str, StatSpec] = {
     "raw_ozon_sku_ad_reports": StatSpec("ozon", ("day", "campaign_id", "sku"), "day"),
     "raw_ozon_cis_buyouts": StatSpec("ozon", ("day", "posting_number", "sku"), "day"),
     "raw_ozon_campaigns": StatSpec("ozon", ("campaign_id",), "ingested_at"),
-    "raw_ozon_funnel_import": StatSpec("ozon", ("day", "sku", "scheme"), "day"),
+    "raw_ozon_funnel_import": StatSpec(
+        "ozon",
+        ("day", "sku", "scheme"),
+        "day",
+        volatile=("imported_at",),
+        observed_column="imported_at",
+        true_instants=True,
+    ),
 }
 
 # Entities whose table changed its key: the old keys stay in the archive as history and are

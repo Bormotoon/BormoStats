@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from collections.abc import Iterable
-from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -25,27 +24,34 @@ def campaign_kind(payload: dict[str, Any]) -> str | None:
 
 
 def campaign_metadata_rows(
-    account: str, campaigns: Iterable[dict[str, Any]], fetched_at: datetime | None = None
-) -> list[list[Any]]:
-    now_utc = fetched_at or datetime.now(UTC)
-    result: list[list[Any]] = []
-    for record in campaigns:
-        effective_str = record.get("updatedAt") or record.get("createdAt")
-        effective = (
-            datetime.fromisoformat(effective_str.replace("Z", "+00:00"))
-            if effective_str
-            else now_utc
+    records: list[dict[str, Any]],
+    *,
+    run_id: str,
+    account_id: str,
+) -> list[tuple[Any, ...]]:
+    """Build ClickHouse tuples for ``raw_ozon_campaigns``."""
+    rows: list[tuple[Any, ...]] = []
+    for item in records:
+        cid = str(item.get("id") or item.get("campaignId") or "").strip()
+        if not cid:
+            continue
+        try:
+            daily_budget = float(item.get("dailyBudget") or item.get("budget") or 0.0)
+        except (TypeError, ValueError):
+            daily_budget = 0.0
+        rows.append(
+            (
+                run_id,
+                account_id,
+                cid,
+                str(item.get("title") or item.get("name") or ""),
+                str(item.get("state") or item.get("status") or ""),
+                str(item.get("advObjectType") or item.get("campaignType") or ""),
+                daily_budget,
+                json.dumps(item, ensure_ascii=False),
+            )
         )
-        result.append(
-            [
-                account,
-                str(record["id"]),
-                effective,
-                json.dumps(record, ensure_ascii=False),
-                now_utc,
-            ]
-        )
-    return result
+    return rows
 
 
 def finance_days(
