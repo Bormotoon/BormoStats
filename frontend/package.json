@@ -12,17 +12,17 @@
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
-    "motion": "^14.6.0",
+    "motion": "^14.9.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "react-router-dom": "^7.18.4",
+    "react-router-dom": "^7.18.5",
     "recharts": "^3.10.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@vitejs/plugin-react": "^6.1.2",
-    "postcss": "^8.5.31",
+    "postcss": "^8.5.32",
     "tailwindcss": "^4.3.3",
     "vite": "^8.3.5"
   }
