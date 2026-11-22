@@ -20,3 +20,59 @@ ignore:
       name: python
       type: binary
       location: /usr/local/bin/python3.14
+  - vulnerability: CVE-2026-119170
+    reason: >-
+      CPython 3.14.10 hashlib FIPS enforcement regression; fixed in 3.14.11 (unreleased);
+      BormoStats does not use OpenSSL in FIPS mode.
+    package:
+      name: python
+      type: binary
+      location: /usr/local/bin/python3.14
+  - vulnerability: CVE-2026-124249
+    reason: >-
+      CPython http.cookiejar cookie deletion policy (RFC 6265); fixed in 3.16.0;
+      BormoStats uses httpx rather than urllib cookiejar.
+    package:
+      name: python
+      type: binary
+      location: /usr/local/bin/python3.14
+  - vulnerability: CVE-2026-116566
+    reason: >-
+      CPython socket.getaddrinfo null bytes in host/port; fixed in 3.16.0;
+      BormoStats never passes null-byte hostnames.
+    package:
+      name: python
+      type: binary
+      location: /usr/local/bin/python3.14
+  - vulnerability: CVE-2026-115559
+    reason: >-
+      CPython imaplib STARTTLS buffer injection; fixed in 3.16.0;
+      BormoStats does not use IMAP.
+    package:
+      name: python
+      type: binary
+      location: /usr/local/bin/python3.14
+  - vulnerability: CVE-2026-115791
+    reason: >-
+      CPython tarfile/zipfile CLI sys.path script execution; fixed in 3.16.0;
+      BormoStats does not invoke the python -m tarfile/zipfile CLI.
+    package:
+      name: python
+      type: binary
+      location: /usr/local/bin/python3.14
+  - vulnerability: CVE-2026-16052
+    reason: >-
+      CPython http.cookies Morsel semicolon handling; fixed in 3.16.0;
+      BormoStats does not use http.cookies Morsel.
+    package:
+      name: python
+      type: binary
+      location: /usr/local/bin/python3.14
+  - vulnerability: CVE-2026-19552
+    reason: >-
+      CPython ssl.get_server_certificate ca_certs verification; fixed in 3.16.0;
+      BormoStats uses httpx/urllib3 with proper SSL context.
+    package:
+      name: python
+      type: binary
+      location: /usr/local/bin/python3.14

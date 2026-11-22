@@ -41,3 +41,7 @@ opencode.json
 # Local backups and reports
 backups/
 playwright-report/
+
+# Marketing / SMM artifacts
+docs/marketing/
+

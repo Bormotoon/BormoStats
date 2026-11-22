@@ -19,7 +19,7 @@ x-app-runtime: &app-runtime
 
 services:
   proxy:
-    image: nginx:1.31.8-alpine@sha256:785835ea65db4bba6f021acc0f3be91b0fef76a53fe41f8588c6698d2aed0606
+    image: nginx:1.31.8-alpine@sha256:713fc2ebfd92e8217db451477182ee91944b123d2b1ee9fd5a8c6e91ca6c3a11
     restart: unless-stopped
     logging: *default-logging
     init: true
@@ -63,7 +63,7 @@ services:
   clickhouse:
     # 26.3 LTS: newer ClickHouse builds need AVX2 (x86-64-v3), which the production host
     # (Intel i7-3770) lacks; 26.8 dies with "Illegal instruction". See .github/dependabot.yml.
-    image: clickhouse/clickhouse-server:26.3.62.3@sha256:de3e47c64078aa196dae2349e048fc98ba81947f651f5c20e06e46baea8ae40a
+    image: clickhouse/clickhouse-server:26.3.65.10@sha256:91bf1e089470d9bd2503a94ca4b76815de20df6a849eecfb259ad8e8c48a166d
     restart: unless-stopped
     logging: *default-logging
     ports:
@@ -98,7 +98,7 @@ services:
       - private
 
   redis:
-    image: redis:8.10.2@sha256:97ec88159e6d7cfb5ddef9015386087d58a912de80112f06ebdfa78fa5989901
+    image: redis:8.10.3@sha256:1f88291b4c57bdf249f02eb085a8669889b2d2954e91d4de5118a5da6b78dd53
     restart: unless-stopped
     logging: *default-logging
     environment:
